@@ -5,6 +5,7 @@ const KEYS = {
   grid: "cursor-agents-grid",
   repos: "cursor-agents-repos",
   reposTimestamp: "cursor-agents-repos-ts",
+  drafts: "cursor-agents-drafts",
 } as const;
 
 export function getApiKey(): string | null {
@@ -73,4 +74,29 @@ export function setCachedRepos(repos: Repository[]): void {
 export function clearCachedRepos(): void {
   localStorage.removeItem(KEYS.repos);
   localStorage.removeItem(KEYS.reposTimestamp);
+}
+
+function getDraftsMap(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const raw = localStorage.getItem(KEYS.drafts);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+export function getDraft(agentId: string): string {
+  return getDraftsMap()[agentId] ?? "";
+}
+
+export function setDraft(agentId: string, text: string): void {
+  const drafts = getDraftsMap();
+  if (text) {
+    drafts[agentId] = text;
+  } else {
+    delete drafts[agentId];
+  }
+  localStorage.setItem(KEYS.drafts, JSON.stringify(drafts));
 }

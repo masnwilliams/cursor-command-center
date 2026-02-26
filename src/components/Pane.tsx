@@ -23,6 +23,7 @@ function repoShort(agent: Agent): string {
 export function Pane({ agent, focused, onFocus, onClose }: PaneProps) {
   const { data: convo } = useConversation(agent.id);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const isActive = agent.status === "RUNNING" || agent.status === "CREATING";
 
   useEffect(() => {
@@ -30,6 +31,19 @@ export function Pane({ agent, focused, onFocus, onClose }: PaneProps) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [convo?.messages?.length]);
+
+  useEffect(() => {
+    if (!focused) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (document.activeElement === inputRef.current) return;
+      if (e.key.length === 1) {
+        inputRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [focused]);
 
   async function handleFollowUp(text: string) {
     await sendFollowUp(agent.id, { prompt: { text } });
@@ -152,6 +166,8 @@ export function Pane({ agent, focused, onFocus, onClose }: PaneProps) {
       {/* Follow-up */}
       <div className="shrink-0 border-t border-zinc-800 px-2 py-2">
         <FollowUpInput
+          ref={inputRef}
+          agentId={agent.id}
           onSend={handleFollowUp}
           disabled={agent.status === "CREATING"}
         />

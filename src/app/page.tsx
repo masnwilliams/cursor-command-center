@@ -110,8 +110,8 @@ export default function DashboardPage() {
         return;
       }
 
-      // Cmd+A — add existing agent
-      if (e.key === "a" && mod) {
+      // Cmd+Shift+A — add existing agent
+      if (e.key === "a" && mod && e.shiftKey) {
         e.preventDefault();
         setShowLaunch(false);
         setShowAdd(true);
@@ -125,12 +125,11 @@ export default function DashboardPage() {
         return;
       }
 
-      // Cmd+O — open PR (or Cursor agent URL) for focused pane
+      // Cmd+O — open PR for focused pane
       if (e.key === "o" && mod && focusedId) {
         e.preventDefault();
         const agent = agentMap.get(focusedId);
-        const url = agent?.target.prUrl || agent?.target.url;
-        if (url) window.open(url, "_blank");
+        if (agent?.target.prUrl) window.open(agent.target.prUrl, "_blank");
         return;
       }
 
@@ -205,7 +204,7 @@ export default function DashboardPage() {
               onClick={() => setShowAdd(true)}
               className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
             >
-              [⌘A add]
+              [⌘⇧A add]
             </button>
             <button
               onClick={() => router.push("/setup")}
@@ -229,7 +228,7 @@ export default function DashboardPage() {
                 onClick={() => setShowAdd(true)}
                 className="text-xs text-zinc-500 hover:text-zinc-200 font-mono border border-zinc-800 px-3 py-1.5 hover:border-zinc-600 transition-colors"
               >
-                ⌘A add existing
+                ⌘⇧A add existing
               </button>
               <button
                 onClick={() => setShowLaunch(true)}
@@ -333,7 +332,7 @@ export default function DashboardPage() {
             onClick={() => setShowAdd(true)}
             className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
           >
-            [⌘A add]
+            [⌘⇧A add]
           </button>
           {focusedId && (
             <button
