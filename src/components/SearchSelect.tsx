@@ -11,25 +11,47 @@ interface SearchSelectProps {
   allowCustom?: boolean;
 }
 
-export function SearchSelect({ value, onChange, options, placeholder = "select...", loading, allowCustom }: SearchSelectProps) {
+export function SearchSelect({
+  value,
+  onChange,
+  options,
+  placeholder = "select...",
+  loading,
+  allowCustom,
+}: SearchSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [highlightIdx, setHighlightIdx] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const filtered = options.filter((o) =>
-    o.label.toLowerCase().includes(query.toLowerCase())
+    o.label.toLowerCase().includes(query.toLowerCase()),
   );
 
-  const selectedLabel = options.find((o) => o.value === value)?.label ?? (value || undefined);
+  const hasCustomOption =
+    allowCustom && query && !filtered.some((o) => o.value === query);
+  const totalItems = (hasCustomOption ? 1 : 0) + filtered.length;
+
+  const selectedLabel =
+    options.find((o) => o.value === value)?.label ?? (value || undefined);
 
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
+    setHighlightIdx(-1);
   }, [open]);
 
   useEffect(() => {
+    setHighlightIdx(-1);
+  }, [query]);
+
+  useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         if (allowCustom && query && !filtered.some((o) => o.value === query)) {
           onChange(query);
         }
@@ -46,6 +68,55 @@ export function SearchSelect({ value, onChange, options, placeholder = "select..
     setOpen(false);
     setQuery("");
   }
+
+  function selectHighlighted() {
+    if (highlightIdx < 0) {
+      if (filtered.length === 1) handleSelect(filtered[0].value);
+      else if (allowCustom && query) handleSelect(query);
+      return;
+    }
+    if (hasCustomOption && highlightIdx === 0) {
+      handleSelect(query);
+      return;
+    }
+    const idx = hasCustomOption ? highlightIdx - 1 : highlightIdx;
+    if (idx >= 0 && idx < filtered.length) handleSelect(filtered[idx].value);
+  }
+
+  function scrollToHighlight(idx: number) {
+    if (!listRef.current) return;
+    const items = listRef.current.querySelectorAll("[data-item]");
+    items[idx]?.scrollIntoView({ block: "nearest" });
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      setOpen(false);
+      setQuery("");
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      selectHighlighted();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = Math.min(highlightIdx + 1, totalItems - 1);
+      setHighlightIdx(next);
+      scrollToHighlight(next);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = Math.max(highlightIdx - 1, -1);
+      setHighlightIdx(next);
+      if (next >= 0) scrollToHighlight(next);
+      return;
+    }
+  }
+
+  let itemIdx = 0;
 
   return (
     <div ref={containerRef} className="relative">
@@ -70,44 +141,52 @@ export function SearchSelect({ value, onChange, options, placeholder = "select..
               onChange={(e) => setQuery(e.target.value)}
               placeholder={allowCustom ? "search or type..." : "search..."}
               className="w-full bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono"
-              onKeyDown={(e) => {
-                if (e.key === "Escape") { setOpen(false); setQuery(""); }
-                if (e.key === "Enter") {
-                  if (filtered.length === 1) {
-                    handleSelect(filtered[0].value);
-                  } else if (allowCustom && query) {
-                    handleSelect(query);
-                  }
-                }
-              }}
+              onKeyDown={handleKeyDown}
             />
           </div>
-          <div className="overflow-y-auto flex-1">
+          <div ref={listRef} className="overflow-y-auto flex-1">
             {loading && (
-              <div className="px-2 py-2 text-[10px] text-zinc-600 font-mono">loading...</div>
+              <div className="px-2 py-2 text-[10px] text-zinc-600 font-mono">
+                loading...
+              </div>
             )}
             {!loading && filtered.length === 0 && !allowCustom && (
-              <div className="px-2 py-2 text-[10px] text-zinc-600 font-mono">no results</div>
+              <div className="px-2 py-2 text-[10px] text-zinc-600 font-mono">
+                no results
+              </div>
             )}
-            {allowCustom && query && !filtered.some((o) => o.value === query) && (
+            {hasCustomOption && (
               <button
+                data-item
                 onClick={() => handleSelect(query)}
-                className="w-full text-left px-2 py-1.5 text-xs font-mono hover:bg-zinc-800 text-blue-400 transition-colors"
+                className={`w-full text-left px-2 py-1.5 text-xs font-mono transition-colors ${
+                  highlightIdx === itemIdx++
+                    ? "bg-zinc-800 text-blue-400"
+                    : "text-blue-400 hover:bg-zinc-800"
+                }`}
               >
                 use &quot;{query}&quot;
               </button>
             )}
-            {filtered.map((o) => (
-              <button
-                key={o.value}
-                onClick={() => handleSelect(o.value)}
-                className={`w-full text-left px-2 py-1.5 text-xs font-mono hover:bg-zinc-800 transition-colors ${
-                  o.value === value ? "text-blue-400" : "text-zinc-300"
-                }`}
-              >
-                {o.label}
-              </button>
-            ))}
+            {filtered.map((o) => {
+              const idx = itemIdx++;
+              return (
+                <button
+                  data-item
+                  key={o.value}
+                  onClick={() => handleSelect(o.value)}
+                  className={`w-full text-left px-2 py-1.5 text-xs font-mono transition-colors ${
+                    highlightIdx === idx
+                      ? "bg-zinc-800 text-zinc-100"
+                      : o.value === value
+                        ? "text-blue-400 hover:bg-zinc-800"
+                        : "text-zinc-300 hover:bg-zinc-800"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

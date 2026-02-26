@@ -68,12 +68,8 @@ export default function SetupPage() {
             onKeyDown={(e) => e.key === "Enter" && handleTest()}
           />
 
-          {error && (
-            <p className="text-sm text-red-400">{error}</p>
-          )}
-          {success && (
-            <p className="text-sm text-emerald-400">{success}</p>
-          )}
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          {success && <p className="text-sm text-emerald-400">{success}</p>}
 
           <div className="flex gap-3">
             <button

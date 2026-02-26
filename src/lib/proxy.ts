@@ -5,7 +5,7 @@ const CURSOR_API = "https://api.cursor.com";
 export async function proxyToCursor(
   req: NextRequest,
   path: string,
-  options?: { method?: string; body?: unknown }
+  options?: { method?: string; body?: unknown },
 ): Promise<NextResponse> {
   const apiKey = req.headers.get("x-cursor-key");
   if (!apiKey) {

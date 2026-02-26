@@ -84,24 +84,40 @@ export function Pane({ agent, focused, onFocus, onClose }: PaneProps) {
         )}
         {isActive && (
           <button
-            onClick={(e) => { e.stopPropagation(); handleStop(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStop();
+            }}
             className="text-[10px] text-amber-500 hover:text-amber-300 shrink-0"
           >
             stop
           </button>
         )}
         <button
-          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           className="text-zinc-600 hover:text-zinc-300 shrink-0"
         >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+      >
         {convo?.messages?.length ? (
           <div className="divide-y divide-zinc-900">
             {convo.messages.map((msg) => (
@@ -135,7 +151,10 @@ export function Pane({ agent, focused, onFocus, onClose }: PaneProps) {
 
       {/* Follow-up */}
       <div className="shrink-0 border-t border-zinc-800 px-2 py-2">
-        <FollowUpInput onSend={handleFollowUp} disabled={agent.status === "CREATING"} />
+        <FollowUpInput
+          onSend={handleFollowUp}
+          disabled={agent.status === "CREATING"}
+        />
       </div>
     </div>
   );

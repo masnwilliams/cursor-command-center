@@ -31,7 +31,7 @@ export function useAgents(limit = 100) {
   return useSWR<AgentListResponse>(
     `/api/agents?limit=${limit}`,
     fetcher<AgentListResponse>,
-    { refreshInterval: 15_000 }
+    { refreshInterval: 15_000 },
   );
 }
 
@@ -47,7 +47,7 @@ export function useAgent(id: string | null) {
           ? 5_000
           : 0;
       },
-    }
+    },
   );
   return { data, ...rest };
 }
@@ -57,7 +57,7 @@ export function useConversation(id: string | null) {
   const { data, ...rest } = useSWR<ConversationResponse>(
     id ? `/api/agents/${id}/conversation` : null,
     fetcher<ConversationResponse>,
-    { refreshInterval: 10_000 }
+    { refreshInterval: 10_000 },
   );
   return { data, ...rest };
 }
@@ -88,7 +88,7 @@ export function useRepositories() {
       setCachedRepos(data.repositories);
       return data;
     },
-    { revalidateOnFocus: false, dedupingInterval: 300_000 }
+    { revalidateOnFocus: false, dedupingInterval: 300_000 },
   );
 }
 
@@ -97,7 +97,7 @@ export function useBranches(repoUrl: string | null) {
   return useSWR<{ branches: string[] }>(
     repoUrl ? `/api/branches?repo=${encodeURIComponent(repoUrl)}` : null,
     fetcher<{ branches: string[] }>,
-    { revalidateOnFocus: false, dedupingInterval: 300_000 }
+    { revalidateOnFocus: false, dedupingInterval: 300_000 },
   );
 }
 
@@ -116,7 +116,7 @@ export async function launchAgent(body: LaunchAgentRequest): Promise<Agent> {
 
 export async function sendFollowUp(
   id: string,
-  body: FollowUpRequest
+  body: FollowUpRequest,
 ): Promise<void> {
   const res = await fetch(`/api/agents/${id}/followup`, {
     method: "POST",

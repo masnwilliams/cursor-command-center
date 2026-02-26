@@ -151,7 +151,11 @@ export default function DashboardPage() {
 
       // Esc — unfocus pane / close modals
       if (e.key === "Escape") {
-        if (showReviewInput) { setShowReviewInput(false); setReviewPrUrl(""); return; }
+        if (showReviewInput) {
+          setShowReviewInput(false);
+          setReviewPrUrl("");
+          return;
+        }
         if (showAdd || showLaunch) return;
         setFocusedId(null);
       }
@@ -171,7 +175,9 @@ export default function DashboardPage() {
       <div className="h-dvh bg-zinc-950 flex flex-col">
         {/* Minimal bar */}
         <div className="flex items-center justify-between border-b border-zinc-800 px-2 py-1 bg-zinc-900/60">
-          <span className="text-[10px] text-zinc-500 font-mono">cursor-agents</span>
+          <span className="text-[10px] text-zinc-500 font-mono">
+            cursor-agents
+          </span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowReviewInput(true)}
@@ -228,7 +234,10 @@ export default function DashboardPage() {
           <AddAgentModal
             gridAgentIds={gridAgentIds}
             onAdd={handleAdd}
-            onLaunchNew={() => { setShowAdd(false); setShowLaunch(true); }}
+            onLaunchNew={() => {
+              setShowAdd(false);
+              setShowLaunch(true);
+            }}
             onClose={() => setShowAdd(false)}
           />
         )}
@@ -239,11 +248,26 @@ export default function DashboardPage() {
           />
         )}
         {showReviewInput && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => { if (!reviewLaunching) { setShowReviewInput(false); setReviewPrUrl(""); } }}>
-            <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md border border-zinc-800 bg-zinc-950">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+            onClick={() => {
+              if (!reviewLaunching) {
+                setShowReviewInput(false);
+                setReviewPrUrl("");
+              }
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md border border-zinc-800 bg-zinc-950"
+            >
               <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
-                <span className="text-xs text-zinc-300 font-mono">review pr</span>
-                <span className="text-[10px] text-zinc-600 font-mono ml-auto">{reviewLaunching ? "launching..." : "[esc]"}</span>
+                <span className="text-xs text-zinc-300 font-mono">
+                  review pr
+                </span>
+                <span className="text-[10px] text-zinc-600 font-mono ml-auto">
+                  {reviewLaunching ? "launching..." : "[esc]"}
+                </span>
               </div>
               <div className="px-3 py-3">
                 <input
@@ -251,8 +275,16 @@ export default function DashboardPage() {
                   value={reviewPrUrl}
                   onChange={(e) => setReviewPrUrl(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && reviewPrUrl.trim() && !reviewLaunching) launchReview(reviewPrUrl.trim());
-                    if (e.key === "Escape" && !reviewLaunching) { setShowReviewInput(false); setReviewPrUrl(""); }
+                    if (
+                      e.key === "Enter" &&
+                      reviewPrUrl.trim() &&
+                      !reviewLaunching
+                    )
+                      launchReview(reviewPrUrl.trim());
+                    if (e.key === "Escape" && !reviewLaunching) {
+                      setShowReviewInput(false);
+                      setReviewPrUrl("");
+                    }
                   }}
                   placeholder="paste pr url, hit enter"
                   autoFocus
@@ -311,13 +343,21 @@ export default function DashboardPage() {
       </div>
 
       {/* Pane grid */}
-      <div className={`flex-1 grid ${gridCols(paneCount)} auto-rows-fr min-h-0 overflow-hidden`}>
+      <div
+        className={`flex-1 grid ${gridCols(paneCount)} auto-rows-fr min-h-0 overflow-hidden`}
+      >
         {sorted.map((item) => {
           const agent = agentMap.get(item.agentId);
           if (!agent) {
             return (
-              <div key={item.agentId} className="flex items-center justify-center border-r border-b border-zinc-800 text-[10px] text-zinc-600 font-mono">
-                <button onClick={() => handleRemove(item.agentId)} className="hover:text-zinc-300">
+              <div
+                key={item.agentId}
+                className="flex items-center justify-center border-r border-b border-zinc-800 text-[10px] text-zinc-600 font-mono"
+              >
+                <button
+                  onClick={() => handleRemove(item.agentId)}
+                  className="hover:text-zinc-300"
+                >
                   {item.agentId.slice(0, 12)}… [remove]
                 </button>
               </div>
@@ -340,7 +380,10 @@ export default function DashboardPage() {
         <AddAgentModal
           gridAgentIds={gridAgentIds}
           onAdd={handleAdd}
-          onLaunchNew={() => { setShowAdd(false); setShowLaunch(true); }}
+          onLaunchNew={() => {
+            setShowAdd(false);
+            setShowLaunch(true);
+          }}
           onClose={() => setShowAdd(false)}
         />
       )}
@@ -351,11 +394,24 @@ export default function DashboardPage() {
         />
       )}
       {showReviewInput && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => { if (!reviewLaunching) { setShowReviewInput(false); setReviewPrUrl(""); } }}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md border border-zinc-800 bg-zinc-950">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+          onClick={() => {
+            if (!reviewLaunching) {
+              setShowReviewInput(false);
+              setReviewPrUrl("");
+            }
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md border border-zinc-800 bg-zinc-950"
+          >
             <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
               <span className="text-xs text-zinc-300 font-mono">review pr</span>
-              <span className="text-[10px] text-zinc-600 font-mono ml-auto">{reviewLaunching ? "launching..." : "[esc]"}</span>
+              <span className="text-[10px] text-zinc-600 font-mono ml-auto">
+                {reviewLaunching ? "launching..." : "[esc]"}
+              </span>
             </div>
             <div className="px-3 py-3">
               <input
@@ -363,8 +419,16 @@ export default function DashboardPage() {
                 value={reviewPrUrl}
                 onChange={(e) => setReviewPrUrl(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && reviewPrUrl.trim() && !reviewLaunching) launchReview(reviewPrUrl.trim());
-                  if (e.key === "Escape" && !reviewLaunching) { setShowReviewInput(false); setReviewPrUrl(""); }
+                  if (
+                    e.key === "Enter" &&
+                    reviewPrUrl.trim() &&
+                    !reviewLaunching
+                  )
+                    launchReview(reviewPrUrl.trim());
+                  if (e.key === "Escape" && !reviewLaunching) {
+                    setShowReviewInput(false);
+                    setReviewPrUrl("");
+                  }
                 }}
                 placeholder="paste pr url, hit enter"
                 autoFocus

@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useModels, useRepositories, useBranches, launchAgent } from "@/lib/api";
+import {
+  useModels,
+  useRepositories,
+  useBranches,
+  launchAgent,
+} from "@/lib/api";
 import type { Agent } from "@/lib/types";
 import { SearchSelect } from "./SearchSelect";
 
@@ -85,24 +90,34 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
       >
         <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
           <span className="text-xs text-zinc-300 font-mono">launch agent</span>
-          <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 text-xs font-mono">
+          <button
+            onClick={onClose}
+            className="text-zinc-600 hover:text-zinc-300 text-xs font-mono"
+          >
             [esc]
           </button>
         </div>
 
         <div className="px-3 py-3 space-y-3 max-h-[70dvh] overflow-y-auto">
           <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-mono">repository</label>
+            <label className="text-[10px] text-zinc-500 font-mono">
+              repository
+            </label>
             <SearchSelect
               value={repo}
               onChange={setRepo}
-              options={repos.map((r) => ({ value: r.repository, label: `${r.owner}/${r.name}` }))}
+              options={repos.map((r) => ({
+                value: r.repository,
+                label: `${r.owner}/${r.name}`,
+              }))}
               placeholder="search repos..."
               loading={!repos.length}
             />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-mono">branch/ref</label>
+            <label className="text-[10px] text-zinc-500 font-mono">
+              branch/ref
+            </label>
             <SearchSelect
               value={ref}
               onChange={setRef}
@@ -114,7 +129,9 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-mono">prompt</label>
+            <label className="text-[10px] text-zinc-500 font-mono">
+              prompt
+            </label>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -138,7 +155,9 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-mono">branch name</label>
+            <label className="text-[10px] text-zinc-500 font-mono">
+              branch name
+            </label>
             <input
               type="text"
               value={branchName}
@@ -155,7 +174,9 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               onChange={(e) => setAutoCreatePr(e.target.checked)}
               className="border-zinc-700 bg-zinc-900"
             />
-            <span className="text-xs text-zinc-400 font-mono">auto-create pr</span>
+            <span className="text-xs text-zinc-400 font-mono">
+              auto-create pr
+            </span>
           </label>
 
           {error && <p className="text-xs text-red-400 font-mono">{error}</p>}

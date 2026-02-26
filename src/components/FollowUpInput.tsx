@@ -25,7 +25,9 @@ export function FollowUpInput({ onSend, disabled }: FollowUpInputProps) {
 
   return (
     <div className="flex items-start gap-1.5">
-      <span className="text-xs text-zinc-600 select-none shrink-0 pt-1.5 font-mono">{">"}</span>
+      <span className="text-xs text-zinc-600 select-none shrink-0 pt-1.5 font-mono">
+        {">"}
+      </span>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}

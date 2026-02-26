@@ -7,7 +7,9 @@ export async function GET(req: NextRequest) {
   }
 
   // Extract owner/name from full GitHub URL
-  const match = repo.replace(/^(https?:\/\/)?github\.com\//, "").match(/^([^/]+)\/([^/]+)/);
+  const match = repo
+    .replace(/^(https?:\/\/)?github\.com\//, "")
+    .match(/^([^/]+)\/([^/]+)/);
   if (!match) {
     return NextResponse.json({ branches: [] });
   }
@@ -18,8 +20,11 @@ export async function GET(req: NextRequest) {
     const res = await fetch(
       `https://api.github.com/repos/${owner}/${name}/branches?per_page=100`,
       {
-        headers: { Accept: "application/vnd.github.v3+json", "User-Agent": "cursor-agents-ui" },
-      }
+        headers: {
+          Accept: "application/vnd.github.v3+json",
+          "User-Agent": "cursor-agents-ui",
+        },
+      },
     );
     if (!res.ok) return NextResponse.json({ branches: [] });
     const data = await res.json();
