@@ -9,7 +9,12 @@ import type {
   ModelsResponse,
   RepositoriesResponse,
 } from "./types";
-import { getApiKey, getCachedRepos, setCachedRepos } from "./storage";
+import {
+  getApiKey,
+  getCachedRepos,
+  setCachedRepos,
+  clearCachedRepos,
+} from "./storage";
 
 function headers(): Record<string, string> {
   const key = getApiKey();
@@ -79,7 +84,7 @@ export function useModels() {
 
 // Repositories (with localStorage cache)
 export function useRepositories() {
-  return useSWR<RepositoriesResponse>(
+  const result = useSWR<RepositoriesResponse>(
     "/api/repositories",
     async (url: string) => {
       const cached = getCachedRepos();
@@ -90,6 +95,13 @@ export function useRepositories() {
     },
     { revalidateOnFocus: false, dedupingInterval: 300_000 },
   );
+
+  function refresh() {
+    clearCachedRepos();
+    result.mutate();
+  }
+
+  return { ...result, refresh };
 }
 
 // Branches (from GitHub API)

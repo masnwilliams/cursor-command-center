@@ -17,7 +17,7 @@ interface LaunchModalProps {
 
 export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   const { data: modelsData } = useModels();
-  const { data: reposData } = useRepositories();
+  const { data: reposData, refresh: refreshRepos } = useRepositories();
 
   const [repo, setRepo] = useState("");
   const [ref, setRef] = useState("");
@@ -100,9 +100,18 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
 
         <div className="px-3 py-3 space-y-3 max-h-[70dvh] overflow-y-auto">
           <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-mono">
-              repository
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] text-zinc-500 font-mono">
+                repository
+              </label>
+              <button
+                type="button"
+                onClick={refreshRepos}
+                className="text-[10px] text-zinc-600 hover:text-zinc-300 font-mono"
+              >
+                refresh
+              </button>
+            </div>
             <SearchSelect
               value={repo}
               onChange={setRepo}

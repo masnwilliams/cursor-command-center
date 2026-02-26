@@ -69,3 +69,8 @@ export function setCachedRepos(repos: Repository[]): void {
   localStorage.setItem(KEYS.repos, JSON.stringify(repos));
   localStorage.setItem(KEYS.reposTimestamp, String(Date.now()));
 }
+
+export function clearCachedRepos(): void {
+  localStorage.removeItem(KEYS.repos);
+  localStorage.removeItem(KEYS.reposTimestamp);
+}
