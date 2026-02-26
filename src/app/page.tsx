@@ -90,6 +90,10 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    if (showAdd || showLaunch || showReviewInput) setFocusedId(null);
+  }, [showAdd, showLaunch, showReviewInput]);
+
+  useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
 
