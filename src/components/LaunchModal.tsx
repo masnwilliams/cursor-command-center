@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   useModels,
   useRepositories,
@@ -8,7 +8,10 @@ import {
   launchAgent,
 } from "@/lib/api";
 import type { Agent } from "@/lib/types";
+import type { ImageAttachment } from "@/lib/images";
+import { readFilesAsImages } from "@/lib/images";
 import { SearchSelect } from "./SearchSelect";
+import { ImageAttachments } from "./ImageAttachments";
 
 interface LaunchModalProps {
   onClose: () => void;
@@ -27,6 +30,17 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   const [autoCreatePr, setAutoCreatePr] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [images, setImages] = useState<ImageAttachment[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+
+  const addImages = useCallback(async (files: FileList | File[]) => {
+    const newImages = await readFilesAsImages(files);
+    if (newImages.length) setImages((prev) => [...prev, ...newImages]);
+  }, []);
+
+  const removeImage = useCallback((id: string) => {
+    setImages((prev) => prev.filter((img) => img.id !== id));
+  }, []);
 
   async function handleLaunch() {
     if (!prompt.trim()) {
@@ -42,8 +56,16 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
     setError(null);
 
     try {
+      const imgs =
+        images.length > 0
+          ? images.map((img) => ({
+              data: img.data,
+              dimension: img.dimension,
+            }))
+          : undefined;
+
       const agent = await launchAgent({
-        prompt: { text: prompt.trim() },
+        prompt: { text: prompt.trim(), images: imgs },
         model: model || undefined,
         source: { repository: repo, ref: ref || undefined },
         target: {
@@ -79,6 +101,27 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   const models = modelsData?.models ?? [];
   const branches = branchesData?.branches ?? [];
 
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }
+
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    if (e.dataTransfer.files?.length) {
+      await addImages(e.dataTransfer.files);
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
@@ -86,8 +129,21 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg border border-zinc-800 bg-zinc-950 overflow-hidden"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`w-full max-w-lg border bg-zinc-950 overflow-hidden relative ${
+          dragOver ? "border-blue-500/50" : "border-zinc-800"
+        }`}
       >
+        {dragOver && (
+          <div className="absolute inset-0 z-10 border-2 border-dashed border-blue-500/50 bg-blue-500/5 flex items-center justify-center pointer-events-none">
+            <span className="text-xs text-blue-400 font-mono">
+              drop images
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
           <span className="text-xs text-zinc-300 font-mono">launch agent</span>
           <button
@@ -148,6 +204,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               rows={4}
               className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 resize-none font-mono"
             />
+            <ImageAttachments images={images} onRemove={removeImage} />
           </div>
 
           <div className="space-y-1">
