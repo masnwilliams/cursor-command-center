@@ -4,11 +4,13 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "re
 
 export interface SearchSelectHandle {
   open: () => void;
+  close: () => void;
 }
 
 interface SearchSelectProps {
   value: string;
   onChange: (value: string) => void;
+  onSkip?: () => void;
   options: { value: string; label: string }[];
   placeholder?: string;
   loading?: boolean;
@@ -21,6 +23,7 @@ export const SearchSelect = forwardRef<SearchSelectHandle, SearchSelectProps>(
     {
       value,
       onChange,
+      onSkip,
       options,
       placeholder = "select...",
       loading,
@@ -39,6 +42,10 @@ export const SearchSelect = forwardRef<SearchSelectHandle, SearchSelectProps>(
 
     useImperativeHandle(ref, () => ({
       open: () => setOpen(true),
+      close: () => {
+        setOpen(false);
+        setQuery("");
+      },
     }));
 
     useEffect(() => {
@@ -117,6 +124,13 @@ export const SearchSelect = forwardRef<SearchSelectHandle, SearchSelectProps>(
       if (e.key === "Escape") {
         setOpen(false);
         setQuery("");
+        return;
+      }
+      if (e.key === "Tab") {
+        e.preventDefault();
+        setOpen(false);
+        setQuery("");
+        onSkip?.();
         return;
       }
       if (e.key === "Enter" && !(e.metaKey || e.ctrlKey)) {

@@ -19,6 +19,14 @@ interface LaunchModalProps {
   onLaunched: (agent: Agent) => void;
 }
 
+type Step = "repo" | "branch" | "branchName" | "model" | "message" | "ready";
+const STEPS: Step[] = ["repo", "branch", "branchName", "model", "message", "ready"];
+
+function nextStep(current: Step): Step {
+  const idx = STEPS.indexOf(current);
+  return STEPS[Math.min(idx + 1, STEPS.length - 1)];
+}
+
 export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   const { data: modelsData } = useModels();
   const { data: reposData, refresh: refreshRepos } = useRepositories();
@@ -34,28 +42,51 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [rejections, setRejections] = useState<string[]>([]);
+  const [step, setStep] = useState<Step>("repo");
 
+  const repoSelectRef = useRef<SearchSelectHandle>(null);
   const branchSelectRef = useRef<SearchSelectHandle>(null);
   const modelSelectRef = useRef<SearchSelectHandle>(null);
   const branchNameRef = useRef<HTMLInputElement>(null);
+  const messageRef = useRef<HTMLInputElement>(null);
 
-  const prevRepo = useRef(repo);
-  const prevRef = useRef(ref);
-  const prevModel = useRef(model);
+  function advanceTo(target: Step) {
+    setStep(target);
+    setTimeout(() => {
+      switch (target) {
+        case "repo":
+          repoSelectRef.current?.open();
+          break;
+        case "branch":
+          branchSelectRef.current?.open();
+          break;
+        case "branchName":
+          branchNameRef.current?.focus();
+          break;
+        case "model":
+          modelSelectRef.current?.open();
+          break;
+        case "message":
+          messageRef.current?.focus();
+          break;
+      }
+    }, 80);
+  }
 
-  useEffect(() => {
-    if (repo && !prevRepo.current) {
-      setTimeout(() => branchSelectRef.current?.open(), 80);
-    }
-    prevRepo.current = repo;
-  }, [repo]);
+  function handleRepoChange(val: string) {
+    setRepo(val);
+    if (val) advanceTo("branch");
+  }
 
-  useEffect(() => {
-    if (ref && !prevRef.current) {
-      setTimeout(() => branchNameRef.current?.focus(), 80);
-    }
-    prevRef.current = ref;
-  }, [ref]);
+  function handleBranchChange(val: string) {
+    setRef(val);
+    if (val) advanceTo("branchName");
+  }
+
+  function handleModelChange(val: string) {
+    setModel(val);
+    advanceTo("message");
+  }
 
   const addImages = useCallback(async (files: FileList | File[]) => {
     const { images: newImages, rejected } = await readFilesAsImages(files);
@@ -149,6 +180,30 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
     }
   }
 
+  function stepLabel(s: Step): string {
+    const idx = STEPS.indexOf(s) + 1;
+    const labels: Record<Step, string> = {
+      repo: "repository",
+      branch: "branch/ref",
+      branchName: "branch name",
+      model: "model",
+      message: "message",
+      ready: "",
+    };
+    return `${idx}. ${labels[s]}`;
+  }
+
+  function isStepDone(s: Step): boolean {
+    switch (s) {
+      case "repo": return !!repo;
+      case "branch": return !!ref;
+      case "branchName": return !!branchName;
+      case "model": return !!model;
+      case "message": return !!prompt;
+      default: return false;
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
@@ -173,19 +228,20 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
 
         <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
           <span className="text-xs text-zinc-300 font-mono">launch agent</span>
-          <button
-            onClick={onClose}
-            className="text-zinc-600 hover:text-zinc-300 text-xs font-mono"
-          >
-            [esc]
-          </button>
+          <span className="text-[10px] text-zinc-600 font-mono">
+            tab skip · ⌘↵ launch · esc close
+          </span>
         </div>
 
-        <div className="px-3 py-3 space-y-3 max-h-[70dvh] overflow-y-auto">
+        <div className="px-3 py-3 space-y-2.5 max-h-[70dvh] overflow-y-auto">
+          {/* 1. Repository */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="text-[10px] text-zinc-500 font-mono">
-                repository
+              <label
+                className={`text-[10px] font-mono ${step === "repo" ? "text-blue-400" : isStepDone("repo") ? "text-zinc-400" : "text-zinc-600"}`}
+              >
+                {stepLabel("repo")}
+                {isStepDone("repo") && <span className="text-zinc-600 ml-1">✓</span>}
               </label>
               <button
                 type="button"
@@ -196,8 +252,10 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               </button>
             </div>
             <SearchSelect
+              ref={repoSelectRef}
               value={repo}
-              onChange={setRepo}
+              onChange={handleRepoChange}
+              onSkip={() => advanceTo("branch")}
               options={repos.map((r) => ({
                 value: r.repository,
                 label: `${r.owner}/${r.name}`,
@@ -208,14 +266,19 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
             />
           </div>
 
+          {/* 2. Branch */}
           <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-mono">
-              branch/ref
+            <label
+              className={`text-[10px] font-mono ${step === "branch" ? "text-blue-400" : isStepDone("branch") ? "text-zinc-400" : "text-zinc-600"}`}
+            >
+              {stepLabel("branch")}
+              {isStepDone("branch") && <span className="text-zinc-600 ml-1">✓</span>}
             </label>
             <SearchSelect
               ref={branchSelectRef}
               value={ref}
-              onChange={setRef}
+              onChange={handleBranchChange}
+              onSkip={() => advanceTo("branchName")}
               options={branches.map((b) => ({ value: b, label: b }))}
               placeholder="main"
               loading={!!repo && !branchesData}
@@ -223,26 +286,44 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
             />
           </div>
 
+          {/* 3. Branch name */}
           <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-mono">
-              branch name
+            <label
+              className={`text-[10px] font-mono ${step === "branchName" ? "text-blue-400" : isStepDone("branchName") ? "text-zinc-400" : "text-zinc-600"}`}
+            >
+              {stepLabel("branchName")}
+              {isStepDone("branchName") && <span className="text-zinc-600 ml-1">✓</span>}
             </label>
             <input
               ref={branchNameRef}
               type="text"
               value={branchName}
               onChange={(e) => setBranchName(e.target.value)}
+              onFocus={() => setStep("branchName")}
+              onKeyDown={(e) => {
+                if (e.key === "Tab") {
+                  e.preventDefault();
+                  advanceTo("model");
+                }
+              }}
               placeholder="auto"
               className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
             />
           </div>
 
+          {/* 4. Model */}
           <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-mono">model</label>
+            <label
+              className={`text-[10px] font-mono ${step === "model" ? "text-blue-400" : isStepDone("model") ? "text-zinc-400" : "text-zinc-600"}`}
+            >
+              {stepLabel("model")}
+              {isStepDone("model") && <span className="text-zinc-600 ml-1">✓</span>}
+            </label>
             <SearchSelect
               ref={modelSelectRef}
               value={model}
-              onChange={setModel}
+              onChange={handleModelChange}
+              onSkip={() => advanceTo("message")}
               options={[
                 { value: "", label: "auto" },
                 ...models.map((m) => ({ value: m, label: m })),
@@ -251,6 +332,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
             />
           </div>
 
+          {/* Auto-create PR */}
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -263,14 +345,26 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
             </span>
           </label>
 
+          {/* 5. Message (optional) */}
           <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-mono">
-              message <span className="text-zinc-700">optional</span>
+            <label
+              className={`text-[10px] font-mono ${step === "message" ? "text-blue-400" : isStepDone("message") ? "text-zinc-400" : "text-zinc-600"}`}
+            >
+              {stepLabel("message")}{" "}
+              <span className="text-zinc-700">optional</span>
             </label>
             <input
+              ref={messageRef}
               type="text"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
+              onFocus={() => setStep("message")}
+              onKeyDown={(e) => {
+                if (e.key === "Tab") {
+                  e.preventDefault();
+                  setStep("ready");
+                }
+              }}
               placeholder="or send in pane after launch"
               className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
             />
