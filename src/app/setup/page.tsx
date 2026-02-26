@@ -71,7 +71,7 @@ export default function SetupPage() {
           <p className="text-sm text-zinc-400">
             Enter your Cursor API key to get started. Get one from{" "}
             <a
-              href="https://cursor.com/settings"
+              href="https://cursor.com/dashboard?tab=integrations"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-400 hover:text-blue-300 underline"

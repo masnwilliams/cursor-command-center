@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cursor Command Center
 
-## Getting Started
+A tmux-style dashboard for managing [Cursor Cloud Agents](https://cursor.com/docs/cloud-agent/api/endpoints). View multiple agent conversations side-by-side, send follow-ups, launch new agents, and quick-start PR reviews — all from a keyboard-driven PWA.
 
-First, run the development server:
+## Get Started
+
+**Go to [cmdcenter.dev](https://cmdcenter.dev)**, enter your [Cursor API key](https://cursor.com/dashboard?tab=integrations), and you're in. Install it as a PWA on your phone or desktop for the full app experience.
+
+Or self-host it:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/masnwilliams/cursor-command-center.git
+cd cursor-command-center
+bun install
+bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Security
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Your Cursor API key never leaves your browser.** It's stored in `localStorage` on your device and proxied directly to Cursor's API. There is no server-side storage, no database, no analytics, and no third-party services. We never see or store your key. Each device stores its own key independently.
 
-## Learn More
+## Keyboard Shortcuts
 
-To learn more about Next.js, take a look at the following resources:
+| Shortcut | Action |
+|---|---|
+| `Cmd+E` | Quick-launch PR review |
+| `Cmd+N` | Launch new agent |
+| `Cmd+A` | Add existing agent to grid |
+| `Cmd+W` | Close focused pane |
+| `Cmd+,` | API key settings |
+| `Cmd+1-9` | Focus pane by number |
+| `Cmd+Shift+Backspace` | Stop focused agent |
+| `Cmd+Enter` | Submit any form |
+| `Esc` | Close modal / unfocus / back |
+| `↑ ↓` | Navigate lists and dropdowns |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Features
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Tmux-style grid** — multiple agent conversations visible at once, no wasted space
+- **PR review quick-launch** — `Cmd+E`, paste a PR URL, hit Enter. Agent launches with an incremental review prompt and starts presenting chunks for your feedback
+- **Live polling** — running agents update automatically (status every 5s, conversation every 10s)
+- **Follow-up input** on every pane — interact with agents without leaving the grid
+- **Installable PWA** — works as a standalone app on desktop and mobile
+- **Fully keyboard-driven** — every action has a shortcut
 
-## Deploy on Vercel
+## Commands
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+bun install       # install dependencies
+bun run dev       # dev server (port 3000)
+bun run build     # production build
+bun run format    # prettier
+bun run start     # production server
+```
