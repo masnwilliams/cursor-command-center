@@ -125,6 +125,15 @@ export default function DashboardPage() {
         return;
       }
 
+      // Cmd+O — open PR (or Cursor agent URL) for focused pane
+      if (e.key === "o" && mod && focusedId) {
+        e.preventDefault();
+        const agent = agentMap.get(focusedId);
+        const url = agent?.target.prUrl || agent?.target.url;
+        if (url) window.open(url, "_blank");
+        return;
+      }
+
       // Cmd+Shift+Backspace — stop focused agent
       if (e.key === "Backspace" && mod && e.shiftKey && focusedId) {
         e.preventDefault();
