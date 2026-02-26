@@ -122,8 +122,8 @@ export default function DashboardPage() {
         return;
       }
 
-      // Cmd+Shift+, (or Cmd+,) — settings/key
-      if (e.key === "," && mod) {
+      // Cmd+Shift+, — settings/key
+      if ((e.key === "," || e.key === "<") && mod && e.shiftKey) {
         e.preventDefault();
         router.push("/setup");
         return;
