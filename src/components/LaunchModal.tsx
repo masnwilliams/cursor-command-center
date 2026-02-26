@@ -11,6 +11,7 @@ import type { Agent } from "@/lib/types";
 import type { ImageAttachment } from "@/lib/images";
 import { readFilesAsImages } from "@/lib/images";
 import { SearchSelect } from "./SearchSelect";
+import type { SearchSelectHandle } from "./SearchSelect";
 import { ImageAttachments } from "./ImageAttachments";
 
 interface LaunchModalProps {
@@ -34,6 +35,28 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   const [dragOver, setDragOver] = useState(false);
   const [rejections, setRejections] = useState<string[]>([]);
 
+  const branchSelectRef = useRef<SearchSelectHandle>(null);
+  const modelSelectRef = useRef<SearchSelectHandle>(null);
+  const branchNameRef = useRef<HTMLInputElement>(null);
+
+  const prevRepo = useRef(repo);
+  const prevRef = useRef(ref);
+  const prevModel = useRef(model);
+
+  useEffect(() => {
+    if (repo && !prevRepo.current) {
+      setTimeout(() => branchSelectRef.current?.open(), 80);
+    }
+    prevRepo.current = repo;
+  }, [repo]);
+
+  useEffect(() => {
+    if (ref && !prevRef.current) {
+      setTimeout(() => branchNameRef.current?.focus(), 80);
+    }
+    prevRef.current = ref;
+  }, [ref]);
+
   const addImages = useCallback(async (files: FileList | File[]) => {
     const { images: newImages, rejected } = await readFilesAsImages(files);
     if (newImages.length) setImages((prev) => [...prev, ...newImages]);
@@ -48,10 +71,6 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   }, []);
 
   async function handleLaunch() {
-    if (!prompt.trim()) {
-      setError("prompt required");
-      return;
-    }
     if (!repo) {
       setError("select a repository");
       return;
@@ -70,7 +89,10 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
           : undefined;
 
       const agent = await launchAgent({
-        prompt: { text: prompt.trim(), images: imgs },
+        prompt: {
+          text: prompt.trim() || "Follow instructions in the repository.",
+          images: imgs,
+        },
         model: model || undefined,
         source: { repository: repo, ref: ref || undefined },
         target: {
@@ -182,13 +204,16 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               }))}
               placeholder="search repos..."
               loading={!repos.length}
+              autoOpen
             />
           </div>
+
           <div className="space-y-1">
             <label className="text-[10px] text-zinc-500 font-mono">
               branch/ref
             </label>
             <SearchSelect
+              ref={branchSelectRef}
               value={ref}
               onChange={setRef}
               options={branches.map((b) => ({ value: b, label: b }))}
@@ -200,14 +225,54 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
 
           <div className="space-y-1">
             <label className="text-[10px] text-zinc-500 font-mono">
-              prompt
+              branch name
             </label>
-            <textarea
+            <input
+              ref={branchNameRef}
+              type="text"
+              value={branchName}
+              onChange={(e) => setBranchName(e.target.value)}
+              placeholder="auto"
+              className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] text-zinc-500 font-mono">model</label>
+            <SearchSelect
+              ref={modelSelectRef}
+              value={model}
+              onChange={setModel}
+              options={[
+                { value: "", label: "auto" },
+                ...models.map((m) => ({ value: m, label: m })),
+              ]}
+              placeholder="auto"
+            />
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoCreatePr}
+              onChange={(e) => setAutoCreatePr(e.target.checked)}
+              className="border-zinc-700 bg-zinc-900"
+            />
+            <span className="text-xs text-zinc-400 font-mono">
+              auto-create pr
+            </span>
+          </label>
+
+          <div className="space-y-1">
+            <label className="text-[10px] text-zinc-500 font-mono">
+              message <span className="text-zinc-700">optional</span>
+            </label>
+            <input
+              type="text"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="what should the agent do?"
-              rows={4}
-              className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 resize-none font-mono"
+              placeholder="or send in pane after launch"
+              className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
             />
             <ImageAttachments images={images} onRemove={removeImage} />
             {rejections.length > 0 && (
@@ -223,44 +288,6 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               </div>
             )}
           </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-mono">model</label>
-            <SearchSelect
-              value={model}
-              onChange={setModel}
-              options={[
-                { value: "", label: "auto" },
-                ...models.map((m) => ({ value: m, label: m })),
-              ]}
-              placeholder="auto"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-mono">
-              branch name
-            </label>
-            <input
-              type="text"
-              value={branchName}
-              onChange={(e) => setBranchName(e.target.value)}
-              placeholder="feature/my-branch"
-              className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
-            />
-          </div>
-
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoCreatePr}
-              onChange={(e) => setAutoCreatePr(e.target.checked)}
-              className="border-zinc-700 bg-zinc-900"
-            />
-            <span className="text-xs text-zinc-400 font-mono">
-              auto-create pr
-            </span>
-          </label>
 
           {error && <p className="text-xs text-red-400 font-mono">{error}</p>}
         </div>
