@@ -1,8 +1,10 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { useConversation, sendFollowUp, stopAgent } from "@/lib/api";
 import type { Agent, ConversationResponse } from "@/lib/types";
+import type { ImageAttachment } from "@/lib/images";
+import { readFilesAsImages } from "@/lib/images";
 import { StatusBadge } from "./StatusBadge";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -28,6 +30,23 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isActive = agent.status === "RUNNING" || agent.status === "CREATING";
 
+  const [images, setImages] = useState<ImageAttachment[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const [rejections, setRejections] = useState<string[]>([]);
+
+  const addImages = useCallback(async (files: FileList | File[]) => {
+    const { images: newImages, rejected } = await readFilesAsImages(files);
+    if (newImages.length) setImages((prev) => [...prev, ...newImages]);
+    if (rejected.length) {
+      setRejections(rejected);
+      setTimeout(() => setRejections([]), 4000);
+    }
+  }, []);
+
+  const removeImage = useCallback((id: string) => {
+    setImages((prev) => prev.filter((img) => img.id !== id));
+  }, []);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -48,20 +67,68 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
   }, [focused]);
 
   async function handleFollowUp(text: string) {
-    await sendFollowUp(agent.id, { prompt: { text } });
+    const imgs =
+      images.length > 0
+        ? images.map((img) => ({
+            data: img.data,
+            dimension: img.dimension,
+          }))
+        : undefined;
+    setImages([]);
+    await sendFollowUp(agent.id, { prompt: { text, images: imgs } });
   }
 
   async function handleStop() {
     await stopAgent(agent.id);
   }
 
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }
+
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    if (e.dataTransfer.files?.length) {
+      await addImages(e.dataTransfer.files);
+    }
+  }
+
   return (
     <div
       onClick={onFocus}
-      className={`flex flex-col min-w-0 min-h-0 border-r border-b border-zinc-800 ${
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`flex flex-col min-w-0 min-h-0 border-r border-b border-zinc-800 relative ${
         focused ? "ring-1 ring-inset ring-blue-500/60" : ""
       }`}
     >
+      {dragOver && (
+        <div className="absolute inset-0 z-10 border-2 border-dashed border-blue-500/50 bg-blue-500/5 flex items-center justify-center pointer-events-none">
+          <span className="text-xs text-blue-400 font-mono">drop images</span>
+        </div>
+      )}
+
+      {rejections.length > 0 && (
+        <div className="absolute bottom-14 left-2 right-2 z-20 bg-red-950/90 border border-red-800 px-2 py-1.5 space-y-0.5">
+          {rejections.map((msg, i) => (
+            <p key={i} className="text-[10px] text-red-300 font-mono truncate">
+              {msg}
+            </p>
+          ))}
+        </div>
+      )}
+
       {/* Info bar */}
       <div className="flex items-center gap-2 border-b border-zinc-800 bg-zinc-900/60 px-2 py-1 shrink-0 min-h-0">
         <StatusBadge status={agent.status} />
@@ -172,6 +239,9 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
           agentId={agent.id}
           onSend={handleFollowUp}
           disabled={agent.status === "CREATING"}
+          images={images}
+          onRemoveImage={removeImage}
+          onAddFiles={(files) => addImages(files)}
         />
       </div>
     </div>

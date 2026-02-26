@@ -22,11 +22,12 @@ Every action has a keyboard shortcut. New features must include a shortcut.
 | Shortcut | Action |
 |---|---|
 | Cmd+E | Review PR (paste URL, hit enter, launches immediately) |
-| Cmd+N | Launch new agent |
-| Cmd+A | Add existing agent to grid |
-| Cmd+W | Close focused pane |
-| Cmd+, | Settings (API key) |
-| Cmd+1-9 | Focus pane by number |
+| Cmd+K | Launch new agent |
+| Cmd+Shift+A | Add existing agent to grid |
+| Cmd+Shift+X | Close focused pane |
+| Cmd+Shift+, | Settings (API key) |
+| Cmd+Shift+O | Open PR for focused pane |
+| Cmd+Shift+1-9 | Focus pane by number |
 | Cmd+Shift+Backspace | Stop focused agent |
 | Cmd+Enter | Submit/launch on any form |
 | Esc | Close modals, unfocus pane, back to grid from settings |

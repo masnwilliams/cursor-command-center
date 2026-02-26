@@ -90,6 +90,10 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    if (showAdd || showLaunch || showReviewInput) setFocusedId(null);
+  }, [showAdd, showLaunch, showReviewInput]);
+
+  useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
 
@@ -102,8 +106,8 @@ export default function DashboardPage() {
         return;
       }
 
-      // Cmd+N — launch new agent
-      if (e.key === "n" && mod) {
+      // Cmd+K — launch new agent
+      if (e.key === "k" && mod) {
         e.preventDefault();
         setShowAdd(false);
         setShowLaunch(true);
@@ -118,39 +122,41 @@ export default function DashboardPage() {
         return;
       }
 
-      // Cmd+, — settings/key
-      if (e.key === "," && mod) {
+      // Cmd+Shift+, — settings/key
+      if ((e.key === "," || e.key === "<") && mod && e.shiftKey) {
         e.preventDefault();
         router.push("/setup");
         return;
       }
 
-      // Cmd+O — open PR for focused pane
-      if (e.key === "o" && mod && focusedId) {
+      // Cmd+Shift+O — open PR for focused pane
+      if (e.key === "o" && mod && e.shiftKey) {
         e.preventDefault();
-        const agent = agentMap.get(focusedId);
-        if (agent?.target.prUrl) window.open(agent.target.prUrl, "_blank");
+        if (focusedId) {
+          const agent = agentMap.get(focusedId);
+          if (agent?.target.prUrl) window.open(agent.target.prUrl, "_blank");
+        }
         return;
       }
 
       // Cmd+Shift+Backspace — stop focused agent
-      if (e.key === "Backspace" && mod && e.shiftKey && focusedId) {
+      if (e.key === "Backspace" && mod && e.shiftKey) {
         e.preventDefault();
-        stopAgent(focusedId);
+        if (focusedId) stopAgent(focusedId);
         return;
       }
 
-      // Cmd+W — close focused pane
-      if (e.key === "w" && mod && focusedId) {
+      // Cmd+Shift+X — close focused pane
+      if (e.key === "x" && mod && e.shiftKey) {
         e.preventDefault();
-        handleRemove(focusedId);
+        if (focusedId) handleRemove(focusedId);
         return;
       }
 
-      // Cmd+1-9 — focus pane by number
-      if (mod && e.key >= "1" && e.key <= "9") {
+      // Cmd+Shift+1-9 — focus pane by number
+      if (mod && e.shiftKey && e.code >= "Digit1" && e.code <= "Digit9") {
         e.preventDefault();
-        const idx = parseInt(e.key) - 1;
+        const idx = parseInt(e.code.slice(5)) - 1;
         const currentGrid = getGrid().sort((a, b) => a.order - b.order);
         if (idx < currentGrid.length) {
           setFocusedId(currentGrid[idx].agentId);
@@ -198,7 +204,7 @@ export default function DashboardPage() {
               onClick={() => setShowLaunch(true)}
               className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
             >
-              [⌘N new]
+              [⌘K new]
             </button>
             <button
               onClick={() => setShowAdd(true)}
@@ -210,7 +216,7 @@ export default function DashboardPage() {
               onClick={() => router.push("/setup")}
               className="text-[10px] text-zinc-600 hover:text-zinc-300 font-mono"
             >
-              [⌘, key]
+              [⌘⇧, key]
             </button>
           </div>
         </div>
@@ -234,7 +240,7 @@ export default function DashboardPage() {
                 onClick={() => setShowLaunch(true)}
                 className="text-xs text-zinc-500 hover:text-zinc-200 font-mono border border-zinc-800 px-3 py-1.5 hover:border-zinc-600 transition-colors"
               >
-                ⌘N launch new
+                ⌘K launch new
               </button>
             </div>
           </div>
@@ -326,7 +332,7 @@ export default function DashboardPage() {
             onClick={() => setShowLaunch(true)}
             className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
           >
-            [⌘N new]
+            [⌘K new]
           </button>
           <button
             onClick={() => setShowAdd(true)}
@@ -339,14 +345,14 @@ export default function DashboardPage() {
               onClick={() => handleRemove(focusedId)}
               className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
             >
-              [⌘W close]
+              [⌘⇧X close]
             </button>
           )}
           <button
             onClick={() => router.push("/setup")}
             className="text-[10px] text-zinc-600 hover:text-zinc-300 font-mono"
           >
-            [⌘, key]
+            [⌘⇧, key]
           </button>
         </div>
       </div>
