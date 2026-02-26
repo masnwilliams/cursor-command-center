@@ -245,36 +245,42 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
           </span>
         </div>
 
-        {/* List */}
-        <div
-          ref={listRef}
-          className="max-h-[240px] overflow-y-auto"
-        >
-          {loading && (
-            <div className="px-3 py-3 text-[10px] text-zinc-600 font-mono">
-              loading...
-            </div>
-          )}
-          {!loading && items.length === 0 && (
-            <div className="px-3 py-3 text-[10px] text-zinc-600 font-mono">
-              {phase === "repo" ? "no repos found" : "no branches found"}
-            </div>
-          )}
-          {items.map((item, idx) => (
-            <button
-              data-item
-              key={item.value}
-              onClick={() => selectItem(item.value)}
-              className={`w-full text-left px-3 py-1.5 text-xs font-mono transition-colors ${
-                idx === highlightIdx
-                  ? "bg-zinc-800 text-zinc-100"
-                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        {/* List / launching state */}
+        {launching ? (
+          <div className="px-3 py-4 text-xs text-zinc-500 font-mono text-center">
+            launching...
+          </div>
+        ) : (
+          <div
+            ref={listRef}
+            className="max-h-[240px] overflow-y-auto"
+          >
+            {loading && (
+              <div className="px-3 py-3 text-[10px] text-zinc-600 font-mono">
+                loading...
+              </div>
+            )}
+            {!loading && items.length === 0 && (
+              <div className="px-3 py-3 text-[10px] text-zinc-600 font-mono">
+                {phase === "repo" ? "no repos found" : "no branches found"}
+              </div>
+            )}
+            {items.map((item, idx) => (
+              <button
+                data-item
+                key={item.value}
+                onClick={() => selectItem(item.value)}
+                className={`w-full text-left px-3 py-1.5 text-xs font-mono transition-colors ${
+                  idx === highlightIdx
+                    ? "bg-zinc-800 text-zinc-100"
+                    : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Footer: images, errors, hints */}
         {(images.length > 0 || rejections.length > 0 || error) && (
