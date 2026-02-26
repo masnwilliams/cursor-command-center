@@ -167,6 +167,7 @@ export function Pane({ agent, focused, onFocus, onClose }: PaneProps) {
       <div className="shrink-0 border-t border-zinc-800 px-2 py-2">
         <FollowUpInput
           ref={inputRef}
+          agentId={agent.id}
           onSend={handleFollowUp}
           disabled={agent.status === "CREATING"}
         />
