@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, forwardRef } from "react";
+import { useState, useRef, useCallback, useEffect, forwardRef } from "react";
 import { getDraft, setDraft } from "@/lib/storage";
 import type { ImageAttachment } from "@/lib/images";
 import { ImageAttachments } from "./ImageAttachments";
@@ -42,6 +42,10 @@ export const FollowUpInput = forwardRef<HTMLTextAreaElement, FollowUpInputProps>
       el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
       el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
     }
+
+    useEffect(() => {
+      autoResize();
+    }, []);
 
     const updateText = useCallback(
       (val: string) => {
