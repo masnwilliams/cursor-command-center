@@ -32,10 +32,15 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [rejections, setRejections] = useState<string[]>([]);
 
   const addImages = useCallback(async (files: FileList | File[]) => {
-    const newImages = await readFilesAsImages(files);
+    const { images: newImages, rejected } = await readFilesAsImages(files);
     if (newImages.length) setImages((prev) => [...prev, ...newImages]);
+    if (rejected.length) {
+      setRejections(rejected);
+      setTimeout(() => setRejections([]), 4000);
+    }
   }, []);
 
   const removeImage = useCallback((id: string) => {
@@ -205,6 +210,18 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 resize-none font-mono"
             />
             <ImageAttachments images={images} onRemove={removeImage} />
+            {rejections.length > 0 && (
+              <div className="bg-red-950/90 border border-red-800 px-2 py-1.5 space-y-0.5">
+                {rejections.map((msg, i) => (
+                  <p
+                    key={i}
+                    className="text-[10px] text-red-300 font-mono truncate"
+                  >
+                    {msg}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">

@@ -32,10 +32,15 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
 
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [rejections, setRejections] = useState<string[]>([]);
 
   const addImages = useCallback(async (files: FileList | File[]) => {
-    const newImages = await readFilesAsImages(files);
+    const { images: newImages, rejected } = await readFilesAsImages(files);
     if (newImages.length) setImages((prev) => [...prev, ...newImages]);
+    if (rejected.length) {
+      setRejections(rejected);
+      setTimeout(() => setRejections([]), 4000);
+    }
   }, []);
 
   const removeImage = useCallback((id: string) => {
@@ -111,6 +116,16 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
       {dragOver && (
         <div className="absolute inset-0 z-10 border-2 border-dashed border-blue-500/50 bg-blue-500/5 flex items-center justify-center pointer-events-none">
           <span className="text-xs text-blue-400 font-mono">drop images</span>
+        </div>
+      )}
+
+      {rejections.length > 0 && (
+        <div className="absolute bottom-14 left-2 right-2 z-20 bg-red-950/90 border border-red-800 px-2 py-1.5 space-y-0.5">
+          {rejections.map((msg, i) => (
+            <p key={i} className="text-[10px] text-red-300 font-mono truncate">
+              {msg}
+            </p>
+          ))}
         </div>
       )}
 
