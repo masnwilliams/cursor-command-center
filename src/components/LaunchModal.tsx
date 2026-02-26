@@ -86,7 +86,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
 
       const agent = await launchAgent({
         prompt: {
-          text: "Start.",
+          text: "Stand by. I'll send instructions in a follow-up message.",
           images: imgs,
         },
         model: "claude-4.6-opus-high-thinking",
