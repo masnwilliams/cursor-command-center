@@ -78,6 +78,7 @@ export default function DashboardPage() {
         prompt: { text: `Review this PR: ${prUrl}\n\n${PR_REVIEW_PROMPT}` },
         model: "claude-4.6-opus-high-thinking",
         source: { prUrl },
+        target: { autoBranch: false },
       });
       setShowReviewInput(false);
       setReviewPrUrl("");
