@@ -70,7 +70,7 @@ export function Pane({ agent, focused, onFocus, onClose }: PaneProps) {
           {repoShort(agent)}
         </span>
         {agent.target.branchName && (
-          <span className="text-[10px] text-zinc-600 truncate hidden sm:block max-w-[140px] font-mono">
+          <span className="text-[10px] text-zinc-600 truncate hidden sm:block max-w-[140px] font-mono leading-none">
             {agent.target.branchName}
           </span>
         )}
