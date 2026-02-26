@@ -1,65 +1,380 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { getApiKey, getGrid, addToGrid, removeFromGrid } from "@/lib/storage";
+import { useAgents, launchAgent, stopAgent } from "@/lib/api";
+import type { Agent, GridItem } from "@/lib/types";
+import { Pane } from "@/components/Pane";
+import { AddAgentModal } from "@/components/AddAgentModal";
+import { LaunchModal } from "@/components/LaunchModal";
+import { PR_REVIEW_PROMPT } from "@/lib/prompts";
+
+function gridCols(count: number): string {
+  if (count <= 1) return "grid-cols-1";
+  if (count <= 2) return "grid-cols-1 sm:grid-cols-2";
+  if (count <= 4) return "grid-cols-1 sm:grid-cols-2";
+  if (count <= 6) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+  return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+}
+
+function gridRows(count: number, cols: number): string {
+  const rows = Math.ceil(count / cols);
+  if (rows <= 1) return "";
+  return `grid-rows-${rows}`;
+}
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [grid, setGrid] = useState<GridItem[]>([]);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [showLaunch, setShowLaunch] = useState(false);
+  const [showReviewInput, setShowReviewInput] = useState(false);
+  const [reviewPrUrl, setReviewPrUrl] = useState("");
+  const [reviewLaunching, setReviewLaunching] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    if (!getApiKey()) {
+      router.push("/setup");
+      return;
+    }
+    setGrid(getGrid());
+    setMounted(true);
+  }, [router]);
+
+  const { data: agentsData } = useAgents();
+
+  const agentMap = new Map<string, Agent>();
+  agentsData?.agents?.forEach((a) => agentMap.set(a.id, a));
+
+  const refreshGrid = useCallback(() => setGrid(getGrid()), []);
+
+  function handleAdd(agentId: string) {
+    addToGrid(agentId);
+    refreshGrid();
+    setShowAdd(false);
+  }
+
+  function handleRemove(agentId: string) {
+    removeFromGrid(agentId);
+    if (focusedId === agentId) setFocusedId(null);
+    refreshGrid();
+  }
+
+  function handleLaunched(agent: Agent) {
+    addToGrid(agent.id);
+    refreshGrid();
+    setShowLaunch(false);
+    setShowAdd(false);
+    setFocusedId(agent.id);
+  }
+
+  async function launchReview(prUrl: string) {
+    setReviewLaunching(true);
+    try {
+      const agent = await launchAgent({
+        prompt: { text: `Review this PR: ${prUrl}\n\n${PR_REVIEW_PROMPT}` },
+        model: "claude-4.6-opus-high-thinking",
+        source: { prUrl },
+      });
+      setShowReviewInput(false);
+      setReviewPrUrl("");
+      setReviewLaunching(false);
+      handleLaunched(agent);
+    } catch {
+      setReviewLaunching(false);
+    }
+  }
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey;
+
+      // Cmd+E — review PR quick-launch
+      if (e.key === "e" && mod) {
+        e.preventDefault();
+        setShowAdd(false);
+        setShowLaunch(false);
+        setShowReviewInput(true);
+        return;
+      }
+
+      // Cmd+N — launch new agent
+      if (e.key === "n" && mod) {
+        e.preventDefault();
+        setShowAdd(false);
+        setShowLaunch(true);
+        return;
+      }
+
+      // Cmd+A — add existing agent
+      if (e.key === "a" && mod) {
+        e.preventDefault();
+        setShowLaunch(false);
+        setShowAdd(true);
+        return;
+      }
+
+      // Cmd+, — settings/key
+      if (e.key === "," && mod) {
+        e.preventDefault();
+        router.push("/setup");
+        return;
+      }
+
+      // Cmd+Shift+Backspace — stop focused agent
+      if (e.key === "Backspace" && mod && e.shiftKey && focusedId) {
+        e.preventDefault();
+        stopAgent(focusedId);
+        return;
+      }
+
+      // Cmd+W — close focused pane
+      if (e.key === "w" && mod && focusedId) {
+        e.preventDefault();
+        handleRemove(focusedId);
+        return;
+      }
+
+      // Cmd+1-9 — focus pane by number
+      if (mod && e.key >= "1" && e.key <= "9") {
+        e.preventDefault();
+        const idx = parseInt(e.key) - 1;
+        const currentGrid = getGrid().sort((a, b) => a.order - b.order);
+        if (idx < currentGrid.length) {
+          setFocusedId(currentGrid[idx].agentId);
+        }
+        return;
+      }
+
+      // Esc — unfocus pane / close modals
+      if (e.key === "Escape") {
+        if (showReviewInput) { setShowReviewInput(false); setReviewPrUrl(""); return; }
+        if (showAdd || showLaunch) return;
+        setFocusedId(null);
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [focusedId, showAdd, showLaunch, showReviewInput]);
+
+  if (!mounted) return null;
+
+  const sorted = [...grid].sort((a, b) => a.order - b.order);
+  const gridAgentIds = new Set(grid.map((g) => g.agentId));
+  const paneCount = sorted.length;
+
+  if (paneCount === 0) {
+    return (
+      <div className="h-dvh bg-zinc-950 flex flex-col">
+        {/* Minimal bar */}
+        <div className="flex items-center justify-between border-b border-zinc-800 px-2 py-1 bg-zinc-900/60">
+          <span className="text-[10px] text-zinc-500 font-mono">cursor-agents</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowReviewInput(true)}
+              className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
+            >
+              [⌘E review]
+            </button>
+            <button
+              onClick={() => setShowLaunch(true)}
+              className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
+            >
+              [⌘N new]
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
+            >
+              [⌘A add]
+            </button>
+            <button
+              onClick={() => router.push("/setup")}
+              className="text-[10px] text-zinc-600 hover:text-zinc-300 font-mono"
+            >
+              [⌘, key]
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-3">
+            <p className="text-xs text-zinc-600 font-mono">no panes</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowReviewInput(true)}
+                className="text-xs text-zinc-500 hover:text-zinc-200 font-mono border border-zinc-800 px-3 py-1.5 hover:border-zinc-600 transition-colors"
+              >
+                ⌘E review PR
+              </button>
+              <button
+                onClick={() => setShowAdd(true)}
+                className="text-xs text-zinc-500 hover:text-zinc-200 font-mono border border-zinc-800 px-3 py-1.5 hover:border-zinc-600 transition-colors"
+              >
+                ⌘A add existing
+              </button>
+              <button
+                onClick={() => setShowLaunch(true)}
+                className="text-xs text-zinc-500 hover:text-zinc-200 font-mono border border-zinc-800 px-3 py-1.5 hover:border-zinc-600 transition-colors"
+              >
+                ⌘N launch new
+              </button>
+            </div>
+          </div>
+        </div>
+        {showAdd && (
+          <AddAgentModal
+            gridAgentIds={gridAgentIds}
+            onAdd={handleAdd}
+            onLaunchNew={() => { setShowAdd(false); setShowLaunch(true); }}
+            onClose={() => setShowAdd(false)}
+          />
+        )}
+        {showLaunch && (
+          <LaunchModal
+            onClose={() => setShowLaunch(false)}
+            onLaunched={handleLaunched}
+          />
+        )}
+        {showReviewInput && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => { if (!reviewLaunching) { setShowReviewInput(false); setReviewPrUrl(""); } }}>
+            <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md border border-zinc-800 bg-zinc-950">
+              <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
+                <span className="text-xs text-zinc-300 font-mono">review pr</span>
+                <span className="text-[10px] text-zinc-600 font-mono ml-auto">{reviewLaunching ? "launching..." : "[esc]"}</span>
+              </div>
+              <div className="px-3 py-3">
+                <input
+                  type="url"
+                  value={reviewPrUrl}
+                  onChange={(e) => setReviewPrUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && reviewPrUrl.trim() && !reviewLaunching) launchReview(reviewPrUrl.trim());
+                    if (e.key === "Escape" && !reviewLaunching) { setShowReviewInput(false); setReviewPrUrl(""); }
+                  }}
+                  placeholder="paste pr url, hit enter"
+                  autoFocus
+                  disabled={reviewLaunching}
+                  className="w-full bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono disabled:opacity-40"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="h-dvh bg-zinc-950 flex flex-col overflow-hidden">
+      {/* Top bar */}
+      <div className="flex items-center justify-between border-b border-zinc-800 px-2 py-0.5 bg-zinc-900/60 shrink-0">
+        <span className="text-[10px] text-zinc-500 font-mono">
+          cursor-agents — {paneCount} pane{paneCount !== 1 ? "s" : ""}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowReviewInput(true)}
+            className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            [⌘E review]
+          </button>
+          <button
+            onClick={() => setShowLaunch(true)}
+            className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
+          >
+            [⌘N new]
+          </button>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
+          >
+            [⌘A add]
+          </button>
+          {focusedId && (
+            <button
+              onClick={() => handleRemove(focusedId)}
+              className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
+            >
+              [⌘W close]
+            </button>
+          )}
+          <button
+            onClick={() => router.push("/setup")}
+            className="text-[10px] text-zinc-600 hover:text-zinc-300 font-mono"
+          >
+            [⌘, key]
+          </button>
+        </div>
+      </div>
+
+      {/* Pane grid */}
+      <div className={`flex-1 grid ${gridCols(paneCount)} auto-rows-fr min-h-0 overflow-hidden`}>
+        {sorted.map((item) => {
+          const agent = agentMap.get(item.agentId);
+          if (!agent) {
+            return (
+              <div key={item.agentId} className="flex items-center justify-center border-r border-b border-zinc-800 text-[10px] text-zinc-600 font-mono">
+                <button onClick={() => handleRemove(item.agentId)} className="hover:text-zinc-300">
+                  {item.agentId.slice(0, 12)}… [remove]
+                </button>
+              </div>
+            );
+          }
+          return (
+            <Pane
+              key={agent.id}
+              agent={agent}
+              focused={focusedId === agent.id}
+              onFocus={() => setFocusedId(agent.id)}
+              onClose={() => handleRemove(agent.id)}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          );
+        })}
+      </div>
+
+      {/* Modals */}
+      {showAdd && (
+        <AddAgentModal
+          gridAgentIds={gridAgentIds}
+          onAdd={handleAdd}
+          onLaunchNew={() => { setShowAdd(false); setShowLaunch(true); }}
+          onClose={() => setShowAdd(false)}
+        />
+      )}
+      {showLaunch && (
+        <LaunchModal
+          onClose={() => setShowLaunch(false)}
+          onLaunched={handleLaunched}
+        />
+      )}
+      {showReviewInput && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => { if (!reviewLaunching) { setShowReviewInput(false); setReviewPrUrl(""); } }}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md border border-zinc-800 bg-zinc-950">
+            <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
+              <span className="text-xs text-zinc-300 font-mono">review pr</span>
+              <span className="text-[10px] text-zinc-600 font-mono ml-auto">{reviewLaunching ? "launching..." : "[esc]"}</span>
+            </div>
+            <div className="px-3 py-3">
+              <input
+                type="url"
+                value={reviewPrUrl}
+                onChange={(e) => setReviewPrUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && reviewPrUrl.trim() && !reviewLaunching) launchReview(reviewPrUrl.trim());
+                  if (e.key === "Escape" && !reviewLaunching) { setShowReviewInput(false); setReviewPrUrl(""); }
+                }}
+                placeholder="paste pr url, hit enter"
+                autoFocus
+                disabled={reviewLaunching}
+                className="w-full bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono disabled:opacity-40"
+              />
+            </div>
+          </div>
         </div>
-      </main>
+      )}
     </div>
   );
 }
