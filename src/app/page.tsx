@@ -130,24 +130,26 @@ export default function DashboardPage() {
       }
 
       // Cmd+O — open PR for focused pane
-      if (e.key === "o" && mod && focusedId) {
+      if (e.key === "o" && mod) {
         e.preventDefault();
-        const agent = agentMap.get(focusedId);
-        if (agent?.target.prUrl) window.open(agent.target.prUrl, "_blank");
+        if (focusedId) {
+          const agent = agentMap.get(focusedId);
+          if (agent?.target.prUrl) window.open(agent.target.prUrl, "_blank");
+        }
         return;
       }
 
       // Cmd+Shift+Backspace — stop focused agent
-      if (e.key === "Backspace" && mod && e.shiftKey && focusedId) {
+      if (e.key === "Backspace" && mod && e.shiftKey) {
         e.preventDefault();
-        stopAgent(focusedId);
+        if (focusedId) stopAgent(focusedId);
         return;
       }
 
       // Cmd+W — close focused pane
-      if (e.key === "w" && mod && focusedId) {
+      if (e.key === "w" && mod) {
         e.preventDefault();
-        handleRemove(focusedId);
+        if (focusedId) handleRemove(focusedId);
         return;
       }
 
