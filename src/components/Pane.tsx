@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import { useConversation, sendFollowUp, stopAgent } from "@/lib/api";
-import type { Agent } from "@/lib/types";
+import type { Agent, ConversationResponse } from "@/lib/types";
 import { StatusBadge } from "./StatusBadge";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -13,6 +13,7 @@ interface PaneProps {
   focused: boolean;
   onFocus: () => void;
   onClose: () => void;
+  conversation?: ConversationResponse;
 }
 
 function repoShort(agent: Agent): string {
@@ -20,8 +21,9 @@ function repoShort(agent: Agent): string {
   return url.replace(/^(https?:\/\/)?github\.com\//, "");
 }
 
-export function Pane({ agent, focused, onFocus, onClose }: PaneProps) {
-  const { data: convo } = useConversation(agent.id);
+export function Pane({ agent, focused, onFocus, onClose, conversation }: PaneProps) {
+  const { data: fetchedConvo } = useConversation(conversation ? null : agent.id);
+  const convo = conversation ?? fetchedConvo;
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isActive = agent.status === "RUNNING" || agent.status === "CREATING";
