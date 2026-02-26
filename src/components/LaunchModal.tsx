@@ -30,6 +30,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: branchesData } = useBranches(repo || null);
 
@@ -292,9 +293,41 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
             className="flex-1 bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono disabled:opacity-40 min-w-0"
           />
           {phase === "prompt" && !launching && (
-            <span className="text-[10px] text-zinc-700 font-mono shrink-0">
-              ↵
-            </span>
+            <>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.length) addImages(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="text-zinc-600 hover:text-zinc-300 shrink-0"
+                title="attach images"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="M21 15l-5-5L5 21" />
+                </svg>
+              </button>
+              <span className="text-[10px] text-zinc-700 font-mono shrink-0">
+                ↵
+              </span>
+            </>
           )}
           {phase !== "prompt" && !launching && (
             <span className="text-[10px] text-zinc-700 font-mono shrink-0">
@@ -302,6 +335,13 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
             </span>
           )}
         </div>
+
+        {/* Images (prompt phase) */}
+        {phase === "prompt" && images.length > 0 && !launching && (
+          <div className="px-3 py-1.5 border-b border-zinc-800">
+            <ImageAttachments images={images} onRemove={removeImage} />
+          </div>
+        )}
 
         {/* List */}
         {launching && (
@@ -338,10 +378,9 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
           </div>
         )}
 
-        {/* Footer: images, errors */}
-        {(images.length > 0 || rejections.length > 0 || error) && (
+        {/* Footer: errors */}
+        {(rejections.length > 0 || error) && (
           <div className="border-t border-zinc-800 px-3 py-2 space-y-1">
-            <ImageAttachments images={images} onRemove={removeImage} />
             {rejections.length > 0 && (
               <div className="space-y-0.5">
                 {rejections.map((msg, i) => (

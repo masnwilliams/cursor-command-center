@@ -11,18 +11,20 @@ interface FollowUpInputProps {
   disabled?: boolean;
   images: ImageAttachment[];
   onRemoveImage: (id: string) => void;
+  onAddFiles: (files: FileList) => void;
 }
 
 const MAX_ROWS = 10;
 
 export const FollowUpInput = forwardRef<HTMLTextAreaElement, FollowUpInputProps>(
   function FollowUpInput(
-    { agentId, onSend, disabled, images, onRemoveImage },
+    { agentId, onSend, disabled, images, onRemoveImage, onAddFiles },
     ref,
   ) {
     const [text, setText] = useState(() => getDraft(agentId));
     const [sending, setSending] = useState(false);
     const internalRef = useRef<HTMLTextAreaElement | null>(null);
+    const fileRef = useRef<HTMLInputElement>(null);
 
     const setRefs = useCallback(
       (el: HTMLTextAreaElement | null) => {
@@ -97,6 +99,37 @@ export const FollowUpInput = forwardRef<HTMLTextAreaElement, FollowUpInputProps>
             rows={1}
             className="flex-1 bg-zinc-900/50 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-600 outline-none disabled:opacity-40 min-w-0 resize-none px-2 py-1 font-mono focus:border-zinc-600 overflow-hidden"
           />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.length) onAddFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={disabled || sending}
+            className="text-zinc-600 hover:text-zinc-300 disabled:opacity-40 shrink-0 py-1"
+            title="attach images"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="M21 15l-5-5L5 21" />
+            </svg>
+          </button>
         </div>
       </div>
     );

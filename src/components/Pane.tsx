@@ -241,6 +241,7 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
           disabled={agent.status === "CREATING"}
           images={images}
           onRemoveImage={removeImage}
+          onAddFiles={(files) => addImages(files)}
         />
       </div>
     </div>
