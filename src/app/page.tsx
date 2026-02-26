@@ -153,10 +153,10 @@ export default function DashboardPage() {
         return;
       }
 
-      // Cmd+1-9 — focus pane by number
-      if (mod && e.key >= "1" && e.key <= "9") {
+      // Cmd+Shift+1-9 — focus pane by number
+      if (mod && e.shiftKey && e.code >= "Digit1" && e.code <= "Digit9") {
         e.preventDefault();
-        const idx = parseInt(e.key) - 1;
+        const idx = parseInt(e.code.slice(5)) - 1;
         const currentGrid = getGrid().sort((a, b) => a.order - b.order);
         if (idx < currentGrid.length) {
           setFocusedId(currentGrid[idx].agentId);

@@ -27,7 +27,7 @@ Every action has a keyboard shortcut. New features must include a shortcut.
 | Cmd+Shift+X | Close focused pane |
 | Cmd+Shift+, | Settings (API key) |
 | Cmd+Shift+O | Open PR for focused pane |
-| Cmd+1-9 | Focus pane by number |
+| Cmd+Shift+1-9 | Focus pane by number |
 | Cmd+Shift+Backspace | Stop focused agent |
 | Cmd+Enter | Submit/launch on any form |
 | Esc | Close modals, unfocus pane, back to grid from settings |
