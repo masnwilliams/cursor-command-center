@@ -106,8 +106,8 @@ export default function DashboardPage() {
         return;
       }
 
-      // Cmd+N — launch new agent
-      if (e.key === "n" && mod) {
+      // Cmd+K — launch new agent
+      if (e.key === "k" && mod) {
         e.preventDefault();
         setShowAdd(false);
         setShowLaunch(true);
@@ -122,15 +122,15 @@ export default function DashboardPage() {
         return;
       }
 
-      // Cmd+, — settings/key
+      // Cmd+Shift+, (or Cmd+,) — settings/key
       if (e.key === "," && mod) {
         e.preventDefault();
         router.push("/setup");
         return;
       }
 
-      // Cmd+O — open PR for focused pane
-      if (e.key === "o" && mod) {
+      // Cmd+Shift+O — open PR for focused pane
+      if (e.key === "o" && mod && e.shiftKey) {
         e.preventDefault();
         if (focusedId) {
           const agent = agentMap.get(focusedId);
@@ -146,8 +146,8 @@ export default function DashboardPage() {
         return;
       }
 
-      // Cmd+W — close focused pane
-      if (e.key === "w" && mod) {
+      // Cmd+Shift+X — close focused pane
+      if (e.key === "x" && mod && e.shiftKey) {
         e.preventDefault();
         if (focusedId) handleRemove(focusedId);
         return;
@@ -204,7 +204,7 @@ export default function DashboardPage() {
               onClick={() => setShowLaunch(true)}
               className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
             >
-              [⌘N new]
+              [⌘K new]
             </button>
             <button
               onClick={() => setShowAdd(true)}
@@ -216,7 +216,7 @@ export default function DashboardPage() {
               onClick={() => router.push("/setup")}
               className="text-[10px] text-zinc-600 hover:text-zinc-300 font-mono"
             >
-              [⌘, key]
+              [⌘⇧, key]
             </button>
           </div>
         </div>
@@ -240,7 +240,7 @@ export default function DashboardPage() {
                 onClick={() => setShowLaunch(true)}
                 className="text-xs text-zinc-500 hover:text-zinc-200 font-mono border border-zinc-800 px-3 py-1.5 hover:border-zinc-600 transition-colors"
               >
-                ⌘N launch new
+                ⌘K launch new
               </button>
             </div>
           </div>
@@ -332,7 +332,7 @@ export default function DashboardPage() {
             onClick={() => setShowLaunch(true)}
             className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
           >
-            [⌘N new]
+            [⌘K new]
           </button>
           <button
             onClick={() => setShowAdd(true)}
@@ -345,14 +345,14 @@ export default function DashboardPage() {
               onClick={() => handleRemove(focusedId)}
               className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
             >
-              [⌘W close]
+              [⌘⇧X close]
             </button>
           )}
           <button
             onClick={() => router.push("/setup")}
             className="text-[10px] text-zinc-600 hover:text-zinc-300 font-mono"
           >
-            [⌘, key]
+            [⌘⇧, key]
           </button>
         </div>
       </div>
