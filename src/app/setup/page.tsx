@@ -7,10 +7,19 @@ import { testConnection } from "@/lib/api";
 
 export default function SetupPage() {
   const router = useRouter();
-  const [key, setKey] = useState(getApiKey() ?? "");
+  const [key, setKey] = useState("");
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [hasExistingKey, setHasExistingKey] = useState(false);
+
+  useEffect(() => {
+    const existing = getApiKey();
+    if (existing) {
+      setKey(existing);
+      setHasExistingKey(true);
+    }
+  }, []);
 
   async function handleTest() {
     if (!key.trim()) {
@@ -43,6 +52,9 @@ export default function SetupPage() {
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && key.trim()) {
         e.preventDefault();
         handleContinue();
+      }
+      if (e.key === "Escape" && hasExistingKey) {
+        router.push("/");
       }
     }
     window.addEventListener("keydown", handleKey);
@@ -98,6 +110,15 @@ export default function SetupPage() {
               Continue ⌘↵
             </button>
           </div>
+
+          {hasExistingKey && (
+            <button
+              onClick={() => router.push("/")}
+              className="w-full text-xs text-zinc-500 hover:text-zinc-300 font-mono transition-colors py-1"
+            >
+              esc — back to grid
+            </button>
+          )}
         </div>
       </div>
     </div>
