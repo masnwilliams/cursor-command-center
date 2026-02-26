@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  useModels,
   useRepositories,
   useBranches,
   launchAgent,
@@ -19,24 +18,13 @@ interface LaunchModalProps {
   onLaunched: (agent: Agent) => void;
 }
 
-type Step = "repo" | "branch" | "branchName" | "model" | "message" | "ready";
-const STEPS: Step[] = ["repo", "branch", "branchName", "model", "message", "ready"];
-
-function prevStep(current: Step): Step {
-  const idx = STEPS.indexOf(current);
-  return STEPS[Math.max(idx - 1, 0)];
-}
+type Step = "repo" | "branch" | "ready";
 
 export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
-  const { data: modelsData } = useModels();
   const { data: reposData, refresh: refreshRepos } = useRepositories();
 
   const [repo, setRepo] = useState("");
   const [ref, setRef] = useState("");
-  const [prompt, setPrompt] = useState("");
-  const [model, setModel] = useState("claude-4.6-opus-high-thinking");
-  const [branchName, setBranchName] = useState("");
-  const [autoCreatePr, setAutoCreatePr] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -46,30 +34,12 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
 
   const repoSelectRef = useRef<SearchSelectHandle>(null);
   const branchSelectRef = useRef<SearchSelectHandle>(null);
-  const modelSelectRef = useRef<SearchSelectHandle>(null);
-  const branchNameRef = useRef<HTMLInputElement>(null);
-  const messageRef = useRef<HTMLInputElement>(null);
 
   function advanceTo(target: Step) {
     setStep(target);
     setTimeout(() => {
-      switch (target) {
-        case "repo":
-          repoSelectRef.current?.open();
-          break;
-        case "branch":
-          branchSelectRef.current?.open();
-          break;
-        case "branchName":
-          branchNameRef.current?.focus();
-          break;
-        case "model":
-          modelSelectRef.current?.open();
-          break;
-        case "message":
-          messageRef.current?.focus();
-          break;
-      }
+      if (target === "repo") repoSelectRef.current?.open();
+      else if (target === "branch") branchSelectRef.current?.open();
     }, 80);
   }
 
@@ -80,12 +50,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
 
   function handleBranchChange(val: string) {
     setRef(val);
-    if (val) advanceTo("branchName");
-  }
-
-  function handleModelChange(val: string) {
-    setModel(val);
-    advanceTo("message");
+    if (val) setStep("ready");
   }
 
   const addImages = useCallback(async (files: FileList | File[]) => {
@@ -121,15 +86,12 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
 
       const agent = await launchAgent({
         prompt: {
-          text: prompt.trim() || "Follow instructions in the repository.",
+          text: "Start.",
           images: imgs,
         },
-        model: model || undefined,
+        model: "claude-4.6-opus-high-thinking",
         source: { repository: repo, ref: ref || undefined },
-        target: {
-          autoCreatePr: autoCreatePr || undefined,
-          branchName: branchName.trim() || undefined,
-        },
+        target: {},
       });
       onLaunched(agent);
     } catch (e) {
@@ -156,7 +118,6 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   const { data: branchesData } = useBranches(repo || null);
 
   const repos = reposData?.repositories ?? [];
-  const models = modelsData?.models ?? [];
   const branches = branchesData?.branches ?? [];
 
   function handleDragOver(e: React.DragEvent) {
@@ -177,30 +138,6 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
     setDragOver(false);
     if (e.dataTransfer.files?.length) {
       await addImages(e.dataTransfer.files);
-    }
-  }
-
-  function stepLabel(s: Step): string {
-    const idx = STEPS.indexOf(s) + 1;
-    const labels: Record<Step, string> = {
-      repo: "repository",
-      branch: "branch/ref",
-      branchName: "branch name",
-      model: "model",
-      message: "message",
-      ready: "",
-    };
-    return `${idx}. ${labels[s]}`;
-  }
-
-  function isStepDone(s: Step): boolean {
-    switch (s) {
-      case "repo": return !!repo;
-      case "branch": return !!ref;
-      case "branchName": return !!branchName;
-      case "model": return !!model;
-      case "message": return !!prompt;
-      default: return false;
     }
   }
 
@@ -238,10 +175,10 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label
-                className={`text-[10px] font-mono ${step === "repo" ? "text-blue-400" : isStepDone("repo") ? "text-zinc-400" : "text-zinc-600"}`}
+                className={`text-[10px] font-mono ${step === "repo" ? "text-blue-400" : repo ? "text-zinc-400" : "text-zinc-600"}`}
               >
-                {stepLabel("repo")}
-                {isStepDone("repo") && <span className="text-zinc-600 ml-1">✓</span>}
+                1. repository
+                {repo && <span className="text-zinc-600 ml-1">✓</span>}
               </label>
               <button
                 type="button"
@@ -270,16 +207,16 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
           {/* 2. Branch */}
           <div className="space-y-1">
             <label
-              className={`text-[10px] font-mono ${step === "branch" ? "text-blue-400" : isStepDone("branch") ? "text-zinc-400" : "text-zinc-600"}`}
+              className={`text-[10px] font-mono ${step === "branch" ? "text-blue-400" : ref ? "text-zinc-400" : "text-zinc-600"}`}
             >
-              {stepLabel("branch")}
-              {isStepDone("branch") && <span className="text-zinc-600 ml-1">✓</span>}
+              2. branch
+              {ref && <span className="text-zinc-600 ml-1">✓</span>}
             </label>
             <SearchSelect
               ref={branchSelectRef}
               value={ref}
               onChange={handleBranchChange}
-              onSkip={() => advanceTo("branchName")}
+              onSkip={() => setStep("ready")}
               onBack={() => advanceTo("repo")}
               options={branches.map((b) => ({ value: b, label: b }))}
               placeholder="main"
@@ -288,105 +225,20 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
             />
           </div>
 
-          {/* 3. Branch name */}
-          <div className="space-y-1">
-            <label
-              className={`text-[10px] font-mono ${step === "branchName" ? "text-blue-400" : isStepDone("branchName") ? "text-zinc-400" : "text-zinc-600"}`}
-            >
-              {stepLabel("branchName")}
-              {isStepDone("branchName") && <span className="text-zinc-600 ml-1">✓</span>}
-            </label>
-            <input
-              ref={branchNameRef}
-              type="text"
-              value={branchName}
-              onChange={(e) => setBranchName(e.target.value)}
-              onFocus={() => setStep("branchName")}
-              onKeyDown={(e) => {
-                if (e.key === "Tab") {
-                  e.preventDefault();
-                  if (e.shiftKey) advanceTo("branch");
-                  else advanceTo("model");
-                }
-              }}
-              placeholder="auto"
-              className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
-            />
-          </div>
-
-          {/* 4. Model */}
-          <div className="space-y-1">
-            <label
-              className={`text-[10px] font-mono ${step === "model" ? "text-blue-400" : isStepDone("model") ? "text-zinc-400" : "text-zinc-600"}`}
-            >
-              {stepLabel("model")}
-              {isStepDone("model") && <span className="text-zinc-600 ml-1">✓</span>}
-            </label>
-            <SearchSelect
-              ref={modelSelectRef}
-              value={model}
-              onChange={handleModelChange}
-              onSkip={() => advanceTo("message")}
-              onBack={() => advanceTo("branchName")}
-              options={[
-                { value: "", label: "auto" },
-                ...models.map((m) => ({ value: m, label: m })),
-              ]}
-              placeholder="auto"
-            />
-          </div>
-
-          {/* Auto-create PR */}
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoCreatePr}
-              onChange={(e) => setAutoCreatePr(e.target.checked)}
-              className="border-zinc-700 bg-zinc-900"
-            />
-            <span className="text-xs text-zinc-400 font-mono">
-              auto-create pr
-            </span>
-          </label>
-
-          {/* 5. Message (optional) */}
-          <div className="space-y-1">
-            <label
-              className={`text-[10px] font-mono ${step === "message" ? "text-blue-400" : isStepDone("message") ? "text-zinc-400" : "text-zinc-600"}`}
-            >
-              {stepLabel("message")}{" "}
-              <span className="text-zinc-700">optional</span>
-            </label>
-            <input
-              ref={messageRef}
-              type="text"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onFocus={() => setStep("message")}
-              onKeyDown={(e) => {
-                if (e.key === "Tab") {
-                  e.preventDefault();
-                  if (e.shiftKey) advanceTo("model");
-                  else setStep("ready");
-                }
-              }}
-              placeholder="or send in pane after launch"
-              className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
-            />
-            <ImageAttachments images={images} onRemove={removeImage} />
-            {rejections.length > 0 && (
-              <div className="bg-red-950/90 border border-red-800 px-2 py-1.5 space-y-0.5">
-                {rejections.map((msg, i) => (
-                  <p
-                    key={i}
-                    className="text-[10px] text-red-300 font-mono truncate"
-                  >
-                    {msg}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Images */}
+          <ImageAttachments images={images} onRemove={removeImage} />
+          {rejections.length > 0 && (
+            <div className="bg-red-950/90 border border-red-800 px-2 py-1.5 space-y-0.5">
+              {rejections.map((msg, i) => (
+                <p
+                  key={i}
+                  className="text-[10px] text-red-300 font-mono truncate"
+                >
+                  {msg}
+                </p>
+              ))}
+            </div>
+          )}
 
           {error && <p className="text-xs text-red-400 font-mono">{error}</p>}
         </div>
