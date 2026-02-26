@@ -12,13 +12,14 @@ interface LaunchModalProps {
   onLaunched: (agent: Agent) => void;
 }
 
-type Phase = "repo" | "branch";
+type Phase = "repo" | "branch" | "prompt";
 
 export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   const { data: reposData } = useRepositories();
 
   const [phase, setPhase] = useState<Phase>("repo");
   const [repo, setRepo] = useState("");
+  const [branch, setBranch] = useState("");
   const [query, setQuery] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [launching, setLaunching] = useState(false);
@@ -42,6 +43,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   }, [repo, repos]);
 
   const items = useMemo(() => {
+    if (phase === "prompt") return [];
     const q = query.toLowerCase();
     if (phase === "repo") {
       return repos
@@ -81,11 +83,16 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
       setQuery("");
       return;
     }
-    doLaunch(repo, value);
+    if (phase === "branch") {
+      setBranch(value);
+      setPhase("prompt");
+      setQuery("");
+      return;
+    }
   }
 
-  async function doLaunch(repoVal: string, branchVal?: string) {
-    if (!repoVal) return;
+  async function doLaunch(promptText: string) {
+    if (!repo) return;
     setLaunching(true);
     setError(null);
     try {
@@ -98,13 +105,15 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
           : undefined;
       const agent = await launchAgent({
         prompt: {
-          text: "Stand by. I'll send instructions in a follow-up message.",
+          text:
+            promptText.trim() ||
+            "Stand by. I'll send instructions in a follow-up message.",
           images: imgs,
         },
         model: "claude-4.6-opus-high-thinking",
         source: {
-          repository: repoVal,
-          ref: branchVal || undefined,
+          repository: repo,
+          ref: branch || undefined,
         },
         target: {},
       });
@@ -117,6 +126,12 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
+      if (phase === "prompt") {
+        setPhase("branch");
+        setBranch("");
+        setQuery("");
+        return;
+      }
       if (phase === "branch") {
         setPhase("repo");
         setRepo("");
@@ -126,9 +141,28 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
       onClose();
       return;
     }
+    if (phase === "prompt") {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        doLaunch(query);
+        return;
+      }
+      if (e.key === "Backspace" && !query) {
+        setPhase("branch");
+        setBranch("");
+        return;
+      }
+      return;
+    }
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      if (repo) doLaunch(repo);
+      if (phase === "branch") {
+        const selected = items[highlightIdx]?.value || "";
+        setBranch(selected);
+        doLaunch("");
+      } else if (repo) {
+        doLaunch("");
+      }
       return;
     }
     if (e.key === "Enter") {
@@ -150,9 +184,11 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
       scrollToIdx(next);
       return;
     }
-    if (e.key === "Backspace" && !query && phase === "branch") {
-      setPhase("repo");
-      setRepo("");
+    if (e.key === "Backspace" && !query) {
+      if (phase === "branch") {
+        setPhase("repo");
+        setRepo("");
+      }
       return;
     }
   }
@@ -192,7 +228,13 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   }
 
   const loading =
-    phase === "repo" ? !repos.length : !!repo && !branchesData;
+    phase === "repo"
+      ? !repos.length
+      : phase === "branch"
+        ? !!repo && !branchesData
+        : false;
+
+  const showList = phase !== "prompt" && !launching;
 
   return (
     <div
@@ -217,10 +259,17 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
         )}
 
         {/* Input */}
-        <div className="flex items-center border-b border-zinc-800 px-3 py-2 gap-2">
-          {phase === "branch" && (
+        <div
+          className={`flex items-center px-3 py-2 gap-2 ${showList ? "border-b border-zinc-800" : ""}`}
+        >
+          {(phase === "branch" || phase === "prompt") && (
             <span className="text-[10px] text-blue-400 font-mono shrink-0 bg-blue-500/10 px-1.5 py-0.5">
               {repoLabel}
+            </span>
+          )}
+          {phase === "prompt" && branch && (
+            <span className="text-[10px] text-green-400 font-mono shrink-0 bg-green-500/10 px-1.5 py-0.5">
+              {branch}
             </span>
           )}
           <input
@@ -234,27 +283,34 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
                 ? "launching..."
                 : phase === "repo"
                   ? "search repos..."
-                  : "branch (enter = launch)"
+                  : phase === "branch"
+                    ? "search branches..."
+                    : "what should the agent do?"
             }
             disabled={launching}
             autoFocus
             className="flex-1 bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono disabled:opacity-40 min-w-0"
           />
-          <span className="text-[10px] text-zinc-700 font-mono shrink-0">
-            ⌘↵
-          </span>
+          {phase === "prompt" && !launching && (
+            <span className="text-[10px] text-zinc-700 font-mono shrink-0">
+              ↵
+            </span>
+          )}
+          {phase !== "prompt" && !launching && (
+            <span className="text-[10px] text-zinc-700 font-mono shrink-0">
+              ⌘↵
+            </span>
+          )}
         </div>
 
-        {/* List / launching state */}
-        {launching ? (
+        {/* List */}
+        {launching && (
           <div className="px-3 py-4 text-xs text-zinc-500 font-mono text-center">
             launching...
           </div>
-        ) : (
-          <div
-            ref={listRef}
-            className="max-h-[240px] overflow-y-auto"
-          >
+        )}
+        {showList && (
+          <div ref={listRef} className="max-h-[240px] overflow-y-auto">
             {loading && (
               <div className="px-3 py-3 text-[10px] text-zinc-600 font-mono">
                 loading...
@@ -282,7 +338,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
           </div>
         )}
 
-        {/* Footer: images, errors, hints */}
+        {/* Footer: images, errors */}
         {(images.length > 0 || rejections.length > 0 || error) && (
           <div className="border-t border-zinc-800 px-3 py-2 space-y-1">
             <ImageAttachments images={images} onRemove={removeImage} />
