@@ -170,7 +170,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
           </span>
         </div>
 
-        <div className="px-3 py-3 space-y-2.5 max-h-[70dvh] overflow-y-auto">
+        <div className="px-3 py-3 space-y-2.5">
           {/* 1. Repository */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
