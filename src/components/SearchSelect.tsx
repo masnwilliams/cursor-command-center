@@ -11,6 +11,7 @@ interface SearchSelectProps {
   value: string;
   onChange: (value: string) => void;
   onSkip?: () => void;
+  onBack?: () => void;
   options: { value: string; label: string }[];
   placeholder?: string;
   loading?: boolean;
@@ -24,6 +25,7 @@ export const SearchSelect = forwardRef<SearchSelectHandle, SearchSelectProps>(
       value,
       onChange,
       onSkip,
+      onBack,
       options,
       placeholder = "select...",
       loading,
@@ -130,7 +132,8 @@ export const SearchSelect = forwardRef<SearchSelectHandle, SearchSelectProps>(
         e.preventDefault();
         setOpen(false);
         setQuery("");
-        onSkip?.();
+        if (e.shiftKey) onBack?.();
+        else onSkip?.();
         return;
       }
       if (e.key === "Enter" && !(e.metaKey || e.ctrlKey)) {

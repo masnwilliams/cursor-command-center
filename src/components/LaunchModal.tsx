@@ -22,9 +22,9 @@ interface LaunchModalProps {
 type Step = "repo" | "branch" | "branchName" | "model" | "message" | "ready";
 const STEPS: Step[] = ["repo", "branch", "branchName", "model", "message", "ready"];
 
-function nextStep(current: Step): Step {
+function prevStep(current: Step): Step {
   const idx = STEPS.indexOf(current);
-  return STEPS[Math.min(idx + 1, STEPS.length - 1)];
+  return STEPS[Math.max(idx - 1, 0)];
 }
 
 export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
@@ -229,7 +229,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
         <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
           <span className="text-xs text-zinc-300 font-mono">launch agent</span>
           <span className="text-[10px] text-zinc-600 font-mono">
-            tab skip · ⌘↵ launch · esc close
+            tab next · ⇧tab back · ⌘↵ launch
           </span>
         </div>
 
@@ -256,6 +256,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               value={repo}
               onChange={handleRepoChange}
               onSkip={() => advanceTo("branch")}
+              onBack={() => {}}
               options={repos.map((r) => ({
                 value: r.repository,
                 label: `${r.owner}/${r.name}`,
@@ -279,6 +280,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               value={ref}
               onChange={handleBranchChange}
               onSkip={() => advanceTo("branchName")}
+              onBack={() => advanceTo("repo")}
               options={branches.map((b) => ({ value: b, label: b }))}
               placeholder="main"
               loading={!!repo && !branchesData}
@@ -303,7 +305,8 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               onKeyDown={(e) => {
                 if (e.key === "Tab") {
                   e.preventDefault();
-                  advanceTo("model");
+                  if (e.shiftKey) advanceTo("branch");
+                  else advanceTo("model");
                 }
               }}
               placeholder="auto"
@@ -324,6 +327,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               value={model}
               onChange={handleModelChange}
               onSkip={() => advanceTo("message")}
+              onBack={() => advanceTo("branchName")}
               options={[
                 { value: "", label: "auto" },
                 ...models.map((m) => ({ value: m, label: m })),
@@ -362,7 +366,8 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               onKeyDown={(e) => {
                 if (e.key === "Tab") {
                   e.preventDefault();
-                  setStep("ready");
+                  if (e.shiftKey) advanceTo("model");
+                  else setStep("ready");
                 }
               }}
               placeholder="or send in pane after launch"
