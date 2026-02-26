@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, forwardRef, useCallback } from "react";
+import { useState, useRef, useCallback, forwardRef } from "react";
 import { getDraft, setDraft } from "@/lib/storage";
 
 interface FollowUpInputProps {
@@ -9,10 +9,32 @@ interface FollowUpInputProps {
   disabled?: boolean;
 }
 
+const MAX_ROWS = 10;
+
 export const FollowUpInput = forwardRef<HTMLTextAreaElement, FollowUpInputProps>(
   function FollowUpInput({ agentId, onSend, disabled }, ref) {
     const [text, setText] = useState(() => getDraft(agentId));
     const [sending, setSending] = useState(false);
+    const internalRef = useRef<HTMLTextAreaElement | null>(null);
+
+    const setRefs = useCallback(
+      (el: HTMLTextAreaElement | null) => {
+        internalRef.current = el;
+        if (typeof ref === "function") ref(el);
+        else if (ref) ref.current = el;
+      },
+      [ref],
+    );
+
+    function autoResize() {
+      const el = internalRef.current;
+      if (!el) return;
+      el.style.height = "auto";
+      const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 18;
+      const maxHeight = lineHeight * MAX_ROWS;
+      el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+      el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+    }
 
     const updateText = useCallback(
       (val: string) => {
@@ -29,20 +51,24 @@ export const FollowUpInput = forwardRef<HTMLTextAreaElement, FollowUpInputProps>
       try {
         await onSend(trimmed);
         updateText("");
+        requestAnimationFrame(autoResize);
       } finally {
         setSending(false);
       }
     }
 
     return (
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-zinc-600 select-none shrink-0 font-mono">
+      <div className="flex items-end gap-1.5">
+        <span className="text-xs text-zinc-600 select-none shrink-0 font-mono py-1">
           {">"}
         </span>
         <textarea
-          ref={ref}
+          ref={setRefs}
           value={text}
-          onChange={(e) => updateText(e.target.value)}
+          onChange={(e) => {
+            updateText(e.target.value);
+            autoResize();
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -52,9 +78,9 @@ export const FollowUpInput = forwardRef<HTMLTextAreaElement, FollowUpInputProps>
           placeholder={sending ? "sending..." : "follow up..."}
           disabled={disabled || sending}
           rows={1}
-          className="flex-1 bg-zinc-900/50 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-600 outline-none disabled:opacity-40 min-w-0 resize-none px-2 py-1 font-mono focus:border-zinc-600"
+          className="flex-1 bg-zinc-900/50 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-600 outline-none disabled:opacity-40 min-w-0 resize-none px-2 py-1 font-mono focus:border-zinc-600 overflow-hidden"
         />
       </div>
     );
-  }
+  },
 );
