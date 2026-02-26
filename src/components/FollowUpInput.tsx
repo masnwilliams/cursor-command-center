@@ -58,7 +58,11 @@ export const FollowUpInput = forwardRef<HTMLTextAreaElement, FollowUpInputProps>
       try {
         await onSend(trimmed);
         updateText("");
-        requestAnimationFrame(autoResize);
+        const el = internalRef.current;
+        if (el) {
+          el.style.height = "auto";
+          el.style.overflowY = "hidden";
+        }
       } finally {
         setSending(false);
       }
