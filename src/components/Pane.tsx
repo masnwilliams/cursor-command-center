@@ -58,7 +58,11 @@ export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation 
     if (!focused) return;
     function handleKeyDown(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (document.activeElement === inputRef.current) return;
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement
+      )
+        return;
       if (e.key.length === 1) {
         inputRef.current?.focus();
       }

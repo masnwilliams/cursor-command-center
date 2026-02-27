@@ -186,9 +186,9 @@ export default function DashboardPage() {
   }, [focusedAgent, focusedId, sorted, agentMap]);
 
   useEffect(() => {
-    if (showAdd || showLaunch || showReviewInput || showPalette)
+    if (showAdd || showLaunch || showReviewInput)
       setFocusedId(null);
-  }, [showAdd, showLaunch, showReviewInput, showPalette]);
+  }, [showAdd, showLaunch, showReviewInput]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
