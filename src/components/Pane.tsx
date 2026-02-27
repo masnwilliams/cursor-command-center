@@ -34,6 +34,7 @@ export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation 
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [rejections, setRejections] = useState<string[]>([]);
+  const [expandedMsgs, setExpandedMsgs] = useState<Set<string>>(new Set());
 
   const addImages = useCallback(async (files: FileList | File[]) => {
     const { images: newImages, rejected } = await readFilesAsImages(files);
@@ -226,27 +227,48 @@ export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation 
             }
             return sections.map((section) => (
               <div key={section[0].id}>
-                {section.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`px-2 py-1.5 text-xs leading-relaxed border-b border-zinc-900 ${
-                      msg.type === "user_message"
-                        ? "bg-blue-950/40 text-blue-200 sticky top-0 z-10 backdrop-blur-sm border-b-blue-900/50 max-h-[33vh] overflow-y-auto"
-                        : "text-zinc-300"
-                    }`}
-                  >
-                    <span className="text-[10px] text-zinc-600 mr-1.5 select-none">
-                      {msg.type === "user_message" ? ">" : "$"}
-                    </span>
-                    {msg.type === "assistant_message" ? (
-                      <span className="prose-pane inline">
-                        <Markdown remarkPlugins={[remarkGfm]}>{msg.text}</Markdown>
+                {section.map((msg) => {
+                  const isUser = msg.type === "user_message";
+                  const isExpanded = expandedMsgs.has(msg.id);
+                  return (
+                    <div
+                      key={msg.id}
+                      onClick={
+                        isUser
+                          ? (e) => {
+                              e.stopPropagation();
+                              setExpandedMsgs((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(msg.id)) next.delete(msg.id);
+                                else next.add(msg.id);
+                                return next;
+                              });
+                            }
+                          : undefined
+                      }
+                      className={`px-2 py-1.5 text-xs leading-relaxed border-b border-zinc-900 ${
+                        isUser
+                          ? `bg-blue-950/40 text-blue-200 sticky top-0 z-10 backdrop-blur-sm border-b-blue-900/50 cursor-pointer ${
+                              isExpanded
+                                ? "max-h-60 overflow-y-auto"
+                                : "max-h-24 overflow-hidden"
+                            }`
+                          : "text-zinc-300"
+                      }`}
+                    >
+                      <span className="text-[10px] text-zinc-600 mr-1.5 select-none">
+                        {isUser ? ">" : "$"}
                       </span>
-                    ) : (
-                      <span className="whitespace-pre-wrap">{msg.text}</span>
-                    )}
-                  </div>
-                ))}
+                      {msg.type === "assistant_message" ? (
+                        <span className="prose-pane inline">
+                          <Markdown remarkPlugins={[remarkGfm]}>{msg.text}</Markdown>
+                        </span>
+                      ) : (
+                        <span className="whitespace-pre-wrap">{msg.text}</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ));
           })()
