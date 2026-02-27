@@ -56,6 +56,13 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
     } else if (e.key === "Escape") {
       e.preventDefault();
       onClose();
+    } else if (!query && e.key >= "1" && e.key <= "9") {
+      const idx = parseInt(e.key) - 1;
+      if (idx < filtered.length) {
+        e.preventDefault();
+        filtered[idx].action();
+        onClose();
+      }
     }
   }
 
@@ -105,7 +112,7 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
                     onClose();
                   }}
                   onMouseEnter={() => setSelectedIdx(i)}
-                  className={`w-full text-left px-3 py-1.5 text-xs font-mono transition-colors ${
+                  className={`w-full text-left px-3 py-1.5 text-xs font-mono transition-colors flex items-center gap-2 ${
                     i === selectedIdx
                       ? cmd.destructive
                         ? "bg-red-950/40 text-red-400"
@@ -115,7 +122,12 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
                         : "text-zinc-400"
                   }`}
                 >
-                  {cmd.label}
+                  {i < 9 && (
+                    <span className="text-[10px] text-zinc-600 w-3 shrink-0 text-right">
+                      {i + 1}
+                    </span>
+                  )}
+                  <span className="flex-1 min-w-0">{cmd.label}</span>
                 </button>
               </div>
             );
