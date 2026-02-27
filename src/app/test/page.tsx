@@ -157,6 +157,22 @@ const FAKE_AGENTS: Agent[] = [
     linesRemoved: 3,
     filesChanged: 1,
   },
+  {
+    id: "agent-009-long-user-msg",
+    name: "Long user message test",
+    status: "RUNNING",
+    source: {
+      repository: "https://github.com/acme/web-app",
+      ref: "main",
+    },
+    target: {
+      branchName: "test/long-message",
+      autoCreatePr: false,
+      openAsCursorGithubApp: false,
+      skipReviewerRequest: false,
+    },
+    createdAt: new Date(Date.now() - 3 * 60_000).toISOString(),
+  },
 ];
 
 const FAKE_CONVERSATIONS: Record<string, ConversationResponse> = {
@@ -281,6 +297,21 @@ const FAKE_CONVERSATIONS: Record<string, ConversationResponse> = {
         id: "m2",
         type: "assistant_message",
         text: "Fixed the typo on line 23: \"recieve\" → \"receive\".",
+      },
+    ],
+  },
+  "agent-009-long-user-msg": {
+    id: "conv-009",
+    messages: [
+      {
+        id: "m1",
+        type: "user_message",
+        text: "I need you to do a full refactor of the authentication system. Here are the detailed requirements:\n\n1. Replace the current JWT implementation with short-lived access tokens (15 min) and long-lived refresh tokens (7 days) stored in httpOnly cookies.\n2. Add a /auth/refresh endpoint that issues new access tokens using the refresh token.\n3. Implement token rotation — each time a refresh token is used, invalidate it and issue a new one.\n4. Store refresh token families in the database so we can detect reuse and revoke the entire family.\n5. Add rate limiting on /auth/login — max 5 attempts per minute per IP, with exponential backoff.\n6. Implement CSRF protection using the double-submit cookie pattern for all state-changing requests.\n7. Add an /auth/logout endpoint that clears cookies and revokes the current refresh token family.\n8. Update all existing middleware to validate the new short-lived access tokens.\n9. Make sure all error responses follow RFC 7807 problem details format.\n10. Add comprehensive test coverage for all the above — unit tests for token logic, integration tests for the endpoints, and E2E tests for the full login/refresh/logout flow.\n11. Update the API documentation with the new auth flow diagrams.\n12. Ensure backward compatibility with existing mobile clients for at least 2 weeks via a legacy header fallback.",
+      },
+      {
+        id: "m2",
+        type: "assistant_message",
+        text: "That's a comprehensive auth overhaul. I'll break this down into phases and start with the token infrastructure.\n\n**Phase 1 — Token layer:**\n- Implementing short-lived access tokens (15 min) and refresh tokens (7 days)\n- Setting up httpOnly cookie configuration\n- Creating the refresh token family schema in the database\n\n**Phase 2 — Endpoints:**\n- `/auth/refresh` with token rotation\n- `/auth/logout` with family revocation\n- Rate limiting on `/auth/login`\n\n**Phase 3 — Middleware & protection:**\n- CSRF double-submit cookie\n- Updated auth middleware\n- Legacy header fallback\n\n**Phase 4 — Tests & docs:**\n- Unit, integration, and E2E coverage\n- Updated API docs with flow diagrams\n\nStarting with the token layer now...",
       },
     ],
   },
