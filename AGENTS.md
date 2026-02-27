@@ -150,3 +150,13 @@ Key behaviors:
 - `GET /v0/repositories` has strict rate limits (1/min, 30/hr) — cached aggressively
 - Stopping an agent pauses it; sending a follow-up resumes it
 - The API returns `linesAdded`, `linesRemoved`, `filesChanged` on finished agents
+
+## Cursor Cloud specific instructions
+
+- **Runtime**: Bun must be installed (`curl -fsSL https://bun.sh/install | bash`). Ensure `~/.bun/bin` is on `PATH`.
+- **Dev server**: `bun run dev` starts Next.js on port 3000 with `--webpack` flag (required for Serwist PWA compatibility).
+- **UI testing without an API key**: Navigate to `http://localhost:3000/test` to see 8 hardcoded fake agent panes. This route uses static data and does not call the Cursor API, so it works without any credentials. Use it for testing UI changes to panes, scrolling, markdown rendering, layouts, and the grid.
+- **No database, no Docker, no `.env`**: The app is entirely client-side state (localStorage). The only external dependency is the Cursor API at `api.cursor.com`, which requires a user-supplied API key entered in the browser.
+- **Lint**: `bun run lint` runs ESLint. The codebase has pre-existing React Compiler warnings (set-state-in-effect, preserve-manual-memoization) — these are known and not blockers.
+- **Format**: `bun run format` runs Prettier.
+- **Build**: `bun run build` produces a production build. Useful for verifying TypeScript and compilation correctness.
