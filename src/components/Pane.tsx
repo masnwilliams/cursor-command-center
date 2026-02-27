@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import { useConversation, sendFollowUp, stopAgent } from "@/lib/api";
-import type { Agent, ConversationResponse } from "@/lib/types";
+import type { Agent, ConversationMessage, ConversationResponse } from "@/lib/types";
 import type { ImageAttachment } from "@/lib/images";
 import { readFilesAsImages } from "@/lib/images";
 import { StatusBadge } from "./StatusBadge";
@@ -213,29 +213,43 @@ export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation 
         className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
       >
         {convo?.messages?.length ? (
-          <div>
-            {convo.messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`px-2 py-1.5 text-xs leading-relaxed border-b border-zinc-900 ${
-                  msg.type === "user_message"
-                    ? "bg-blue-950/20 text-blue-200"
-                    : "text-zinc-300"
-                }`}
-              >
-                <span className="text-[10px] text-zinc-600 mr-1.5 select-none">
-                  {msg.type === "user_message" ? ">" : "$"}
-                </span>
-                {msg.type === "assistant_message" ? (
-                  <span className="prose-pane inline">
-                    <Markdown remarkPlugins={[remarkGfm]}>{msg.text}</Markdown>
-                  </span>
-                ) : (
-                  <span className="whitespace-pre-wrap">{msg.text}</span>
-                )}
+          (() => {
+            const sections: ConversationMessage[][] = [];
+            for (const msg of convo.messages) {
+              if (msg.type === "user_message") {
+                sections.push([msg]);
+              } else if (sections.length) {
+                sections[sections.length - 1].push(msg);
+              } else {
+                sections.push([msg]);
+              }
+            }
+            return sections.map((section) => (
+              <div key={section[0].id}>
+                {section.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`px-2 py-1.5 text-xs leading-relaxed border-b border-zinc-900 ${
+                      msg.type === "user_message"
+                        ? "bg-blue-950/40 text-blue-200 sticky top-0 z-10 backdrop-blur-sm border-b-blue-900/50"
+                        : "text-zinc-300"
+                    }`}
+                  >
+                    <span className="text-[10px] text-zinc-600 mr-1.5 select-none">
+                      {msg.type === "user_message" ? ">" : "$"}
+                    </span>
+                    {msg.type === "assistant_message" ? (
+                      <span className="prose-pane inline">
+                        <Markdown remarkPlugins={[remarkGfm]}>{msg.text}</Markdown>
+                      </span>
+                    ) : (
+                      <span className="whitespace-pre-wrap">{msg.text}</span>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            ));
+          })()
         ) : (
           <p className="text-[10px] text-zinc-600 px-2 py-3">
             {agent.status === "CREATING" ? "starting..." : "no messages"}
