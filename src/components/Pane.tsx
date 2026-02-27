@@ -15,6 +15,7 @@ interface PaneProps {
   focused: boolean;
   onFocus: () => void;
   onClose: () => void;
+  onDelete: () => void;
   conversation?: ConversationResponse;
 }
 
@@ -23,7 +24,7 @@ function repoShort(agent: Agent): string {
   return url.replace(/^(https?:\/\/)?github\.com\//, "");
 }
 
-export function Pane({ agent, focused, onFocus, onClose, conversation }: PaneProps) {
+export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation }: PaneProps) {
   const { data: fetchedConvo } = useConversation(conversation ? null : agent.id);
   const convo = conversation ?? fetchedConvo;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -179,9 +180,19 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
         <button
           onClick={(e) => {
             e.stopPropagation();
+            onDelete();
+          }}
+          className="text-[10px] text-red-500/70 hover:text-red-400 shrink-0"
+        >
+          del
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
             onClose();
           }}
           className="text-zinc-600 hover:text-zinc-300 shrink-0"
+          title="close pane"
         >
           <svg
             width="10"

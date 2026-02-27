@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getApiKey, getGrid, addToGrid, removeFromGrid } from "@/lib/storage";
-import { useAgents, launchAgent, stopAgent } from "@/lib/api";
+import { useAgents, launchAgent, stopAgent, deleteAgent } from "@/lib/api";
 import type { Agent, GridItem } from "@/lib/types";
 import { Pane } from "@/components/Pane";
 import { AddAgentModal } from "@/components/AddAgentModal";
@@ -61,6 +61,13 @@ export default function DashboardPage() {
     removeFromGrid(agentId);
     if (focusedId === agentId) setFocusedId(null);
     refreshGrid();
+  }
+
+  async function handleDelete(agentId: string) {
+    removeFromGrid(agentId);
+    if (focusedId === agentId) setFocusedId(null);
+    refreshGrid();
+    await deleteAgent(agentId);
   }
 
   function handleLaunched(agent: Agent) {
@@ -143,6 +150,13 @@ export default function DashboardPage() {
       if (e.key === "Backspace" && mod && e.shiftKey) {
         e.preventDefault();
         if (focusedId) stopAgent(focusedId);
+        return;
+      }
+
+      // Cmd+Shift+D — delete focused agent
+      if (e.key === "d" && mod && e.shiftKey) {
+        e.preventDefault();
+        if (focusedId) handleDelete(focusedId);
         return;
       }
 
@@ -341,12 +355,26 @@ export default function DashboardPage() {
             [⌘⇧A add]
           </button>
           {focusedId && (
-            <button
-              onClick={() => handleRemove(focusedId)}
-              className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
-            >
-              [⌘⇧X close]
-            </button>
+            <>
+              <button
+                onClick={() => stopAgent(focusedId)}
+                className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
+              >
+                [⌘⇧⌫ stop]
+              </button>
+              <button
+                onClick={() => handleRemove(focusedId)}
+                className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
+              >
+                [⌘⇧X close]
+              </button>
+              <button
+                onClick={() => handleDelete(focusedId)}
+                className="text-[10px] text-red-500/70 hover:text-red-400 font-mono"
+              >
+                [⌘⇧D delete]
+              </button>
+            </>
           )}
           <button
             onClick={() => router.push("/setup")}
@@ -385,6 +413,7 @@ export default function DashboardPage() {
               focused={focusedId === agent.id}
               onFocus={() => setFocusedId(agent.id)}
               onClose={() => handleRemove(agent.id)}
+              onDelete={() => handleDelete(agent.id)}
             />
           );
         })}

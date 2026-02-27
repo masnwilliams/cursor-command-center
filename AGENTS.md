@@ -29,6 +29,7 @@ Every action has a keyboard shortcut. New features must include a shortcut.
 | Cmd+Shift+O | Open PR for focused pane |
 | Cmd+Shift+1-9 | Focus pane by number |
 | Cmd+Shift+Backspace | Stop focused agent |
+| Cmd+Shift+D | Delete focused agent permanently |
 | Cmd+Enter | Submit/launch on any form |
 | Esc | Close modals, unfocus pane, back to grid from settings |
 | Arrow Up/Down | Navigate lists and dropdowns |
