@@ -25,11 +25,11 @@ function repoShort(agent: Agent): string {
 }
 
 export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation }: PaneProps) {
-  const { data: fetchedConvo } = useConversation(conversation ? null : agent.id);
+  const isActive = agent.status === "RUNNING" || agent.status === "CREATING";
+  const { data: fetchedConvo } = useConversation(conversation ? null : agent.id, isActive);
   const convo = conversation ?? fetchedConvo;
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const isActive = agent.status === "RUNNING" || agent.status === "CREATING";
 
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
