@@ -219,7 +219,7 @@ export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation 
                 key={msg.id}
                 className={`px-2 py-1.5 text-xs leading-relaxed border-b border-zinc-900 ${
                   msg.type === "user_message"
-                    ? "bg-blue-950/80 text-blue-200 sticky top-0 z-10 backdrop-blur-sm"
+                    ? "bg-blue-950/20 text-blue-200"
                     : "text-zinc-300"
                 }`}
               >
