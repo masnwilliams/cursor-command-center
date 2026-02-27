@@ -17,22 +17,17 @@ Cursor Command Center is a tmux-style PWA for managing Cursor Cloud Agents. It p
 
 ### Keyboard-first
 
-Every action has a keyboard shortcut. New features must include a shortcut.
+All actions are accessible through a single command palette (`Cmd+K`).
 
 | Shortcut | Action |
 |---|---|
-| Cmd+E | Review PR (paste URL, hit enter, launches immediately) |
-| Cmd+K | Launch new agent |
-| Cmd+Shift+A | Add existing agent to grid |
-| Cmd+Shift+X | Close focused pane |
-| Cmd+Shift+, | Settings (API key) |
-| Cmd+Shift+O | Open PR for focused pane |
-| Cmd+Shift+1-9 | Focus pane by number |
-| Cmd+Shift+Backspace | Stop focused agent |
+| Cmd+K | Open command palette (launch, add, review, stop, close, delete, settings...) |
 | Cmd+Enter | Submit/launch on any form |
-| Esc | Close modals, unfocus pane, back to grid from settings |
-| Arrow Up/Down | Navigate lists and dropdowns |
-| Enter | Select highlighted item in lists |
+| Esc | Close palette, close modals, unfocus pane |
+| Arrow Up/Down | Navigate command palette and dropdowns |
+| Enter | Select highlighted item |
+
+New features should be added as commands in the palette, not as new shortcuts.
 
 ### tmux aesthetic
 
@@ -41,7 +36,7 @@ Every action has a keyboard shortcut. New features must include a shortcut.
 - Mono font (`font-mono`) for all chrome (labels, buttons, status bar)
 - Dark theme only (`bg-zinc-950` base)
 - Tiny text for chrome (`text-[10px]` for info bars, `text-xs` for content)
-- Status bar at top with pane count and shortcut hints in `[brackets]`
+- Status bar at top with pane count and `[⌘K]` palette trigger
 - Messages use `>` prefix for user, `$` for assistant
 
 ### No native form elements
@@ -92,6 +87,7 @@ src/
       repositories/       — GitHub repos
   components/
     Pane.tsx              — single conversation pane (info bar + messages + follow-up)
+    CommandPalette.tsx    — Cmd+K command palette (search, arrow nav, enter to select)
     AddAgentModal.tsx     — pick existing agent to pin to grid
     LaunchModal.tsx       — launch new agent (repo, branch, prompt, model)
     FollowUpInput.tsx     — textarea for sending follow-ups
@@ -110,15 +106,15 @@ src/
 ### Adding a new action
 
 1. Add the handler function in `page.tsx`
-2. Add a keyboard shortcut in the `useEffect` key handler
-3. Add a `[shortcut label]` button in the top bar
-4. If it needs a modal, create it as a component in `components/`
+2. Add a `Command` entry to the `commands` array in `page.tsx` (use `section` for grouping, `destructive` for dangerous actions)
+3. If it needs a modal, create it as a component in `components/`
+4. Do NOT add a new keyboard shortcut — all actions go through the `Cmd+K` palette
 
 ### Adding a new pre-built prompt (like PR review)
 
 1. Add the prompt constant to `src/lib/prompts.ts`
 2. Add a quick-launch flow in `page.tsx` (input modal + direct `launchAgent` call)
-3. Add a keyboard shortcut and top bar button
+3. Add a command to the palette
 
 ### Custom dropdowns
 

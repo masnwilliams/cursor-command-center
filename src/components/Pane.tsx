@@ -15,6 +15,7 @@ interface PaneProps {
   focused: boolean;
   onFocus: () => void;
   onClose: () => void;
+  onDelete: () => void;
   conversation?: ConversationResponse;
 }
 
@@ -23,12 +24,12 @@ function repoShort(agent: Agent): string {
   return url.replace(/^(https?:\/\/)?github\.com\//, "");
 }
 
-export function Pane({ agent, focused, onFocus, onClose, conversation }: PaneProps) {
-  const { data: fetchedConvo } = useConversation(conversation ? null : agent.id);
+export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation }: PaneProps) {
+  const isActive = agent.status === "RUNNING" || agent.status === "CREATING";
+  const { data: fetchedConvo } = useConversation(conversation ? null : agent.id, isActive);
   const convo = conversation ?? fetchedConvo;
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const isActive = agent.status === "RUNNING" || agent.status === "CREATING";
 
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
@@ -179,9 +180,19 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
         <button
           onClick={(e) => {
             e.stopPropagation();
+            onDelete();
+          }}
+          className="text-[10px] text-red-500/70 hover:text-red-400 shrink-0"
+        >
+          del
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
             onClose();
           }}
           className="text-zinc-600 hover:text-zinc-300 shrink-0"
+          title="close pane"
         >
           <svg
             width="10"
@@ -202,13 +213,13 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
         className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
       >
         {convo?.messages?.length ? (
-          <div className="divide-y divide-zinc-900">
+          <div>
             {convo.messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`px-2 py-1.5 text-xs leading-relaxed ${
+                className={`px-2 py-1.5 text-xs leading-relaxed border-b border-zinc-900 ${
                   msg.type === "user_message"
-                    ? "bg-blue-950/20 text-blue-200"
+                    ? "bg-blue-950/80 text-blue-200 sticky top-0 z-10 backdrop-blur-sm"
                     : "text-zinc-300"
                 }`}
               >

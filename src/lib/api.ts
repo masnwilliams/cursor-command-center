@@ -47,9 +47,9 @@ export function useAgent(id: string | null) {
     fetcher<Agent>,
     {
       refreshInterval: (data) => {
-        if (!data) return 5_000;
+        if (!data) return 2_000;
         return data.status === "RUNNING" || data.status === "CREATING"
-          ? 5_000
+          ? 2_000
           : 0;
       },
     },
@@ -57,12 +57,12 @@ export function useAgent(id: string | null) {
   return { data, ...rest };
 }
 
-// Conversation
-export function useConversation(id: string | null) {
+// Conversation — polls fast while agent is active, stops when done
+export function useConversation(id: string | null, active = true) {
   const { data, ...rest } = useSWR<ConversationResponse>(
     id ? `/api/agents/${id}/conversation` : null,
     fetcher<ConversationResponse>,
-    { refreshInterval: 10_000 },
+    { refreshInterval: active ? 2_000 : 0 },
   );
   return { data, ...rest };
 }

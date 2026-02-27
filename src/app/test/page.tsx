@@ -325,6 +325,7 @@ export default function TestPage() {
             focused={focusedId === agent.id}
             onFocus={() => setFocusedId(agent.id)}
             onClose={() => handleRemove(agent.id)}
+            onDelete={() => handleRemove(agent.id)}
             conversation={FAKE_CONVERSATIONS[agent.id]}
           />
         ))}
