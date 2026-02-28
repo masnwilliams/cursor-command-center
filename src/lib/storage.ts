@@ -51,6 +51,15 @@ export function removeFromGrid(agentId: string): GridItem[] {
   return updated;
 }
 
+export function replaceInGrid(oldId: string, newId: string): GridItem[] {
+  const grid = getGrid();
+  const updated = grid.map((g) =>
+    g.agentId === oldId ? { ...g, agentId: newId } : g,
+  );
+  setGrid(updated);
+  return updated;
+}
+
 const REPO_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 export function getCachedRepos(): Repository[] | null {
