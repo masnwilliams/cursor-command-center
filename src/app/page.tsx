@@ -2,9 +2,21 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { getApiKey, getGrid, addToGrid, removeFromGrid } from "@/lib/storage";
+import { mutate } from "swr";
+import {
+  getApiKey,
+  getGrid,
+  addToGrid,
+  removeFromGrid,
+  replaceInGrid,
+} from "@/lib/storage";
 import { useAgents, launchAgent, stopAgent, deleteAgent } from "@/lib/api";
-import type { Agent, GridItem } from "@/lib/types";
+import type {
+  Agent,
+  GridItem,
+  LaunchAgentRequest,
+  ConversationResponse,
+} from "@/lib/types";
 import { Pane } from "@/components/Pane";
 import { AddAgentModal } from "@/components/AddAgentModal";
 import { LaunchModal } from "@/components/LaunchModal";
@@ -19,6 +31,12 @@ function gridCols(count: number): string {
   return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
 }
 
+interface PendingLaunch {
+  repoLabel: string;
+  prompt: string;
+  error?: string;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [grid, setGrid] = useState<GridItem[]>([]);
@@ -28,8 +46,10 @@ export default function DashboardPage() {
   const [showPalette, setShowPalette] = useState(false);
   const [showReviewInput, setShowReviewInput] = useState(false);
   const [reviewPrUrl, setReviewPrUrl] = useState("");
-  const [reviewLaunching, setReviewLaunching] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [pendingLaunches, setPendingLaunches] = useState<
+    Map<string, PendingLaunch>
+  >(new Map());
 
   useEffect(() => {
     if (!getApiKey()) {
@@ -45,7 +65,32 @@ export default function DashboardPage() {
   const agentMap = new Map<string, Agent>();
   agentsData?.agents?.forEach((a) => agentMap.set(a.id, a));
 
+  pendingLaunches.forEach((pending, tempId) => {
+    if (!agentMap.has(tempId)) {
+      agentMap.set(tempId, {
+        id: tempId,
+        name: pending.repoLabel || "launching...",
+        status: pending.error ? "ERROR" : "CREATING",
+        source: { repository: "" },
+        target: {
+          autoCreatePr: false,
+          openAsCursorGithubApp: false,
+          skipReviewerRequest: false,
+        },
+        createdAt: new Date().toISOString(),
+      });
+    }
+  });
+
   const refreshGrid = useCallback(() => setGrid(getGrid()), []);
+
+  function removePending(id: string) {
+    setPendingLaunches((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+  }
 
   function handleAdd(agentId: string) {
     addToGrid(agentId);
@@ -56,6 +101,7 @@ export default function DashboardPage() {
   function handleRemove(agentId: string) {
     removeFromGrid(agentId);
     if (focusedId === agentId) setFocusedId(null);
+    removePending(agentId);
     refreshGrid();
   }
 
@@ -63,33 +109,68 @@ export default function DashboardPage() {
     removeFromGrid(agentId);
     if (focusedId === agentId) setFocusedId(null);
     refreshGrid();
-    await deleteAgent(agentId);
+    if (pendingLaunches.has(agentId)) {
+      removePending(agentId);
+    } else {
+      await deleteAgent(agentId);
+    }
   }
 
-  function handleLaunched(agent: Agent) {
-    addToGrid(agent.id);
+  function handleOptimisticLaunch(
+    request: LaunchAgentRequest,
+    repoLabel: string,
+    prompt: string,
+  ) {
+    const tempId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    addToGrid(tempId);
     refreshGrid();
+
+    setPendingLaunches((prev) => {
+      const next = new Map(prev);
+      next.set(tempId, { repoLabel, prompt });
+      return next;
+    });
+
     setShowLaunch(false);
     setShowAdd(false);
-    setFocusedId(agent.id);
+    setShowReviewInput(false);
+    setReviewPrUrl("");
+    setFocusedId(tempId);
+
+    launchAgent(request)
+      .then((agent) => {
+        replaceInGrid(tempId, agent.id);
+        refreshGrid();
+        removePending(tempId);
+        setFocusedId((prev) => (prev === tempId ? agent.id : prev));
+        mutate("/api/agents?limit=100");
+      })
+      .catch((err) => {
+        setPendingLaunches((prev) => {
+          const entry = prev.get(tempId);
+          if (!entry) return prev;
+          const next = new Map(prev);
+          next.set(tempId, {
+            ...entry,
+            error: err instanceof Error ? err.message : "launch failed",
+          });
+          return next;
+        });
+      });
   }
 
-  async function launchReview(prUrl: string) {
-    setReviewLaunching(true);
-    try {
-      const agent = await launchAgent({
+  function launchReview(prUrl: string) {
+    handleOptimisticLaunch(
+      {
         prompt: { text: `Review this PR: ${prUrl}\n\n${PR_REVIEW_PROMPT}` },
         model: "claude-4.6-opus-high-thinking",
         source: { prUrl },
         target: { autoBranch: false },
-      });
-      setShowReviewInput(false);
-      setReviewPrUrl("");
-      setReviewLaunching(false);
-      handleLaunched(agent);
-    } catch {
-      setReviewLaunching(false);
-    }
+      },
+      prUrl,
+      `Review this PR: ${prUrl}`,
+    );
   }
 
   const focusedAgent = focusedId ? agentMap.get(focusedId) : null;
@@ -124,8 +205,9 @@ export default function DashboardPage() {
       const isActive =
         focusedAgent.status === "RUNNING" ||
         focusedAgent.status === "CREATING";
+      const isPending = pendingLaunches.has(focusedAgent.id);
 
-      if (isActive) {
+      if (isActive && !isPending) {
         cmds.push({
           id: "stop",
           label: `stop ${focusedAgent.name || focusedAgent.id}`,
@@ -271,7 +353,7 @@ export default function DashboardPage() {
         {showLaunch && (
           <LaunchModal
             onClose={() => setShowLaunch(false)}
-            onLaunched={handleLaunched}
+            onLaunch={handleOptimisticLaunch}
           />
         )}
         {showReviewInput && renderReviewInput()}
@@ -284,10 +366,8 @@ export default function DashboardPage() {
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
         onClick={() => {
-          if (!reviewLaunching) {
-            setShowReviewInput(false);
-            setReviewPrUrl("");
-          }
+          setShowReviewInput(false);
+          setReviewPrUrl("");
         }}
       >
         <div
@@ -297,7 +377,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
             <span className="text-xs text-zinc-300 font-mono">review pr</span>
             <span className="text-[10px] text-zinc-600 font-mono ml-auto">
-              {reviewLaunching ? "launching..." : "[esc]"}
+              [esc]
             </span>
           </div>
           <div className="px-3 py-3">
@@ -306,21 +386,16 @@ export default function DashboardPage() {
               value={reviewPrUrl}
               onChange={(e) => setReviewPrUrl(e.target.value)}
               onKeyDown={(e) => {
-                if (
-                  e.key === "Enter" &&
-                  reviewPrUrl.trim() &&
-                  !reviewLaunching
-                )
+                if (e.key === "Enter" && reviewPrUrl.trim())
                   launchReview(reviewPrUrl.trim());
-                if (e.key === "Escape" && !reviewLaunching) {
+                if (e.key === "Escape") {
                   setShowReviewInput(false);
                   setReviewPrUrl("");
                 }
               }}
               placeholder="paste pr url, hit enter"
               autoFocus
-              disabled={reviewLaunching}
-              className="w-full bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono disabled:opacity-40"
+              className="w-full bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono"
             />
           </div>
         </div>
@@ -364,6 +439,28 @@ export default function DashboardPage() {
               </div>
             );
           }
+          const pending = pendingLaunches.get(item.agentId);
+          const pendingConvo: ConversationResponse | undefined = pending
+            ? {
+                id: item.agentId,
+                messages: [
+                  {
+                    id: `${item.agentId}-prompt`,
+                    type: "user_message",
+                    text: pending.prompt,
+                  },
+                  ...(pending.error
+                    ? [
+                        {
+                          id: `${item.agentId}-error`,
+                          type: "assistant_message" as const,
+                          text: `launch failed: ${pending.error}`,
+                        },
+                      ]
+                    : []),
+                ],
+              }
+            : undefined;
           return (
             <Pane
               key={agent.id}
@@ -372,6 +469,7 @@ export default function DashboardPage() {
               onFocus={() => setFocusedId(agent.id)}
               onClose={() => handleRemove(agent.id)}
               onDelete={() => handleDelete(agent.id)}
+              conversation={pendingConvo}
             />
           );
         })}
@@ -398,7 +496,7 @@ export default function DashboardPage() {
       {showLaunch && (
         <LaunchModal
           onClose={() => setShowLaunch(false)}
-          onLaunched={handleLaunched}
+          onLaunch={handleOptimisticLaunch}
         />
       )}
       {showReviewInput && renderReviewInput()}

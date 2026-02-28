@@ -1,20 +1,20 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useRepositories, useBranches, launchAgent } from "@/lib/api";
-import type { Agent } from "@/lib/types";
+import { useRepositories, useBranches } from "@/lib/api";
+import type { LaunchAgentRequest } from "@/lib/types";
 import type { ImageAttachment } from "@/lib/images";
 import { readFilesAsImages } from "@/lib/images";
 import { ImageAttachments } from "./ImageAttachments";
 
 interface LaunchModalProps {
   onClose: () => void;
-  onLaunched: (agent: Agent) => void;
+  onLaunch: (request: LaunchAgentRequest, repoLabel: string, prompt: string) => void;
 }
 
 type Phase = "repo" | "branch" | "prompt";
 
-export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
+export function LaunchModal({ onClose, onLaunch }: LaunchModalProps) {
   const { data: reposData } = useRepositories();
 
   const [phase, setPhase] = useState<Phase>("repo");
@@ -22,8 +22,6 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
   const [branch, setBranch] = useState("");
   const [query, setQuery] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
-  const [launching, setLaunching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [rejections, setRejections] = useState<string[]>([]);
@@ -92,37 +90,28 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
     }
   }
 
-  async function doLaunch(promptText: string) {
+  function doLaunch(promptText: string) {
     if (!repo) return;
-    setLaunching(true);
-    setError(null);
-    try {
-      const imgs =
-        images.length > 0
-          ? images.map((img) => ({
-              data: img.data,
-              dimension: img.dimension,
-            }))
-          : undefined;
-      const agent = await launchAgent({
-        prompt: {
-          text:
-            promptText.trim() ||
-            "Stand by. I'll send instructions in a follow-up message.",
-          images: imgs,
-        },
+    const text =
+      promptText.trim() ||
+      "Stand by. I'll send instructions in a follow-up message.";
+    const imgs =
+      images.length > 0
+        ? images.map((img) => ({
+            data: img.data,
+            dimension: img.dimension,
+          }))
+        : undefined;
+    onLaunch(
+      {
+        prompt: { text, images: imgs },
         model: "claude-4.6-opus-high-thinking",
-        source: {
-          repository: repo,
-          ref: branch || undefined,
-        },
+        source: { repository: repo, ref: branch || undefined },
         target: {},
-      });
-      onLaunched(agent);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "launch failed");
-      setLaunching(false);
-    }
+      },
+      repoLabel,
+      text,
+    );
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -235,7 +224,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
         ? !!repo && !branchesData
         : false;
 
-  const showList = phase !== "prompt" && !launching;
+  const showList = phase !== "prompt";
 
   return (
     <div
@@ -280,19 +269,16 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              launching
-                ? "launching..."
-                : phase === "repo"
-                  ? "search repos..."
-                  : phase === "branch"
-                    ? "search branches..."
-                    : "what should the agent do?"
+              phase === "repo"
+                ? "search repos..."
+                : phase === "branch"
+                  ? "search branches..."
+                  : "what should the agent do?"
             }
-            disabled={launching}
             autoFocus
             className="flex-1 bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono disabled:opacity-40 min-w-0"
           />
-          {phase === "prompt" && !launching && (
+          {phase === "prompt" && (
             <>
               <input
                 ref={fileRef}
@@ -329,7 +315,7 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
               </span>
             </>
           )}
-          {phase !== "prompt" && !launching && (
+          {phase !== "prompt" && (
             <span className="text-[10px] text-zinc-700 font-mono shrink-0">
               ⌘↵
             </span>
@@ -337,18 +323,13 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
         </div>
 
         {/* Images (prompt phase) */}
-        {phase === "prompt" && images.length > 0 && !launching && (
+        {phase === "prompt" && images.length > 0 && (
           <div className="px-3 py-1.5 border-b border-zinc-800">
             <ImageAttachments images={images} onRemove={removeImage} />
           </div>
         )}
 
         {/* List */}
-        {launching && (
-          <div className="px-3 py-4 text-xs text-zinc-500 font-mono text-center">
-            launching...
-          </div>
-        )}
         {showList && (
           <div ref={listRef} className="max-h-[240px] overflow-y-auto">
             {loading && (
@@ -378,24 +359,16 @@ export function LaunchModal({ onClose, onLaunched }: LaunchModalProps) {
           </div>
         )}
 
-        {/* Footer: errors */}
-        {(rejections.length > 0 || error) && (
-          <div className="border-t border-zinc-800 px-3 py-2 space-y-1">
-            {rejections.length > 0 && (
-              <div className="space-y-0.5">
-                {rejections.map((msg, i) => (
-                  <p
-                    key={i}
-                    className="text-[10px] text-red-300 font-mono truncate"
-                  >
-                    {msg}
-                  </p>
-                ))}
-              </div>
-            )}
-            {error && (
-              <p className="text-[10px] text-red-400 font-mono">{error}</p>
-            )}
+        {rejections.length > 0 && (
+          <div className="border-t border-zinc-800 px-3 py-2 space-y-0.5">
+            {rejections.map((msg, i) => (
+              <p
+                key={i}
+                className="text-[10px] text-red-300 font-mono truncate"
+              >
+                {msg}
+              </p>
+            ))}
           </div>
         )}
       </div>
