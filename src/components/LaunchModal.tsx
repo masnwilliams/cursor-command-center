@@ -29,6 +29,7 @@ export function LaunchModal({ onClose, onLaunch }: LaunchModalProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
 
   const { data: branchesData } = useBranches(repo || null);
 
@@ -196,21 +197,28 @@ export function LaunchModal({ onClose, onLaunch }: LaunchModalProps) {
     setImages((prev) => prev.filter((img) => img.id !== id));
   }, []);
 
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounter.current++;
+    setDragOver(true);
+  }
+
   function handleDragOver(e: React.DragEvent) {
     e.preventDefault();
-    e.stopPropagation();
-    setDragOver(true);
   }
 
   function handleDragLeave(e: React.DragEvent) {
     e.preventDefault();
-    e.stopPropagation();
-    setDragOver(false);
+    dragCounter.current--;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setDragOver(false);
+    }
   }
 
   async function handleDrop(e: React.DragEvent) {
     e.preventDefault();
-    e.stopPropagation();
+    dragCounter.current = 0;
     setDragOver(false);
     if (e.dataTransfer.files?.length) {
       await addImages(e.dataTransfer.files);
@@ -230,12 +238,13 @@ export function LaunchModal({ onClose, onLaunch }: LaunchModalProps) {
     <div
       className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/70"
       onClick={onClose}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
         className={`w-full max-w-md border bg-zinc-950 relative ${
           dragOver ? "border-blue-500/50" : "border-zinc-800"
         }`}
