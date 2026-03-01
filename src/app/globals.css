@@ -8,6 +8,9 @@ body {
 
 html {
   color-scheme: dark;
+}
+
+* {
   overscroll-behavior: none;
 }
 
