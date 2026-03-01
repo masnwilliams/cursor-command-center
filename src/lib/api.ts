@@ -14,6 +14,10 @@ import {
   getCachedRepos,
   setCachedRepos,
   clearCachedRepos,
+  getReposFromCache,
+  getCachedBranches,
+  getBranchesFromCache,
+  setCachedBranches,
 } from "./storage";
 
 function headers(): Record<string, string> {
@@ -82,7 +86,7 @@ export function useModels() {
   });
 }
 
-// Repositories (with localStorage cache)
+// Repositories (stale-while-revalidate via localStorage)
 export function useRepositories() {
   const result = useSWR<RepositoriesResponse>(
     "/api/repositories",
@@ -96,21 +100,37 @@ export function useRepositories() {
     { revalidateOnFocus: false, dedupingInterval: 300_000 },
   );
 
+  const stale = typeof window !== "undefined" ? getReposFromCache() : null;
+  const data = result.data ?? (stale ? { repositories: stale } : undefined);
+
   function refresh() {
     clearCachedRepos();
     result.mutate();
   }
 
-  return { ...result, refresh };
+  return { ...result, data, refresh };
 }
 
-// Branches (from GitHub API)
+// Branches (stale-while-revalidate via localStorage)
 export function useBranches(repoUrl: string | null) {
-  return useSWR<{ branches: string[] }>(
+  const result = useSWR<{ branches: string[] }>(
     repoUrl ? `/api/branches?repo=${encodeURIComponent(repoUrl)}` : null,
-    fetcher<{ branches: string[] }>,
+    async (url: string) => {
+      if (repoUrl) {
+        const cached = getCachedBranches(repoUrl);
+        if (cached) return { branches: cached };
+      }
+      const data = await fetcher<{ branches: string[] }>(url);
+      if (repoUrl) setCachedBranches(repoUrl, data.branches);
+      return data;
+    },
     { revalidateOnFocus: false, dedupingInterval: 300_000 },
   );
+
+  const stale = repoUrl ? getBranchesFromCache(repoUrl) : null;
+  const data = result.data ?? (stale ? { branches: stale } : undefined);
+
+  return { ...result, data };
 }
 
 // Mutations
