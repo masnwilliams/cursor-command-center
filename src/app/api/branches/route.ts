@@ -16,15 +16,19 @@ export async function GET(req: NextRequest) {
 
   const [, owner, name] = match;
 
+  const ghToken = req.headers.get("x-github-token");
+  const ghHeaders: Record<string, string> = {
+    Accept: "application/vnd.github.v3+json",
+    "User-Agent": "cursor-agents-ui",
+  };
+  if (ghToken) {
+    ghHeaders.Authorization = `Bearer ${ghToken}`;
+  }
+
   try {
     const res = await fetch(
       `https://api.github.com/repos/${owner}/${name}/branches?per_page=100`,
-      {
-        headers: {
-          Accept: "application/vnd.github.v3+json",
-          "User-Agent": "cursor-agents-ui",
-        },
-      },
+      { headers: ghHeaders },
     );
     if (!res.ok) return NextResponse.json({ branches: [] });
     const data = await res.json();

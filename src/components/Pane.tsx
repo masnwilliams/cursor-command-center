@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { useConversation, sendFollowUp, stopAgent } from "@/lib/api";
-import type { Agent, ConversationMessage, ConversationResponse } from "@/lib/types";
+import { useConversation, usePrStatus, sendFollowUp, stopAgent } from "@/lib/api";
+import type { Agent, ConversationMessage, ConversationResponse, PrStatus } from "@/lib/types";
 import type { ImageAttachment } from "@/lib/images";
 import { readFilesAsImages } from "@/lib/images";
 import { StatusBadge } from "./StatusBadge";
@@ -24,10 +24,26 @@ function repoShort(agent: Agent): string {
   return url.replace(/^(https?:\/\/)?github\.com\//, "");
 }
 
+const PR_COLORS: Record<PrStatus, string> = {
+  open: "text-green-400",
+  merged: "text-purple-400",
+  closed: "text-red-400",
+  draft: "text-zinc-500",
+};
+
+const PR_LABELS: Record<PrStatus, string> = {
+  open: "PR",
+  merged: "PR ✓",
+  closed: "PR ✕",
+  draft: "PR ~",
+};
+
 export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation }: PaneProps) {
   const isActive = agent.status === "RUNNING" || agent.status === "CREATING";
   const { data: fetchedConvo } = useConversation(conversation ? null : agent.id, isActive);
   const convo = conversation ?? fetchedConvo;
+  const { data: prStatusData } = usePrStatus(agent.target.prUrl);
+  const prStatus = prStatusData?.status;
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -155,9 +171,9 @@ export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation 
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="text-[10px] text-zinc-500 hover:text-blue-400 shrink-0"
+            className={`text-[10px] shrink-0 hover:brightness-125 ${prStatus ? PR_COLORS[prStatus] : "text-zinc-500"}`}
           >
-            PR
+            {prStatus ? PR_LABELS[prStatus] : "PR"}
           </a>
         )}
         {agent.target.url && (

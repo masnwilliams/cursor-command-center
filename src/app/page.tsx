@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { mutate } from "swr";
 import {
   getApiKey,
+  getGithubToken,
   getGrid,
   addToGrid,
   removeFromGrid,
@@ -52,7 +53,7 @@ export default function DashboardPage() {
   >(new Map());
 
   useEffect(() => {
-    if (!getApiKey()) {
+    if (!getApiKey() || !getGithubToken()) {
       router.push("/setup");
       return;
     }
@@ -259,7 +260,7 @@ export default function DashboardPage() {
 
     cmds.push({
       id: "settings",
-      label: "settings / api key",
+      label: "settings",
       section: "app",
       action: () => router.push("/setup"),
     });

@@ -7,19 +7,28 @@ import type {
   LaunchAgentRequest,
   MeResponse,
   ModelsResponse,
+  PrStatusResponse,
   RepositoriesResponse,
 } from "./types";
 import {
   getApiKey,
+  getGithubToken,
   getCachedRepos,
   setCachedRepos,
   clearCachedRepos,
+  getReposFromCache,
+  getCachedBranches,
+  getBranchesFromCache,
+  setCachedBranches,
 } from "./storage";
 
 function headers(): Record<string, string> {
+  const h: Record<string, string> = { "Content-Type": "application/json" };
   const key = getApiKey();
-  if (!key) return {};
-  return { "x-cursor-key": key, "Content-Type": "application/json" };
+  if (key) h["x-cursor-key"] = key;
+  const ghToken = getGithubToken();
+  if (ghToken) h["x-github-token"] = ghToken;
+  return h;
 }
 
 async function fetcher<T>(url: string): Promise<T> {
@@ -82,7 +91,7 @@ export function useModels() {
   });
 }
 
-// Repositories (with localStorage cache)
+// Repositories (stale-while-revalidate via localStorage)
 export function useRepositories() {
   const result = useSWR<RepositoriesResponse>(
     "/api/repositories",
@@ -96,20 +105,45 @@ export function useRepositories() {
     { revalidateOnFocus: false, dedupingInterval: 300_000 },
   );
 
+  const stale = typeof window !== "undefined" ? getReposFromCache() : null;
+  const data = result.data ?? (stale ? { repositories: stale } : undefined);
+
   function refresh() {
     clearCachedRepos();
     result.mutate();
   }
 
-  return { ...result, refresh };
+  return { ...result, data, refresh };
 }
 
-// Branches (from GitHub API)
+// Branches (stale-while-revalidate via localStorage)
 export function useBranches(repoUrl: string | null) {
-  return useSWR<{ branches: string[] }>(
+  const result = useSWR<{ branches: string[] }>(
     repoUrl ? `/api/branches?repo=${encodeURIComponent(repoUrl)}` : null,
-    fetcher<{ branches: string[] }>,
+    async (url: string) => {
+      if (repoUrl) {
+        const cached = getCachedBranches(repoUrl);
+        if (cached) return { branches: cached };
+      }
+      const data = await fetcher<{ branches: string[] }>(url);
+      if (repoUrl) setCachedBranches(repoUrl, data.branches);
+      return data;
+    },
     { revalidateOnFocus: false, dedupingInterval: 300_000 },
+  );
+
+  const stale = repoUrl ? getBranchesFromCache(repoUrl) : null;
+  const data = result.data ?? (stale ? { branches: stale } : undefined);
+
+  return { ...result, data };
+}
+
+// PR status (from GitHub API, polls every 60s for agents with a PR)
+export function usePrStatus(prUrl: string | undefined) {
+  return useSWR<PrStatusResponse>(
+    prUrl ? `/api/pr-status?url=${encodeURIComponent(prUrl)}` : null,
+    fetcher<PrStatusResponse>,
+    { revalidateOnFocus: false, dedupingInterval: 60_000, refreshInterval: 60_000 },
   );
 }
 
@@ -161,6 +195,12 @@ export async function deleteAgent(id: string): Promise<void> {
 
 export async function testConnection(): Promise<MeResponse> {
   const res = await fetch("/api/me", { headers: headers() });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function testGithubToken(): Promise<{ login: string }> {
+  const res = await fetch("/api/github-test", { headers: headers() });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

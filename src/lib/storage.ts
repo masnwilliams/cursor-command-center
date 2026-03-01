@@ -2,9 +2,11 @@ import type { GridItem, Repository } from "./types";
 
 const KEYS = {
   apiKey: "cursor-agents-api-key",
+  githubToken: "cursor-agents-github-token",
   grid: "cursor-agents-grid",
   repos: "cursor-agents-repos",
   reposTimestamp: "cursor-agents-repos-ts",
+  branches: "cursor-agents-branches",
   drafts: "cursor-agents-drafts",
 } as const;
 
@@ -19,6 +21,19 @@ export function setApiKey(key: string): void {
 
 export function clearApiKey(): void {
   localStorage.removeItem(KEYS.apiKey);
+}
+
+export function getGithubToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(KEYS.githubToken);
+}
+
+export function setGithubToken(token: string): void {
+  localStorage.setItem(KEYS.githubToken, token);
+}
+
+export function clearGithubToken(): void {
+  localStorage.removeItem(KEYS.githubToken);
 }
 
 export function getGrid(): GridItem[] {
@@ -83,6 +98,54 @@ export function setCachedRepos(repos: Repository[]): void {
 export function clearCachedRepos(): void {
   localStorage.removeItem(KEYS.repos);
   localStorage.removeItem(KEYS.reposTimestamp);
+}
+
+// Returns cached repos regardless of TTL (for stale-while-revalidate)
+export function getReposFromCache(): Repository[] | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(KEYS.repos);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+// Branch caching (per-repo, 10 min TTL)
+const BRANCH_CACHE_TTL = 10 * 60 * 1000;
+
+interface BranchCacheEntry {
+  branches: string[];
+  ts: number;
+}
+
+function getBranchCacheMap(): Record<string, BranchCacheEntry> {
+  if (typeof window === "undefined") return {};
+  const raw = localStorage.getItem(KEYS.branches);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+export function getCachedBranches(repoUrl: string): string[] | null {
+  const entry = getBranchCacheMap()[repoUrl];
+  if (!entry || Date.now() - entry.ts > BRANCH_CACHE_TTL) return null;
+  return entry.branches;
+}
+
+// Returns cached branches regardless of TTL (for stale-while-revalidate)
+export function getBranchesFromCache(repoUrl: string): string[] | null {
+  return getBranchCacheMap()[repoUrl]?.branches ?? null;
+}
+
+export function setCachedBranches(repoUrl: string, branches: string[]): void {
+  const cache = getBranchCacheMap();
+  cache[repoUrl] = { branches, ts: Date.now() };
+  localStorage.setItem(KEYS.branches, JSON.stringify(cache));
 }
 
 function getDraftsMap(): Record<string, string> {

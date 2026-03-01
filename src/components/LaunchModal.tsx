@@ -26,7 +26,7 @@ export function LaunchModal({ onClose, onLaunch }: LaunchModalProps) {
   const [dragOver, setDragOver] = useState(false);
   const [rejections, setRejections] = useState<string[]>([]);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -132,7 +132,7 @@ export function LaunchModal({ onClose, onLaunch }: LaunchModalProps) {
       return;
     }
     if (phase === "prompt") {
-      if (e.key === "Enter") {
+      if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         doLaunch(query);
         return;
@@ -262,9 +262,8 @@ export function LaunchModal({ onClose, onLaunch }: LaunchModalProps) {
               {branch}
             </span>
           )}
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -276,7 +275,8 @@ export function LaunchModal({ onClose, onLaunch }: LaunchModalProps) {
                   : "what should the agent do?"
             }
             autoFocus
-            className="flex-1 bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono disabled:opacity-40 min-w-0"
+            rows={phase === "prompt" ? 3 : 1}
+            className="flex-1 bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono disabled:opacity-40 min-w-0 resize-none"
           />
           {phase === "prompt" && (
             <>

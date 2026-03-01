@@ -97,6 +97,12 @@ export interface FollowUpRequest {
   };
 }
 
+export type PrStatus = "open" | "merged" | "closed" | "draft";
+
+export interface PrStatusResponse {
+  status: PrStatus;
+}
+
 export interface GridItem {
   agentId: string;
   order: number;
