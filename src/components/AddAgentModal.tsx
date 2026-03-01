@@ -1,9 +1,97 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useAgents } from "@/lib/api";
-import type { Agent } from "@/lib/types";
+import { useAgents, usePrStatus, deleteAgent } from "@/lib/api";
+import type { Agent, PrStatus } from "@/lib/types";
 import { StatusBadge } from "./StatusBadge";
+
+const PR_COLORS: Record<PrStatus, string> = {
+  open: "text-green-400",
+  merged: "text-purple-400",
+  closed: "text-red-400",
+  draft: "text-zinc-500",
+};
+
+const PR_LABELS: Record<PrStatus, string> = {
+  open: "PR",
+  merged: "PR ✓",
+  closed: "PR ✕",
+  draft: "PR ~",
+};
+
+function AgentRow({
+  agent,
+  highlighted,
+  onAdd,
+  onDeleted,
+}: {
+  agent: Agent;
+  highlighted: boolean;
+  onAdd: () => void;
+  onDeleted: () => void;
+}) {
+  const { data: prStatusData } = usePrStatus(agent.target.prUrl);
+  const prStatus = prStatusData?.status;
+  const [deleting, setDeleting] = useState(false);
+
+  const repoName = (agent.source.repository ?? "").replace(
+    /^(https?:\/\/)?github\.com\//,
+    "",
+  );
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteAgent(agent.id);
+      onDeleted();
+    } catch {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div
+      data-item
+      className={`w-full flex items-center gap-2 px-3 py-2 border-b border-zinc-900 transition-colors cursor-pointer ${
+        highlighted ? "bg-zinc-800/80" : "hover:bg-zinc-800/80"
+      }`}
+      onClick={onAdd}
+    >
+      <StatusBadge status={agent.status} />
+      <span className="text-xs text-zinc-200 truncate flex-1 min-w-0">
+        {agent.name || agent.id}
+      </span>
+      <span className="text-[10px] text-zinc-600 truncate max-w-[120px]">
+        {repoName}
+      </span>
+      {agent.target.branchName && (
+        <span className="text-[10px] text-zinc-600 truncate max-w-[120px] font-mono leading-none">
+          {agent.target.branchName}
+        </span>
+      )}
+      {agent.target.prUrl && (
+        <a
+          href={agent.target.prUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className={`text-[10px] shrink-0 hover:brightness-125 ${prStatus ? PR_COLORS[prStatus] : "text-zinc-500"}`}
+        >
+          {prStatus ? PR_LABELS[prStatus] : "PR"}
+        </a>
+      )}
+      <button
+        onClick={handleDelete}
+        disabled={deleting}
+        className="text-[10px] text-red-500/70 hover:text-red-400 shrink-0 disabled:opacity-30"
+      >
+        {deleting ? "..." : "del"}
+      </button>
+    </div>
+  );
+}
 
 interface AddAgentModalProps {
   gridAgentIds: Set<string>;
@@ -18,7 +106,7 @@ export function AddAgentModal({
   onLaunchNew,
   onClose,
 }: AddAgentModalProps) {
-  const { data } = useAgents();
+  const { data, mutate: refreshAgents } = useAgents();
   const [filter, setFilter] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -45,11 +133,6 @@ export function AddAgentModal({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose]);
-
-  function repoName(agent: Agent): string {
-    const url = agent.source.repository ?? "";
-    return url.replace(/^(https?:\/\/)?github\.com\//, "");
-  }
 
   function scrollToIdx(idx: number) {
     if (!listRef.current) return;
@@ -117,22 +200,13 @@ export function AddAgentModal({
             </p>
           )}
           {agents.map((agent, i) => (
-            <button
-              data-item
+            <AgentRow
               key={agent.id}
-              onClick={() => onAdd(agent.id)}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-left border-b border-zinc-900 transition-colors ${
-                i === highlightIdx ? "bg-zinc-800/80" : "hover:bg-zinc-800/80"
-              }`}
-            >
-              <StatusBadge status={agent.status} />
-              <span className="text-xs text-zinc-200 truncate flex-1 min-w-0">
-                {agent.name || agent.id}
-              </span>
-              <span className="text-[10px] text-zinc-600 truncate max-w-[140px]">
-                {repoName(agent)}
-              </span>
-            </button>
+              agent={agent}
+              highlighted={i === highlightIdx}
+              onAdd={() => onAdd(agent.id)}
+              onDeleted={() => refreshAgents()}
+            />
           ))}
         </div>
 
