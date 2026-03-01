@@ -48,6 +48,7 @@ body {
 
 .prose-pane pre {
   overflow-x: auto;
+  overflow-y: hidden;
   background: #18181b;
   border: 1px solid #27272a;
   padding: 4px 6px;
