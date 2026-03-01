@@ -189,7 +189,7 @@ export async function deleteAgent(id: string): Promise<void> {
     method: "DELETE",
     headers: headers(),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok && res.status !== 404) throw new Error(await res.text());
   mutate("/api/agents?limit=100");
 }
 

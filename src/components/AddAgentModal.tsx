@@ -63,6 +63,14 @@ function AgentRow({
       <span className="text-xs text-zinc-200 truncate flex-1 min-w-0">
         {agent.name || agent.id}
       </span>
+      <span className="text-[10px] text-zinc-600 truncate max-w-[120px]">
+        {repoName}
+      </span>
+      {agent.target.branchName && (
+        <span className="text-[10px] text-zinc-600 truncate max-w-[120px] font-mono leading-none">
+          {agent.target.branchName}
+        </span>
+      )}
       {agent.target.prUrl && (
         <a
           href={agent.target.prUrl}
@@ -74,9 +82,6 @@ function AgentRow({
           {prStatus ? PR_LABELS[prStatus] : "PR"}
         </a>
       )}
-      <span className="text-[10px] text-zinc-600 truncate max-w-[120px]">
-        {repoName}
-      </span>
       <button
         onClick={handleDelete}
         disabled={deleting}
