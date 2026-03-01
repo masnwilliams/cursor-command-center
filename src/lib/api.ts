@@ -194,14 +194,6 @@ export async function stopAgent(id: string): Promise<void> {
   mutate("/api/agents?limit=100");
 }
 
-export async function deleteAgent(id: string): Promise<void> {
-  const res = await fetch(`/api/agents/${id}`, {
-    method: "DELETE",
-    headers: headers(),
-  });
-  if (!res.ok && res.status !== 404) throw new Error(await res.text());
-  mutate("/api/agents?limit=100");
-}
 
 export async function mergePr(
   prUrl: string,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useAgents, usePrStatus, deleteAgent } from "@/lib/api";
+import { useAgents, usePrStatus } from "@/lib/api";
 import type { Agent, PrStatus } from "@/lib/types";
 import { StatusBadge } from "./StatusBadge";
 
@@ -23,33 +23,18 @@ function AgentRow({
   agent,
   highlighted,
   onAdd,
-  onDeleted,
 }: {
   agent: Agent;
   highlighted: boolean;
   onAdd: () => void;
-  onDeleted: () => void;
 }) {
   const { data: prStatusData } = usePrStatus(agent.target.prUrl);
   const prStatus = prStatusData?.status;
-  const [deleting, setDeleting] = useState(false);
 
   const repoName = (agent.source.repository ?? "").replace(
     /^(https?:\/\/)?github\.com\//,
     "",
   );
-
-  async function handleDelete(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (deleting) return;
-    setDeleting(true);
-    try {
-      await deleteAgent(agent.id);
-      onDeleted();
-    } catch {
-      setDeleting(false);
-    }
-  }
 
   return (
     <div
@@ -82,13 +67,6 @@ function AgentRow({
           {prStatus ? PR_LABELS[prStatus] : "PR"}
         </a>
       )}
-      <button
-        onClick={handleDelete}
-        disabled={deleting}
-        className="text-[10px] text-red-500/70 hover:text-red-400 shrink-0 disabled:opacity-30"
-      >
-        {deleting ? "..." : "del"}
-      </button>
     </div>
   );
 }
@@ -106,7 +84,7 @@ export function AddAgentModal({
   onLaunchNew,
   onClose,
 }: AddAgentModalProps) {
-  const { data, mutate: refreshAgents } = useAgents();
+  const { data } = useAgents();
   const [filter, setFilter] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -205,7 +183,6 @@ export function AddAgentModal({
               agent={agent}
               highlighted={i === highlightIdx}
               onAdd={() => onAdd(agent.id)}
-              onDeleted={() => refreshAgents()}
             />
           ))}
         </div>
