@@ -11,12 +11,19 @@ import {
   removeFromGrid,
   replaceInGrid,
 } from "@/lib/storage";
-import { useAgents, launchAgent, stopAgent, deleteAgent } from "@/lib/api";
+import {
+  useAgents,
+  useReviewRequests,
+  launchAgent,
+  stopAgent,
+  deleteAgent,
+} from "@/lib/api";
 import type {
   Agent,
   GridItem,
   LaunchAgentRequest,
   ConversationResponse,
+  ReviewRequestPR,
 } from "@/lib/types";
 import { Pane } from "@/components/Pane";
 import { AddAgentModal } from "@/components/AddAgentModal";
@@ -49,6 +56,7 @@ export default function DashboardPage() {
   const [showPalette, setShowPalette] = useState(false);
   const [showReviewInput, setShowReviewInput] = useState(false);
   const [reviewPrUrl, setReviewPrUrl] = useState("");
+  const [reviewSelectedIndex, setReviewSelectedIndex] = useState(-1);
   const [mergeTarget, setMergeTarget] = useState<{
     prUrl: string;
     agentName: string;
@@ -72,6 +80,9 @@ export default function DashboardPage() {
   }, [router]);
 
   const { data: agentsData } = useAgents();
+  const { data: reviewData } = useReviewRequests();
+  const reviewPrs = reviewData?.prs ?? [];
+  const reviewCount = reviewData?.total ?? 0;
 
   const agentMap = new Map<string, Agent>();
   agentsData?.agents?.forEach((a) => agentMap.set(a.id, a));
@@ -341,12 +352,27 @@ export default function DashboardPage() {
           <span className="text-[10px] text-zinc-500 font-mono">
             cursor-agents
           </span>
-          <button
-            onClick={() => setShowPalette(true)}
-            className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
-          >
-            [⌘K]
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowReviewInput(true)}
+              className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono flex items-center gap-1"
+            >
+              {reviewCount > 0 ? (
+                <>
+                  <span className="text-amber-400">{reviewCount}</span>
+                  <span>review{reviewCount !== 1 ? "s" : ""}</span>
+                </>
+              ) : (
+                <span>0 reviews</span>
+              )}
+            </button>
+            <button
+              onClick={() => setShowPalette(true)}
+              className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
+            >
+              [⌘K]
+            </button>
+          </div>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center space-y-3">
@@ -403,42 +429,120 @@ export default function DashboardPage() {
   }
 
   function renderReviewInput() {
+    const filteredPrs = reviewPrUrl.trim()
+      ? reviewPrs.filter(
+          (pr) =>
+            pr.title.toLowerCase().includes(reviewPrUrl.toLowerCase()) ||
+            pr.repo.toLowerCase().includes(reviewPrUrl.toLowerCase()) ||
+            pr.url.includes(reviewPrUrl),
+        )
+      : reviewPrs;
+
+    function handleReviewKeyDown(e: React.KeyboardEvent) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setReviewSelectedIndex((i) =>
+          i < filteredPrs.length - 1 ? i + 1 : i,
+        );
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setReviewSelectedIndex((i) => (i > 0 ? i - 1 : -1));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (reviewSelectedIndex >= 0 && filteredPrs[reviewSelectedIndex]) {
+          launchReview(filteredPrs[reviewSelectedIndex].url);
+        } else if (reviewPrUrl.trim()) {
+          launchReview(reviewPrUrl.trim());
+        }
+      } else if (e.key === "Escape") {
+        setShowReviewInput(false);
+        setReviewPrUrl("");
+        setReviewSelectedIndex(-1);
+      }
+    }
+
     return (
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
         onClick={() => {
           setShowReviewInput(false);
           setReviewPrUrl("");
+          setReviewSelectedIndex(-1);
         }}
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-md border border-zinc-800 bg-zinc-950"
+          className="w-full max-w-lg border border-zinc-800 bg-zinc-950 flex flex-col max-h-[80vh]"
         >
-          <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
+          <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 bg-zinc-900/60 shrink-0">
             <span className="text-xs text-zinc-300 font-mono">review pr</span>
             <span className="text-[10px] text-zinc-600 font-mono ml-auto">
               [esc]
             </span>
           </div>
-          <div className="px-3 py-3">
+          <div className="px-3 py-3 border-b border-zinc-800 shrink-0">
             <input
-              type="url"
+              type="text"
               value={reviewPrUrl}
-              onChange={(e) => setReviewPrUrl(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && reviewPrUrl.trim())
-                  launchReview(reviewPrUrl.trim());
-                if (e.key === "Escape") {
-                  setShowReviewInput(false);
-                  setReviewPrUrl("");
-                }
+              onChange={(e) => {
+                setReviewPrUrl(e.target.value);
+                setReviewSelectedIndex(-1);
               }}
-              placeholder="paste pr url, hit enter"
+              onKeyDown={handleReviewKeyDown}
+              placeholder="paste pr url or filter, hit enter"
               autoFocus
               className="w-full bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono"
             />
           </div>
+          {filteredPrs.length > 0 && (
+            <div className="overflow-y-auto">
+              <div className="px-3 py-1.5">
+                <span className="text-[10px] text-zinc-600 font-mono uppercase tracking-wider">
+                  requesting your review
+                </span>
+              </div>
+              {filteredPrs.map((pr, i) => (
+                <button
+                  key={pr.url}
+                  onClick={() => launchReview(pr.url)}
+                  onMouseEnter={() => setReviewSelectedIndex(i)}
+                  className={`w-full text-left px-3 py-2 font-mono flex flex-col gap-0.5 ${
+                    i === reviewSelectedIndex
+                      ? "bg-zinc-800"
+                      : "hover:bg-zinc-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs text-zinc-100 truncate">
+                      {pr.title}
+                    </span>
+                    <span className="text-[10px] text-zinc-600 shrink-0">
+                      #{pr.number}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                    <span>{pr.repo}</span>
+                    <span>·</span>
+                    <span>{pr.author}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {filteredPrs.length === 0 && reviewPrs.length === 0 && (
+            <div className="px-3 py-4 text-center">
+              <span className="text-[10px] text-zinc-600 font-mono">
+                no pending review requests
+              </span>
+            </div>
+          )}
+          {filteredPrs.length === 0 && reviewPrs.length > 0 && (
+            <div className="px-3 py-4 text-center">
+              <span className="text-[10px] text-zinc-600 font-mono">
+                no matches
+              </span>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -451,12 +555,27 @@ export default function DashboardPage() {
         <span className="text-[10px] text-zinc-500 font-mono">
           cursor-agents — {paneCount} pane{paneCount !== 1 ? "s" : ""}
         </span>
-        <button
-          onClick={() => setShowPalette(true)}
-          className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
-        >
-          [⌘K]
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowReviewInput(true)}
+            className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono flex items-center gap-1"
+          >
+            {reviewCount > 0 ? (
+              <>
+                <span className="text-amber-400">{reviewCount}</span>
+                <span>review{reviewCount !== 1 ? "s" : ""}</span>
+              </>
+            ) : (
+              <span>0 reviews</span>
+            )}
+          </button>
+          <button
+            onClick={() => setShowPalette(true)}
+            className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
+          >
+            [⌘K]
+          </button>
+        </div>
       </div>
 
       {/* Pane grid */}

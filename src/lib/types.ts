@@ -107,3 +107,17 @@ export interface GridItem {
   agentId: string;
   order: number;
 }
+
+export interface ReviewRequestPR {
+  title: string;
+  url: string;
+  number: number;
+  repo: string;
+  author: string;
+  updatedAt: string;
+}
+
+export interface ReviewRequestsResponse {
+  prs: ReviewRequestPR[];
+  total: number;
+}

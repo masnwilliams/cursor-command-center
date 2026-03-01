@@ -9,6 +9,7 @@ import type {
   ModelsResponse,
   PrStatusResponse,
   RepositoriesResponse,
+  ReviewRequestsResponse,
 } from "./types";
 import {
   getApiKey,
@@ -136,6 +137,15 @@ export function useBranches(repoUrl: string | null) {
   const data = result.data ?? (stale ? { branches: stale } : undefined);
 
   return { ...result, data };
+}
+
+// PR review requests (polls every 2 minutes)
+export function useReviewRequests() {
+  return useSWR<ReviewRequestsResponse>(
+    "/api/review-requests",
+    fetcher<ReviewRequestsResponse>,
+    { refreshInterval: 120_000, revalidateOnFocus: false },
+  );
 }
 
 // PR status (from GitHub API, polls every 60s for agents with a PR)
