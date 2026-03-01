@@ -2,6 +2,7 @@ import type { GridItem, Repository } from "./types";
 
 const KEYS = {
   apiKey: "cursor-agents-api-key",
+  githubToken: "cursor-agents-github-token",
   grid: "cursor-agents-grid",
   repos: "cursor-agents-repos",
   reposTimestamp: "cursor-agents-repos-ts",
@@ -20,6 +21,19 @@ export function setApiKey(key: string): void {
 
 export function clearApiKey(): void {
   localStorage.removeItem(KEYS.apiKey);
+}
+
+export function getGithubToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(KEYS.githubToken);
+}
+
+export function setGithubToken(token: string): void {
+  localStorage.setItem(KEYS.githubToken, token);
+}
+
+export function clearGithubToken(): void {
+  localStorage.removeItem(KEYS.githubToken);
 }
 
 export function getGrid(): GridItem[] {

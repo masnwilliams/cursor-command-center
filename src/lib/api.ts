@@ -7,10 +7,12 @@ import type {
   LaunchAgentRequest,
   MeResponse,
   ModelsResponse,
+  PrStatusResponse,
   RepositoriesResponse,
 } from "./types";
 import {
   getApiKey,
+  getGithubToken,
   getCachedRepos,
   setCachedRepos,
   clearCachedRepos,
@@ -21,9 +23,12 @@ import {
 } from "./storage";
 
 function headers(): Record<string, string> {
+  const h: Record<string, string> = { "Content-Type": "application/json" };
   const key = getApiKey();
-  if (!key) return {};
-  return { "x-cursor-key": key, "Content-Type": "application/json" };
+  if (key) h["x-cursor-key"] = key;
+  const ghToken = getGithubToken();
+  if (ghToken) h["x-github-token"] = ghToken;
+  return h;
 }
 
 async function fetcher<T>(url: string): Promise<T> {
@@ -131,6 +136,15 @@ export function useBranches(repoUrl: string | null) {
   const data = result.data ?? (stale ? { branches: stale } : undefined);
 
   return { ...result, data };
+}
+
+// PR status (from GitHub API, polls every 60s for agents with a PR)
+export function usePrStatus(prUrl: string | undefined) {
+  return useSWR<PrStatusResponse>(
+    prUrl ? `/api/pr-status?url=${encodeURIComponent(prUrl)}` : null,
+    fetcher<PrStatusResponse>,
+    { revalidateOnFocus: false, dedupingInterval: 60_000, refreshInterval: 60_000 },
+  );
 }
 
 // Mutations
