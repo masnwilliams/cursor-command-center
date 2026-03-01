@@ -259,8 +259,8 @@ export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation 
                         isUser
                           ? `bg-blue-950/40 text-blue-200 sticky top-0 z-10 backdrop-blur-sm border-b-blue-900/50 cursor-pointer ${
                               isExpanded
-                                ? "max-h-60 overflow-y-auto"
-                                : "max-h-24 overflow-hidden"
+                                ? ""
+                                : "max-h-24 overflow-clip"
                             }`
                           : "text-zinc-300"
                       }`}
