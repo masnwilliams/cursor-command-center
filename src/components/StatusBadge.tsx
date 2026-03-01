@@ -2,32 +2,26 @@
 
 import type { AgentStatus } from "@/lib/types";
 
-const config: Record<
-  AgentStatus,
-  { color: string; pulse: boolean; label: string }
-> = {
-  CREATING: { color: "bg-amber-400", pulse: true, label: "Creating" },
-  RUNNING: { color: "bg-blue-400", pulse: true, label: "Running" },
-  FINISHED: { color: "bg-emerald-400", pulse: false, label: "Finished" },
-  STOPPED: { color: "bg-zinc-400", pulse: false, label: "Stopped" },
-  ERROR: { color: "bg-red-400", pulse: false, label: "Error" },
+const config: Record<AgentStatus, { color: string; pulse: boolean }> = {
+  CREATING: { color: "bg-amber-400", pulse: true },
+  RUNNING: { color: "bg-blue-400", pulse: true },
+  FINISHED: { color: "bg-emerald-400", pulse: false },
+  STOPPED: { color: "bg-zinc-400", pulse: false },
+  ERROR: { color: "bg-red-400", pulse: false },
 };
 
 export function StatusBadge({ status }: { status: AgentStatus }) {
   const c = config[status] ?? config.ERROR;
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400">
-      <span className="relative flex h-2 w-2">
-        {c.pulse && (
-          <span
-            className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${c.color}`}
-          />
-        )}
+    <span className="relative flex h-2 w-2 shrink-0">
+      {c.pulse && (
         <span
-          className={`relative inline-flex h-2 w-2 rounded-full ${c.color}`}
+          className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${c.color}`}
         />
-      </span>
-      {c.label}
+      )}
+      <span
+        className={`relative inline-flex h-2 w-2 rounded-full ${c.color}`}
+      />
     </span>
   );
 }

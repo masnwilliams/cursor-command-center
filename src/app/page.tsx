@@ -22,6 +22,8 @@ import { Pane } from "@/components/Pane";
 import { AddAgentModal } from "@/components/AddAgentModal";
 import { LaunchModal } from "@/components/LaunchModal";
 import { CommandPalette, type Command } from "@/components/CommandPalette";
+import { ConfirmMergeModal } from "@/components/ConfirmMergeModal";
+import { AddReviewerModal } from "@/components/AddReviewerModal";
 import { PR_REVIEW_PROMPT } from "@/lib/prompts";
 
 function gridCols(count: number): string {
@@ -47,6 +49,14 @@ export default function DashboardPage() {
   const [showPalette, setShowPalette] = useState(false);
   const [showReviewInput, setShowReviewInput] = useState(false);
   const [reviewPrUrl, setReviewPrUrl] = useState("");
+  const [mergeTarget, setMergeTarget] = useState<{
+    prUrl: string;
+    agentName: string;
+  } | null>(null);
+  const [reviewerTarget, setReviewerTarget] = useState<{
+    prUrl: string;
+    agentName: string;
+  } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [pendingLaunches, setPendingLaunches] = useState<
     Map<string, PendingLaunch>
@@ -229,13 +239,26 @@ export default function DashboardPage() {
           section: "focused pane",
           action: () => window.open(focusedAgent.target.prUrl!, "_blank"),
         });
-      }
-      if (focusedAgent.target.url) {
         cmds.push({
-          id: "open-cursor",
-          label: "open in cursor",
+          id: "add-reviewer",
+          label: "add reviewer to pr",
           section: "focused pane",
-          action: () => window.open(focusedAgent.target.url!, "_blank"),
+          action: () =>
+            setReviewerTarget({
+              prUrl: focusedAgent.target.prUrl!,
+              agentName: focusedAgent.name || focusedAgent.id,
+            }),
+        });
+        cmds.push({
+          id: "merge-pr",
+          label: "merge pr",
+          section: "focused pane",
+          destructive: true,
+          action: () =>
+            setMergeTarget({
+              prUrl: focusedAgent.target.prUrl!,
+              agentName: focusedAgent.name || focusedAgent.id,
+            }),
         });
       }
       cmds.push({
@@ -269,9 +292,9 @@ export default function DashboardPage() {
   }, [focusedAgent, focusedId, sorted, agentMap]);
 
   useEffect(() => {
-    if (showAdd || showLaunch || showReviewInput)
+    if (showAdd || showLaunch || showReviewInput || mergeTarget || reviewerTarget)
       setFocusedId(null);
-  }, [showAdd, showLaunch, showReviewInput]);
+  }, [showAdd, showLaunch, showReviewInput, mergeTarget, reviewerTarget]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -283,6 +306,8 @@ export default function DashboardPage() {
         setShowAdd(false);
         setShowLaunch(false);
         setShowReviewInput(false);
+        setMergeTarget(null);
+        setReviewerTarget(null);
         return;
       }
 
@@ -358,6 +383,21 @@ export default function DashboardPage() {
           />
         )}
         {showReviewInput && renderReviewInput()}
+        {mergeTarget && (
+          <ConfirmMergeModal
+            prUrl={mergeTarget.prUrl}
+            agentName={mergeTarget.agentName}
+            onClose={() => setMergeTarget(null)}
+            onMerged={() => setMergeTarget(null)}
+          />
+        )}
+        {reviewerTarget && (
+          <AddReviewerModal
+            prUrl={reviewerTarget.prUrl}
+            agentName={reviewerTarget.agentName}
+            onClose={() => setReviewerTarget(null)}
+          />
+        )}
       </div>
     );
   }
@@ -501,6 +541,21 @@ export default function DashboardPage() {
         />
       )}
       {showReviewInput && renderReviewInput()}
+      {mergeTarget && (
+        <ConfirmMergeModal
+          prUrl={mergeTarget.prUrl}
+          agentName={mergeTarget.agentName}
+          onClose={() => setMergeTarget(null)}
+          onMerged={() => setMergeTarget(null)}
+        />
+      )}
+      {reviewerTarget && (
+        <AddReviewerModal
+          prUrl={reviewerTarget.prUrl}
+          agentName={reviewerTarget.agentName}
+          onClose={() => setReviewerTarget(null)}
+        />
+      )}
     </div>
   );
 }

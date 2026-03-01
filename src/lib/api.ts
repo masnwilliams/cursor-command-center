@@ -193,6 +193,43 @@ export async function deleteAgent(id: string): Promise<void> {
   mutate("/api/agents?limit=100");
 }
 
+export async function mergePr(
+  prUrl: string,
+  mergeMethod: "squash" | "merge" | "rebase" = "squash",
+): Promise<{ merged: boolean; sha: string }> {
+  const res = await fetch("/api/pr-merge", {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ prUrl, mergeMethod }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? `merge failed (${res.status})`);
+  }
+  const data = await res.json();
+  mutate(
+    `/api/pr-status?url=${encodeURIComponent(prUrl)}`,
+    { status: "merged" },
+    { revalidate: false },
+  );
+  return data;
+}
+
+export async function addPrReviewers(
+  prUrl: string,
+  reviewers: string[],
+): Promise<void> {
+  const res = await fetch("/api/pr-reviewers", {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ prUrl, reviewers }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? `add reviewers failed (${res.status})`);
+  }
+}
+
 export async function testConnection(): Promise<MeResponse> {
   const res = await fetch("/api/me", { headers: headers() });
   if (!res.ok) throw new Error(await res.text());

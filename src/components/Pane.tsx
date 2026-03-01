@@ -176,17 +176,6 @@ export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation 
             {prStatus ? PR_LABELS[prStatus] : "PR"}
           </a>
         )}
-        {agent.target.url && (
-          <a
-            href={agent.target.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-[10px] text-zinc-500 hover:text-blue-400 shrink-0"
-          >
-            ↗
-          </a>
-        )}
         {isActive && (
           <button
             onClick={(e) => {
