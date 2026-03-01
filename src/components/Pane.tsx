@@ -15,7 +15,6 @@ interface PaneProps {
   focused: boolean;
   onFocus: () => void;
   onClose: () => void;
-  onDelete: () => void;
   conversation?: ConversationResponse;
 }
 
@@ -38,7 +37,7 @@ const PR_LABELS: Record<PrStatus, string> = {
   draft: "PR ~",
 };
 
-export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation }: PaneProps) {
+export function Pane({ agent, focused, onFocus, onClose, conversation }: PaneProps) {
   const isActive = agent.status === "RUNNING" || agent.status === "CREATING";
   const { data: fetchedConvo } = useConversation(conversation ? null : agent.id, isActive);
   const convo = conversation ?? fetchedConvo;
@@ -187,15 +186,6 @@ export function Pane({ agent, focused, onFocus, onClose, onDelete, conversation 
             stop
           </button>
         )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="text-[10px] text-red-500/70 hover:text-red-400 shrink-0"
-        >
-          del
-        </button>
         <button
           onClick={(e) => {
             e.stopPropagation();

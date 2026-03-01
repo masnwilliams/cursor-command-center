@@ -8,11 +8,3 @@ export async function GET(
   const { id } = await params;
   return proxyToCursor(req, `/v0/agents/${id}`);
 }
-
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  return proxyToCursor(req, `/v0/agents/${id}`);
-}

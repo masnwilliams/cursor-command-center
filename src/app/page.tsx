@@ -16,7 +16,6 @@ import {
   useReviewRequests,
   launchAgent,
   stopAgent,
-  deleteAgent,
 } from "@/lib/api";
 import type {
   Agent,
@@ -127,16 +126,6 @@ export default function DashboardPage() {
     refreshGrid();
   }
 
-  async function handleDelete(agentId: string) {
-    removeFromGrid(agentId);
-    if (focusedId === agentId) setFocusedId(null);
-    refreshGrid();
-    if (pendingLaunches.has(agentId)) {
-      removePending(agentId);
-    } else {
-      await deleteAgent(agentId);
-    }
-  }
 
   function handleOptimisticLaunch(
     request: LaunchAgentRequest,
@@ -272,13 +261,6 @@ export default function DashboardPage() {
             }),
         });
       }
-      cmds.push({
-        id: "delete",
-        label: `delete ${focusedAgent.name || focusedAgent.id}`,
-        section: "focused pane",
-        destructive: true,
-        action: () => handleDelete(focusedAgent.id),
-      });
     }
 
     sorted.forEach((item, i) => {
@@ -642,7 +624,6 @@ export default function DashboardPage() {
               focused={focusedId === agent.id}
               onFocus={() => setFocusedId(agent.id)}
               onClose={() => handleRemove(agent.id)}
-              onDelete={() => handleDelete(agent.id)}
               conversation={pendingConvo}
             />
           );
