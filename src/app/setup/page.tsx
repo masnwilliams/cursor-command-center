@@ -86,7 +86,7 @@ export default function SetupPage() {
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canContinue) {
+      if (e.key === "Enter" && canContinue) {
         e.preventDefault();
         handleContinue();
       }
@@ -226,7 +226,7 @@ export default function SetupPage() {
             disabled={!canContinue}
             className="bg-blue-600 px-4 py-1.5 text-xs text-white hover:bg-blue-500 font-mono disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            continue ⌘↵
+            continue ↵
           </button>
         </div>
       </div>
