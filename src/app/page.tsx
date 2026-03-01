@@ -502,30 +502,44 @@ export default function DashboardPage() {
                 </span>
               </div>
               {filteredPrs.map((pr, i) => (
-                <button
+                <div
                   key={pr.url}
-                  onClick={() => launchReview(pr.url)}
                   onMouseEnter={() => setReviewSelectedIndex(i)}
-                  className={`w-full text-left px-3 py-2 font-mono flex flex-col gap-0.5 ${
+                  className={`w-full flex items-center px-3 py-2 font-mono gap-2 ${
                     i === reviewSelectedIndex
                       ? "bg-zinc-800"
                       : "hover:bg-zinc-900"
                   }`}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs text-zinc-100 truncate">
-                      {pr.title}
-                    </span>
-                    <span className="text-[10px] text-zinc-600 shrink-0">
-                      #{pr.number}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] text-zinc-500">
-                    <span>{pr.repo}</span>
-                    <span>·</span>
-                    <span>{pr.author}</span>
-                  </div>
-                </button>
+                  <button
+                    onClick={() => launchReview(pr.url)}
+                    className="flex-1 text-left flex flex-col gap-0.5 min-w-0"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs text-zinc-100 truncate">
+                        {pr.title}
+                      </span>
+                      <span className="text-[10px] text-zinc-600 shrink-0">
+                        #{pr.number}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                      <span>{pr.repo}</span>
+                      <span>·</span>
+                      <span>{pr.author}</span>
+                    </div>
+                  </button>
+                  <a
+                    href={pr.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[10px] text-zinc-600 hover:text-zinc-300 shrink-0"
+                    title="open in github"
+                  >
+                    [open]
+                  </a>
+                </div>
               ))}
             </div>
           )}
