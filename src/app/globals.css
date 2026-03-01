@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+html,
+body {
+  height: 100dvh;
+  overflow: hidden;
+}
+
 html {
   color-scheme: dark;
   overscroll-behavior: none;

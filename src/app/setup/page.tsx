@@ -124,7 +124,7 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-zinc-950 flex items-center justify-center">
+    <div className="min-h-full bg-zinc-950 flex items-center justify-center">
       <div className="w-full max-w-md border border-zinc-800">
         <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
           <span className="text-xs text-zinc-300 font-mono">setup</span>

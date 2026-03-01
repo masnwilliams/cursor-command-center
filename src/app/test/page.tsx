@@ -327,7 +327,7 @@ export default function TestPage() {
   }
 
   return (
-    <div className="h-dvh bg-zinc-950 flex flex-col overflow-hidden">
+    <div className="h-full bg-zinc-950 flex flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b border-zinc-800 px-2 py-0.5 bg-zinc-900/60 shrink-0">
         <span className="text-[10px] text-zinc-500 font-mono">
           cursor-agents — {paneCount} pane{paneCount !== 1 ? "s" : ""} — test
