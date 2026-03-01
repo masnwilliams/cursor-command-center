@@ -198,3 +198,9 @@ export async function testConnection(): Promise<MeResponse> {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+export async function testGithubToken(): Promise<{ login: string }> {
+  const res = await fetch("/api/github-test", { headers: headers() });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

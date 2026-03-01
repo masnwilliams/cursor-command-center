@@ -6,8 +6,6 @@ import { mutate } from "swr";
 import {
   getApiKey,
   getGithubToken,
-  setGithubToken,
-  clearGithubToken,
   getGrid,
   addToGrid,
   removeFromGrid,
@@ -49,15 +47,13 @@ export default function DashboardPage() {
   const [showPalette, setShowPalette] = useState(false);
   const [showReviewInput, setShowReviewInput] = useState(false);
   const [reviewPrUrl, setReviewPrUrl] = useState("");
-  const [showGhToken, setShowGhToken] = useState(false);
-  const [ghTokenValue, setGhTokenValue] = useState("");
   const [mounted, setMounted] = useState(false);
   const [pendingLaunches, setPendingLaunches] = useState<
     Map<string, PendingLaunch>
   >(new Map());
 
   useEffect(() => {
-    if (!getApiKey()) {
+    if (!getApiKey() || !getGithubToken()) {
       router.push("/setup");
       return;
     }
@@ -262,19 +258,9 @@ export default function DashboardPage() {
       });
     });
 
-    const hasGhToken = !!getGithubToken();
-    cmds.push({
-      id: "github-token",
-      label: hasGhToken ? "github token (configured)" : "set github token (for private repos)",
-      section: "app",
-      action: () => {
-        setGhTokenValue(getGithubToken() ?? "");
-        setShowGhToken(true);
-      },
-    });
     cmds.push({
       id: "settings",
-      label: "settings / api key",
+      label: "settings",
       section: "app",
       action: () => router.push("/setup"),
     });
@@ -283,9 +269,9 @@ export default function DashboardPage() {
   }, [focusedAgent, focusedId, sorted, agentMap]);
 
   useEffect(() => {
-    if (showAdd || showLaunch || showReviewInput || showGhToken)
+    if (showAdd || showLaunch || showReviewInput)
       setFocusedId(null);
-  }, [showAdd, showLaunch, showReviewInput, showGhToken]);
+  }, [showAdd, showLaunch, showReviewInput]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -297,17 +283,12 @@ export default function DashboardPage() {
         setShowAdd(false);
         setShowLaunch(false);
         setShowReviewInput(false);
-        setShowGhToken(false);
         return;
       }
 
       if (e.key === "Escape") {
         if (showPalette) {
           setShowPalette(false);
-          return;
-        }
-        if (showGhToken) {
-          setShowGhToken(false);
           return;
         }
         if (showReviewInput) {
@@ -321,7 +302,7 @@ export default function DashboardPage() {
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [showPalette, showAdd, showLaunch, showReviewInput, showGhToken]);
+  }, [showPalette, showAdd, showLaunch, showReviewInput]);
 
   if (!mounted) return null;
 
@@ -377,78 +358,6 @@ export default function DashboardPage() {
           />
         )}
         {showReviewInput && renderReviewInput()}
-        {showGhToken && renderGhTokenInput()}
-      </div>
-    );
-  }
-
-  function renderGhTokenInput() {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
-        onClick={() => setShowGhToken(false)}
-      >
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-md border border-zinc-800 bg-zinc-950"
-        >
-          <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
-            <span className="text-xs text-zinc-300 font-mono">github token</span>
-            <span className="text-[10px] text-zinc-600 font-mono ml-auto">
-              [esc]
-            </span>
-          </div>
-          <div className="px-3 py-3 space-y-2">
-            <p className="text-[10px] text-zinc-500 font-mono">
-              optional — enables pr status + branches for private repos
-            </p>
-            <input
-              type="password"
-              value={ghTokenValue}
-              onChange={(e) => setGhTokenValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  if (ghTokenValue.trim()) {
-                    setGithubToken(ghTokenValue.trim());
-                  } else {
-                    clearGithubToken();
-                  }
-                  setShowGhToken(false);
-                }
-                if (e.key === "Escape") setShowGhToken(false);
-              }}
-              placeholder="ghp_... or github pat"
-              autoFocus
-              className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
-            />
-          </div>
-          <div className="border-t border-zinc-800 px-3 py-2 flex gap-2">
-            <button
-              onClick={() => {
-                clearGithubToken();
-                setGhTokenValue("");
-                setShowGhToken(false);
-              }}
-              className="text-xs text-red-400/70 hover:text-red-300 font-mono"
-            >
-              clear
-            </button>
-            <div className="flex-1" />
-            <button
-              onClick={() => {
-                if (ghTokenValue.trim()) {
-                  setGithubToken(ghTokenValue.trim());
-                } else {
-                  clearGithubToken();
-                }
-                setShowGhToken(false);
-              }}
-              className="bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-500 font-mono"
-            >
-              save ↵
-            </button>
-          </div>
-        </div>
       </div>
     );
   }
@@ -592,7 +501,6 @@ export default function DashboardPage() {
         />
       )}
       {showReviewInput && renderReviewInput()}
-      {showGhToken && renderGhTokenInput()}
     </div>
   );
 }
