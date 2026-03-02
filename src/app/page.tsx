@@ -14,8 +14,10 @@ import {
 import {
   useAgents,
   useReviewRequests,
+  usePrStatus,
   launchAgent,
   stopAgent,
+  markPrReady,
 } from "@/lib/api";
 import type {
   Agent,
@@ -197,6 +199,7 @@ export default function DashboardPage() {
   }
 
   const focusedAgent = focusedId ? agentMap.get(focusedId) : null;
+  const { data: focusedPrStatus } = usePrStatus(focusedAgent?.target.prUrl);
   const sorted = useMemo(
     () => [...grid].sort((a, b) => a.order - b.order),
     [grid],
@@ -251,6 +254,14 @@ export default function DashboardPage() {
           section: "focused pane",
           action: () => window.open(focusedAgent.target.prUrl!, "_blank"),
         });
+        if (focusedPrStatus?.status === "draft") {
+          cmds.push({
+            id: "mark-ready",
+            label: "mark pr ready for review",
+            section: "focused pane",
+            action: () => markPrReady(focusedAgent.target.prUrl!),
+          });
+        }
         cmds.push({
           id: "add-reviewer",
           label: "add reviewer to pr",
@@ -294,7 +305,7 @@ export default function DashboardPage() {
     });
 
     return cmds;
-  }, [focusedAgent, focusedId, sorted, agentMap]);
+  }, [focusedAgent, focusedId, focusedPrStatus, sorted, agentMap]);
 
   useEffect(() => {
     if (showAdd || showLaunch || showReviewInput || mergeTarget || reviewerTarget)
