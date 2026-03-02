@@ -164,6 +164,16 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
             {agent.target.branchName}
           </span>
         )}
+        {(agent.linesAdded != null || agent.linesRemoved != null) && (
+          <span className="text-[10px] font-mono shrink-0 hidden sm:flex items-center gap-1">
+            {agent.linesAdded != null && agent.linesAdded > 0 && (
+              <span className="text-green-600">+{agent.linesAdded}</span>
+            )}
+            {agent.linesRemoved != null && agent.linesRemoved > 0 && (
+              <span className="text-red-600">-{agent.linesRemoved}</span>
+            )}
+          </span>
+        )}
         {agent.target.prUrl && (
           <a
             href={agent.target.prUrl}

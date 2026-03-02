@@ -31,6 +31,7 @@ import { LaunchModal } from "@/components/LaunchModal";
 import { CommandPalette, type Command } from "@/components/CommandPalette";
 import { ConfirmMergeModal } from "@/components/ConfirmMergeModal";
 import { AddReviewerModal } from "@/components/AddReviewerModal";
+import { DiffBar } from "@/components/DiffBar";
 import { PR_REVIEW_PROMPT } from "@/lib/prompts";
 
 function gridCols(count: number): string {
@@ -65,6 +66,7 @@ export default function DashboardPage() {
     prUrl: string;
     agentName: string;
   } | null>(null);
+  const [showDiffBar, setShowDiffBar] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [pendingLaunches, setPendingLaunches] = useState<
     Map<string, PendingLaunch>
@@ -247,6 +249,18 @@ export default function DashboardPage() {
         section: "focused pane",
         action: () => handleRemove(focusedAgent.id),
       });
+      const hasChanges =
+        focusedAgent.target.prUrl ||
+        focusedAgent.linesAdded != null ||
+        focusedAgent.filesChanged != null;
+      if (hasChanges) {
+        cmds.push({
+          id: "diff",
+          label: showDiffBar ? "hide changes" : "view changes",
+          section: "focused pane",
+          action: () => setShowDiffBar((v) => !v),
+        });
+      }
       if (focusedAgent.target.prUrl) {
         cmds.push({
           id: "open-pr",
@@ -305,11 +319,13 @@ export default function DashboardPage() {
     });
 
     return cmds;
-  }, [focusedAgent, focusedId, focusedPrStatus, sorted, agentMap]);
+  }, [focusedAgent, focusedId, focusedPrStatus, sorted, agentMap, showDiffBar]);
 
   useEffect(() => {
-    if (showAdd || showLaunch || showReviewInput || mergeTarget || reviewerTarget)
+    if (showAdd || showLaunch || showReviewInput || mergeTarget || reviewerTarget) {
       setFocusedId(null);
+      setShowDiffBar(false);
+    }
   }, [showAdd, showLaunch, showReviewInput, mergeTarget, reviewerTarget]);
 
   useEffect(() => {
@@ -338,12 +354,16 @@ export default function DashboardPage() {
           return;
         }
         if (showAdd || showLaunch) return;
+        if (showDiffBar) {
+          setShowDiffBar(false);
+          return;
+        }
         setFocusedId(null);
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [showPalette, showAdd, showLaunch, showReviewInput]);
+  }, [showPalette, showAdd, showLaunch, showReviewInput, showDiffBar]);
 
   if (!mounted) return null;
 
@@ -652,6 +672,16 @@ export default function DashboardPage() {
           );
         })}
       </div>
+
+      {/* Diff bar for focused pane */}
+      {showDiffBar && focusedAgent && (
+        <DiffBar
+          agent={focusedAgent}
+          expanded={showDiffBar}
+          onToggle={() => setShowDiffBar((v) => !v)}
+          onClose={() => setShowDiffBar(false)}
+        />
+      )}
 
       {/* Modals */}
       {showPalette && (
