@@ -353,11 +353,11 @@ export default function DashboardPage() {
           setReviewPrUrl("");
           return;
         }
+        if (showAdd || showLaunch) return;
         if (showDiffBar) {
           setShowDiffBar(false);
           return;
         }
-        if (showAdd || showLaunch) return;
         setFocusedId(null);
       }
     }
@@ -679,6 +679,7 @@ export default function DashboardPage() {
           agent={focusedAgent}
           expanded={showDiffBar}
           onToggle={() => setShowDiffBar((v) => !v)}
+          onClose={() => setShowDiffBar(false)}
         />
       )}
 
