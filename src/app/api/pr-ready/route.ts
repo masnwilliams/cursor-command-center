@@ -30,25 +30,59 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(
+    // REST API ignores draft:false — must use GraphQL to mark ready
+    const prRes = await fetch(
       `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/pulls/${parsed.number}`,
       {
-        method: "PATCH",
         headers: {
           Accept: "application/vnd.github.v3+json",
           Authorization: `Bearer ${ghToken}`,
           "User-Agent": "cursor-agents-ui",
-          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ draft: false }),
       },
     );
 
-    const data = await res.json();
-    if (!res.ok) {
+    if (!prRes.ok) {
+      const data = await prRes.json();
       return NextResponse.json(
-        { error: data.message ?? `github api ${res.status}` },
-        { status: res.status },
+        { error: data.message ?? `github api ${prRes.status}` },
+        { status: prRes.status },
+      );
+    }
+
+    const prData = await prRes.json();
+    const nodeId: string = prData.node_id;
+
+    if (!nodeId) {
+      return NextResponse.json(
+        { error: "could not resolve pr node id" },
+        { status: 500 },
+      );
+    }
+
+    const gqlRes = await fetch("https://api.github.com/graphql", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${ghToken}`,
+        "Content-Type": "application/json",
+        "User-Agent": "cursor-agents-ui",
+      },
+      body: JSON.stringify({
+        query: `mutation($id: ID!) {
+          markPullRequestReadyForReview(input: { pullRequestId: $id }) {
+            pullRequest { isDraft }
+          }
+        }`,
+        variables: { id: nodeId },
+      }),
+    });
+
+    const gqlData = await gqlRes.json();
+
+    if (gqlData.errors?.length) {
+      return NextResponse.json(
+        { error: gqlData.errors[0].message },
+        { status: 422 },
       );
     }
 
