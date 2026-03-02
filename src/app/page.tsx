@@ -22,7 +22,6 @@ import type {
   GridItem,
   LaunchAgentRequest,
   ConversationResponse,
-  ReviewRequestPR,
 } from "@/lib/types";
 import { Pane } from "@/components/Pane";
 import { AddAgentModal } from "@/components/AddAgentModal";
@@ -81,7 +80,6 @@ export default function DashboardPage() {
   const { data: agentsData } = useAgents();
   const { data: reviewData } = useReviewRequests();
   const reviewPrs = reviewData?.prs ?? [];
-  const reviewCount = reviewData?.total ?? 0;
 
   const agentMap = new Map<string, Agent>();
   agentsData?.agents?.forEach((a) => agentMap.set(a.id, a));
@@ -102,6 +100,20 @@ export default function DashboardPage() {
       });
     }
   });
+
+  const openReviewUrls = useMemo(() => {
+    const urls = new Set<string>();
+    for (const item of grid) {
+      const a = agentMap.get(item.agentId);
+      if (a?.source.prUrl) urls.add(a.source.prUrl);
+    }
+    return urls;
+  }, [grid, agentMap]);
+
+  const pendingReviewPrs = useMemo(
+    () => reviewPrs.filter((pr) => !openReviewUrls.has(pr.url)),
+    [reviewPrs, openReviewUrls],
+  );
 
   const refreshGrid = useCallback(() => setGrid(getGrid()), []);
 
@@ -339,10 +351,10 @@ export default function DashboardPage() {
               onClick={() => setShowReviewInput(true)}
               className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono flex items-center gap-1"
             >
-              {reviewCount > 0 ? (
+              {pendingReviewPrs.length > 0 ? (
                 <>
-                  <span className="text-amber-400">{reviewCount}</span>
-                  <span>review{reviewCount !== 1 ? "s" : ""}</span>
+                  <span className="text-amber-400">{pendingReviewPrs.length}</span>
+                  <span>review{pendingReviewPrs.length !== 1 ? "s" : ""}</span>
                 </>
               ) : (
                 <span>0 reviews</span>
@@ -412,13 +424,13 @@ export default function DashboardPage() {
 
   function renderReviewInput() {
     const filteredPrs = reviewPrUrl.trim()
-      ? reviewPrs.filter(
+      ? pendingReviewPrs.filter(
           (pr) =>
             pr.title.toLowerCase().includes(reviewPrUrl.toLowerCase()) ||
             pr.repo.toLowerCase().includes(reviewPrUrl.toLowerCase()) ||
             pr.url.includes(reviewPrUrl),
         )
-      : reviewPrs;
+      : pendingReviewPrs;
 
     function handleReviewKeyDown(e: React.KeyboardEvent) {
       if (e.key === "ArrowDown") {
@@ -525,14 +537,14 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
-          {filteredPrs.length === 0 && reviewPrs.length === 0 && (
+          {filteredPrs.length === 0 && pendingReviewPrs.length === 0 && (
             <div className="px-3 py-4 text-center">
               <span className="text-[10px] text-zinc-600 font-mono">
                 no pending review requests
               </span>
             </div>
           )}
-          {filteredPrs.length === 0 && reviewPrs.length > 0 && (
+          {filteredPrs.length === 0 && pendingReviewPrs.length > 0 && (
             <div className="px-3 py-4 text-center">
               <span className="text-[10px] text-zinc-600 font-mono">
                 no matches
@@ -556,10 +568,10 @@ export default function DashboardPage() {
             onClick={() => setShowReviewInput(true)}
             className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono flex items-center gap-1"
           >
-            {reviewCount > 0 ? (
+            {pendingReviewPrs.length > 0 ? (
               <>
-                <span className="text-amber-400">{reviewCount}</span>
-                <span>review{reviewCount !== 1 ? "s" : ""}</span>
+                <span className="text-amber-400">{pendingReviewPrs.length}</span>
+                <span>review{pendingReviewPrs.length !== 1 ? "s" : ""}</span>
               </>
             ) : (
               <span>0 reviews</span>
