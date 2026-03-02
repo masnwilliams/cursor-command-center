@@ -14,6 +14,8 @@ import type {
 import {
   getApiKey,
   getGithubToken,
+  getGithubLogin,
+  setGithubLogin,
   getCachedRepos,
   setCachedRepos,
   clearCachedRepos,
@@ -29,6 +31,8 @@ function headers(): Record<string, string> {
   if (key) h["x-cursor-key"] = key;
   const ghToken = getGithubToken();
   if (ghToken) h["x-github-token"] = ghToken;
+  const ghLogin = getGithubLogin();
+  if (ghLogin) h["x-github-login"] = ghLogin;
   return h;
 }
 
@@ -148,12 +152,12 @@ export function useReviewRequests() {
   );
 }
 
-// PR status (from GitHub API, polls every 2s for agents with a PR)
+// PR status (from GitHub API, polls every 30s — mutations trigger instant revalidation)
 export function usePrStatus(prUrl: string | undefined) {
   return useSWR<PrStatusResponse>(
     prUrl ? `/api/pr-status?url=${encodeURIComponent(prUrl)}` : null,
     fetcher<PrStatusResponse>,
-    { revalidateOnFocus: false, dedupingInterval: 2_000, refreshInterval: 2_000 },
+    { revalidateOnFocus: false, dedupingInterval: 30_000, refreshInterval: 30_000 },
   );
 }
 
@@ -258,5 +262,7 @@ export async function testConnection(): Promise<MeResponse> {
 export async function testGithubToken(): Promise<{ login: string }> {
   const res = await fetch("/api/github-test", { headers: headers() });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  if (data.login) setGithubLogin(data.login);
+  return data;
 }

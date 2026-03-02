@@ -68,14 +68,23 @@ export default function SetupPage() {
         setGhState("success");
         setGhMsg(`@${user.login}`);
       } catch (e) {
-        setGhState("error");
-        setGhMsg(e instanceof Error ? e.message : "authentication failed");
+        const msg = e instanceof Error ? e.message : "authentication failed";
+        if (msg.includes("403") && msg.includes("rate limit")) {
+          setGhState("error");
+          setGhMsg("github rate limited — token is saved, try again later");
+        } else {
+          setGhState("error");
+          setGhMsg(msg);
+        }
       }
     }, 600);
     return () => clearTimeout(timer);
   }, [ghToken]);
 
-  const canContinue = cursorState === "success" && ghState === "success";
+  const ghRateLimited =
+    ghState === "error" && ghMsg.includes("rate limited");
+  const canContinue =
+    cursorState === "success" && (ghState === "success" || ghRateLimited);
 
   function handleContinue() {
     if (!canContinue) return;
@@ -213,7 +222,9 @@ export default function SetupPage() {
               </p>
             )}
             {ghState === "error" && (
-              <p className="text-[10px] text-red-400/70 font-mono">
+              <p
+                className={`text-[10px] font-mono ${ghRateLimited ? "text-amber-400/70" : "text-red-400/70"}`}
+              >
                 {ghMsg}
               </p>
             )}
