@@ -259,9 +259,36 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
                         {isUser ? ">" : "$"}
                       </span>
                       {msg.type === "assistant_message" ? (
-                        <span className="prose-pane inline">
-                          <Markdown remarkPlugins={[remarkGfm]}>{msg.text}</Markdown>
-                        </span>
+                        <div className="prose-pane inline">
+                          <Markdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              pre: ({ children, ...props }) => (
+                                <pre
+                                  {...props}
+                                  onWheel={(e) => {
+                                    const el = e.currentTarget;
+                                    const atLeft = el.scrollLeft === 0;
+                                    const atRight =
+                                      el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+                                    if (
+                                      (e.deltaX < 0 && atLeft) ||
+                                      (e.deltaX > 0 && atRight) ||
+                                      Math.abs(e.deltaY) > Math.abs(e.deltaX)
+                                    ) {
+                                      return;
+                                    }
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  {children}
+                                </pre>
+                              ),
+                            }}
+                          >
+                            {msg.text}
+                          </Markdown>
+                        </div>
                       ) : (
                         <span className="whitespace-pre-wrap">{msg.text}</span>
                       )}

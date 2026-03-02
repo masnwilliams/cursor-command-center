@@ -49,6 +49,9 @@ body {
 .prose-pane pre {
   overflow-x: auto;
   overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: #18181b;
   border: 1px solid #27272a;
   padding: 4px 6px;
