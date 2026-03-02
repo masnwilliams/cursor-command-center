@@ -217,6 +217,23 @@ export async function mergePr(
   return data;
 }
 
+export async function markPrReady(prUrl: string): Promise<void> {
+  const res = await fetch("/api/pr-ready", {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ prUrl }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? `mark ready failed (${res.status})`);
+  }
+  mutate(
+    `/api/pr-status?url=${encodeURIComponent(prUrl)}`,
+    { status: "open" },
+    { revalidate: false },
+  );
+}
+
 export async function addPrReviewers(
   prUrl: string,
   reviewers: string[],
