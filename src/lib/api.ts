@@ -139,21 +139,21 @@ export function useBranches(repoUrl: string | null) {
   return { ...result, data };
 }
 
-// PR review requests (polls every 2 minutes)
+// PR review requests (polls every 60s)
 export function useReviewRequests() {
   return useSWR<ReviewRequestsResponse>(
     "/api/review-requests",
     fetcher<ReviewRequestsResponse>,
-    { refreshInterval: 120_000, revalidateOnFocus: false },
+    { refreshInterval: 60_000, revalidateOnFocus: false },
   );
 }
 
-// PR status (from GitHub API, polls every 60s for agents with a PR)
+// PR status (from GitHub API, polls every 2s for agents with a PR)
 export function usePrStatus(prUrl: string | undefined) {
   return useSWR<PrStatusResponse>(
     prUrl ? `/api/pr-status?url=${encodeURIComponent(prUrl)}` : null,
     fetcher<PrStatusResponse>,
-    { revalidateOnFocus: false, dedupingInterval: 60_000, refreshInterval: 60_000 },
+    { revalidateOnFocus: false, dedupingInterval: 2_000, refreshInterval: 2_000 },
   );
 }
 
