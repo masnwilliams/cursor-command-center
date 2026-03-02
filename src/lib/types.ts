@@ -121,3 +121,24 @@ export interface ReviewRequestsResponse {
   prs: ReviewRequestPR[];
   total: number;
 }
+
+export interface PrFile {
+  filename: string;
+  status:
+    | "added"
+    | "modified"
+    | "removed"
+    | "renamed"
+    | "copied"
+    | "changed"
+    | "unchanged";
+  additions: number;
+  deletions: number;
+  changes: number;
+  patch?: string;
+  previous_filename?: string;
+}
+
+export interface PrFilesResponse {
+  files: PrFile[];
+}

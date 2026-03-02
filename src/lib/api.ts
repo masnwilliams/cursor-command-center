@@ -7,6 +7,7 @@ import type {
   LaunchAgentRequest,
   MeResponse,
   ModelsResponse,
+  PrFilesResponse,
   PrStatusResponse,
   RepositoriesResponse,
   ReviewRequestsResponse,
@@ -158,6 +159,15 @@ export function usePrStatus(prUrl: string | undefined) {
     prUrl ? `/api/pr-status?url=${encodeURIComponent(prUrl)}` : null,
     fetcher<PrStatusResponse>,
     { revalidateOnFocus: false, dedupingInterval: 30_000, refreshInterval: 30_000 },
+  );
+}
+
+// PR files (from GitHub API, fetched once when expanded)
+export function usePrFiles(prUrl: string | undefined | null) {
+  return useSWR<PrFilesResponse>(
+    prUrl ? `/api/pr-files?url=${encodeURIComponent(prUrl)}` : null,
+    fetcher<PrFilesResponse>,
+    { revalidateOnFocus: false, dedupingInterval: 30_000 },
   );
 }
 
