@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "cursor-agents-ui",
@@ -22,7 +23,7 @@
         "prettier": "^3.8.1",
         "serwist": "^9.5.6",
         "tailwindcss": "^4",
-        "typescript": "^5",
+        "typescript": "5.9.3",
       },
     },
   },
