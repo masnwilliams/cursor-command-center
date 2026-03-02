@@ -1,23 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useAgents, usePrStatus } from "@/lib/api";
-import type { Agent, PrStatus } from "@/lib/types";
+import { useAgents } from "@/lib/api";
+import type { Agent } from "@/lib/types";
 import { StatusBadge } from "./StatusBadge";
-
-const PR_COLORS: Record<PrStatus, string> = {
-  open: "text-green-400",
-  merged: "text-purple-400",
-  closed: "text-red-400",
-  draft: "text-zinc-500",
-};
-
-const PR_LABELS: Record<PrStatus, string> = {
-  open: "PR",
-  merged: "PR ✓",
-  closed: "PR ✕",
-  draft: "PR ~",
-};
 
 function AgentRow({
   agent,
@@ -28,9 +14,6 @@ function AgentRow({
   highlighted: boolean;
   onAdd: () => void;
 }) {
-  const { data: prStatusData } = usePrStatus(agent.target.prUrl);
-  const prStatus = prStatusData?.status;
-
   const repoName = (agent.source.repository ?? "").replace(
     /^(https?:\/\/)?github\.com\//,
     "",
@@ -62,9 +45,9 @@ function AgentRow({
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className={`text-[10px] shrink-0 hover:brightness-125 ${prStatus ? PR_COLORS[prStatus] : "text-zinc-500"}`}
+          className="text-[10px] text-zinc-500 shrink-0 hover:text-zinc-300"
         >
-          {prStatus ? PR_LABELS[prStatus] : "PR"}
+          PR
         </a>
       )}
     </div>

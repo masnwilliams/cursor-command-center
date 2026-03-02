@@ -3,6 +3,7 @@ import type { GridItem, Repository } from "./types";
 const KEYS = {
   apiKey: "cursor-agents-api-key",
   githubToken: "cursor-agents-github-token",
+  githubLogin: "cursor-agents-github-login",
   grid: "cursor-agents-grid",
   repos: "cursor-agents-repos",
   reposTimestamp: "cursor-agents-repos-ts",
@@ -34,6 +35,16 @@ export function setGithubToken(token: string): void {
 
 export function clearGithubToken(): void {
   localStorage.removeItem(KEYS.githubToken);
+  localStorage.removeItem(KEYS.githubLogin);
+}
+
+export function getGithubLogin(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(KEYS.githubLogin);
+}
+
+export function setGithubLogin(login: string): void {
+  localStorage.setItem(KEYS.githubLogin, login);
 }
 
 export function getGrid(): GridItem[] {

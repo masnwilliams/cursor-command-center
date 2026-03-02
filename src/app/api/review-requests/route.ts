@@ -13,17 +13,21 @@ export async function GET(req: NextRequest) {
   };
 
   try {
-    const userRes = await fetch("https://api.github.com/user", {
-      headers: ghHeaders,
-    });
-    if (!userRes.ok) {
-      return NextResponse.json(
-        { error: `github ${userRes.status}` },
-        { status: userRes.status },
-      );
+    let login = req.headers.get("x-github-login");
+
+    if (!login) {
+      const userRes = await fetch("https://api.github.com/user", {
+        headers: ghHeaders,
+      });
+      if (!userRes.ok) {
+        return NextResponse.json(
+          { error: `github ${userRes.status}` },
+          { status: userRes.status },
+        );
+      }
+      const user = await userRes.json();
+      login = user.login as string;
     }
-    const user = await userRes.json();
-    const login = user.login as string;
 
     const q = `type:pr+state:open+review-requested:${login}`;
     const searchRes = await fetch(

@@ -177,6 +177,14 @@ export function DiffBar({ agent, expanded, onToggle, onClose }: DiffBarProps) {
       } else if (e.key === "ArrowUp" || e.key === "k") {
         e.preventDefault();
         setSelectedIdx((i) => Math.max(i - 1, 0));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        const f = files?.[selectedIdx];
+        if (f && !openFiles.has(f.filename)) toggleFile(f.filename);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        const f = files?.[selectedIdx];
+        if (f && openFiles.has(f.filename)) toggleFile(f.filename);
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (files?.[selectedIdx]) {
@@ -190,7 +198,7 @@ export function DiffBar({ agent, expanded, onToggle, onClose }: DiffBarProps) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [expanded, fileCount, selectedIdx, files, toggleFile, onClose]);
+  }, [expanded, fileCount, selectedIdx, files, openFiles, toggleFile, onClose]);
 
   const hasStats =
     agent.linesAdded != null ||
@@ -232,7 +240,7 @@ export function DiffBar({ agent, expanded, onToggle, onClose }: DiffBarProps) {
         </span>
         {expanded && fileCount > 0 && (
           <span className="text-[10px] text-zinc-700 font-mono ml-auto">
-            [↑↓ navigate · enter toggle · esc close]
+            [↑↓ navigate · →open ←close · esc close]
           </span>
         )}
       </button>

@@ -256,7 +256,7 @@ export default function DashboardPage() {
       if (hasChanges) {
         cmds.push({
           id: "diff",
-          label: showDiffBar ? "hide changes" : "view changes",
+          label: showDiffBar ? "hide diff" : "view diff",
           section: "focused pane",
           action: () => setShowDiffBar((v) => !v),
         });
