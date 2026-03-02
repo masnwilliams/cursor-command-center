@@ -8,6 +8,28 @@ function parsePrUrl(
   return { owner: match[1], repo: match[2], number: parseInt(match[3], 10) };
 }
 
+function buildFilePatch(file: {
+  filename: string;
+  status: string;
+  patch?: string;
+  previous_filename?: string;
+}): string | undefined {
+  if (!file.patch) return undefined;
+
+  const oldName =
+    file.status === "added"
+      ? "/dev/null"
+      : `a/${file.previous_filename || file.filename}`;
+  const newName =
+    file.status === "removed" ? "/dev/null" : `b/${file.filename}`;
+
+  let header = `diff --git a/${file.previous_filename || file.filename} b/${file.filename}\n`;
+  if (file.status === "added") header += "new file mode 100644\n";
+  else if (file.status === "removed") header += "deleted file mode 100644\n";
+
+  return `${header}--- ${oldName}\n+++ ${newName}\n${file.patch}`;
+}
+
 export async function GET(req: NextRequest) {
   const prUrl = req.nextUrl.searchParams.get("url");
   if (!prUrl) {
@@ -50,6 +72,7 @@ export async function GET(req: NextRequest) {
         additions: number;
         deletions: number;
         changes: number;
+        patch?: string;
         previous_filename?: string;
       }) => ({
         filename: f.filename,
@@ -57,6 +80,7 @@ export async function GET(req: NextRequest) {
         additions: f.additions,
         deletions: f.deletions,
         changes: f.changes,
+        patch: buildFilePatch(f),
         previous_filename: f.previous_filename,
       }),
     );

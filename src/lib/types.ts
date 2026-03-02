@@ -135,6 +135,7 @@ export interface PrFile {
   additions: number;
   deletions: number;
   changes: number;
+  patch?: string;
   previous_filename?: string;
 }
 
