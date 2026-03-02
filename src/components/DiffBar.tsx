@@ -99,13 +99,24 @@ function FileLine({
         </span>
       </button>
       {isOpen && file.patch && (
-        <div className="border-t border-zinc-800/40 bg-zinc-950">
+        <div className="border-t border-zinc-800/40">
           <PatchDiff
             patch={file.patch}
+            style={{
+              "--diffs-font-size": "11px",
+              "--diffs-line-height": "16px",
+              "--diffs-font-family":
+                "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
+              "--diffs-gap-block": "2px",
+              "--diffs-gap-inline": "4px",
+            } as React.CSSProperties}
             options={{
               theme: "pierre-dark",
+              themeType: "dark",
               overflow: "scroll",
               disableFileHeader: true,
+              disableLineNumbers: false,
+              diffIndicators: "bars",
             }}
           />
         </div>
