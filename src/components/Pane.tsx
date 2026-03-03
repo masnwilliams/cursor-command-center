@@ -6,9 +6,10 @@ import type { Agent, ConversationMessage, ConversationResponse, PrStatus } from 
 import type { ImageAttachment } from "@/lib/images";
 import { readFilesAsImages } from "@/lib/images";
 import { StatusBadge } from "./StatusBadge";
-import Markdown from "react-markdown";
+import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { FollowUpInput } from "./FollowUpInput";
+import { CodeBlock } from "./CodeBlock";
 
 interface PaneProps {
   agent: Agent;
@@ -35,6 +36,10 @@ const PR_LABELS: Record<PrStatus, string> = {
   merged: "PR ✓",
   closed: "PR ✕",
   draft: "PR ~",
+};
+
+const mdComponents: Components = {
+  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
 };
 
 export function Pane({ agent, focused, onFocus, onClose, conversation }: PaneProps) {
@@ -295,7 +300,7 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
                       </span>
                       {msg.type === "assistant_message" ? (
                         <div className="prose-pane inline">
-                          <Markdown remarkPlugins={[remarkGfm]}>
+                          <Markdown remarkPlugins={[remarkGfm]} components={mdComponents}>
                             {msg.text}
                           </Markdown>
                         </div>
