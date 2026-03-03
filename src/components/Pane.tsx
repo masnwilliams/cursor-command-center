@@ -152,7 +152,7 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
       )}
 
       {/* Info bar */}
-      <div className="flex items-center gap-2 border-b border-zinc-800 bg-zinc-900/60 px-2 py-1 shrink-0 min-h-0">
+      <div className="flex items-center gap-2 border-b border-zinc-800 bg-zinc-900/60 px-2 py-1 shrink-0 min-h-0 relative z-20">
         <StatusBadge status={agent.status} />
         <span className="text-xs text-zinc-300 truncate font-medium flex-1 min-w-0">
           {agent.name || agent.id}
@@ -258,7 +258,7 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
                       }
                       className={`px-2 py-1.5 text-xs leading-relaxed border-b border-zinc-900 relative group/msg ${
                         isUser
-                          ? `bg-blue-950 text-blue-200 sticky top-0 z-10 border-b-blue-900/50 cursor-pointer ${
+                          ? `bg-blue-950/40 text-blue-200 sticky top-0 z-10 backdrop-blur-sm border-b-blue-900/50 cursor-pointer ${
                               isExpanded
                                 ? ""
                                 : "max-h-24 overflow-clip"
