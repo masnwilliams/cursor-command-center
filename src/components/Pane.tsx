@@ -274,7 +274,7 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
                             setCopiedId(msg.id);
                             setTimeout(() => setCopiedId(null), 1500);
                           }}
-                          className="absolute top-1 right-1 opacity-0 group-hover/msg:opacity-100 transition-opacity text-zinc-600 hover:text-zinc-300 p-0.5"
+                          className="absolute top-1 right-1 opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover/msg:opacity-100 transition-opacity text-zinc-600 hover:text-zinc-300 p-0.5"
                           title="copy"
                         >
                           {copiedId === msg.id ? (
