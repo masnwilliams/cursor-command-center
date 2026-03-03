@@ -50,6 +50,7 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
   const [dragOver, setDragOver] = useState(false);
   const [rejections, setRejections] = useState<string[]>([]);
   const [expandedMsgs, setExpandedMsgs] = useState<Set<string>>(new Set());
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const addImages = useCallback(async (files: FileList | File[]) => {
     const { images: newImages, rejected } = await readFilesAsImages(files);
@@ -255,7 +256,7 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
                             }
                           : undefined
                       }
-                      className={`px-2 py-1.5 text-xs leading-relaxed border-b border-zinc-900 ${
+                      className={`px-2 py-1.5 text-xs leading-relaxed border-b border-zinc-900 relative group/msg ${
                         isUser
                           ? `bg-blue-950/40 text-blue-200 sticky top-0 z-10 backdrop-blur-sm border-b-blue-900/50 cursor-pointer ${
                               isExpanded
@@ -265,6 +266,29 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
                           : "text-zinc-300"
                       }`}
                     >
+                      {!isUser && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(msg.text);
+                            setCopiedId(msg.id);
+                            setTimeout(() => setCopiedId(null), 1500);
+                          }}
+                          className="absolute top-1 right-1 opacity-0 group-hover/msg:opacity-100 transition-opacity text-zinc-600 hover:text-zinc-300 p-0.5"
+                          title="copy"
+                        >
+                          {copiedId === msg.id ? (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-green-400">
+                              <path d="M20 6L9 17l-5-5" />
+                            </svg>
+                          ) : (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="9" y="9" width="13" height="13" rx="1" />
+                              <path d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
                       <span className="text-[10px] text-zinc-600 mr-1.5 select-none">
                         {isUser ? ">" : "$"}
                       </span>
