@@ -258,7 +258,7 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
                       }
                       className={`px-2 py-1.5 text-xs leading-relaxed border-b border-zinc-900 relative group/msg ${
                         isUser
-                          ? `bg-blue-950/40 text-blue-200 sticky top-0 z-10 backdrop-blur-sm border-b-blue-900/50 cursor-pointer ${
+                          ? `bg-blue-950 text-blue-200 sticky top-0 z-10 border-b-blue-900/50 cursor-pointer ${
                               isExpanded
                                 ? ""
                                 : "max-h-24 overflow-clip"
