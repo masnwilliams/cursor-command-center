@@ -247,6 +247,7 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
                         isUser
                           ? (e) => {
                               e.stopPropagation();
+                              onFocus();
                               setExpandedMsgs((prev) => {
                                 const next = new Set(prev);
                                 if (next.has(msg.id)) next.delete(msg.id);
