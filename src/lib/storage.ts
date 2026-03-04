@@ -14,7 +14,11 @@ const KEYS = {
 
 export function getApiKey(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(KEYS.apiKey);
+  return (
+    localStorage.getItem(KEYS.apiKey) ||
+    process.env.NEXT_PUBLIC_CURSOR_API_KEY ||
+    null
+  );
 }
 
 export function setApiKey(key: string): void {
@@ -27,7 +31,11 @@ export function clearApiKey(): void {
 
 export function getGithubToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(KEYS.githubToken);
+  return (
+    localStorage.getItem(KEYS.githubToken) ||
+    process.env.NEXT_PUBLIC_GITHUB_TOKEN ||
+    null
+  );
 }
 
 export function setGithubToken(token: string): void {

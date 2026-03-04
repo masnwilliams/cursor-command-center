@@ -21,7 +21,6 @@ body {
 @supports (padding-top: env(safe-area-inset-top)) {
   body {
     padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
@@ -125,7 +124,7 @@ body {
   display: none;
 }
 
-/* Safe area padding for bottom tab bar (notch devices) */
+/* Safe area for bottom-edge elements: minimal padding for curved screens */
 .safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
 }
