@@ -71,20 +71,17 @@ export async function playCompletionSound(): Promise<void> {
 let _listenerAttached = false;
 
 /**
- * Registers a one-time global interaction listener that unlocks
- * the AudioContext on the user's first tap/click/keydown.
+ * Registers global interaction listeners that unlock the AudioContext
+ * on every tap/click/keydown. Kept permanent (not one-shot) because
+ * iOS PWAs re-suspend the AudioContext when backgrounded — we need
+ * to re-unlock on the next interaction after returning to foreground.
  * Safe to call multiple times — only attaches once.
  */
 export function ensureAudioUnlockListener(): void {
   if (_listenerAttached || typeof window === "undefined") return;
   _listenerAttached = true;
 
-  function onInteraction() {
-    unlockAudio();
-    window.removeEventListener("click", onInteraction, true);
-    window.removeEventListener("touchstart", onInteraction, true);
-    window.removeEventListener("keydown", onInteraction, true);
-  }
+  const onInteraction = () => unlockAudio();
 
   window.addEventListener("click", onInteraction, true);
   window.addEventListener("touchstart", onInteraction, true);

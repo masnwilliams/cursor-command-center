@@ -70,14 +70,14 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/70"
+      className="fixed inset-0 z-50 flex items-end sm:items-start justify-center sm:pt-[20vh] bg-black/70"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md border border-zinc-800 bg-zinc-950 flex flex-col max-h-[60vh]"
+        className="w-full sm:max-w-md border border-zinc-800 bg-zinc-950 flex flex-col max-h-[80vh] sm:max-h-[60vh] safe-area-bottom"
       >
-        <div className="border-b border-zinc-800 px-3 py-2 shrink-0">
+        <div className="border-b border-zinc-800 px-3 py-3 sm:py-2 shrink-0">
           <input
             ref={inputRef}
             type="text"
@@ -85,7 +85,7 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="type a command..."
-            className="w-full bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono"
+            className="w-full bg-transparent text-sm sm:text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono"
           />
         </div>
         <div ref={listRef} className="overflow-y-auto">
@@ -112,7 +112,7 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
                     onClose();
                   }}
                   onMouseEnter={() => setSelectedIdx(i)}
-                  className={`w-full text-left px-3 py-1.5 text-xs font-mono transition-colors flex items-center gap-2 ${
+                  className={`w-full text-left px-3 py-3 sm:py-1.5 text-sm sm:text-xs font-mono transition-colors flex items-center gap-2 ${
                     i === selectedIdx
                       ? cmd.destructive
                         ? "bg-red-950/40 text-red-400"
