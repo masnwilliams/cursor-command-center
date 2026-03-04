@@ -157,70 +157,89 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
       )}
 
       {/* Info bar */}
-      <div className="flex items-center gap-2 border-b border-zinc-800 bg-zinc-900/60 px-3 sm:px-2 py-2 sm:py-1 shrink-0 min-h-0 relative z-20">
-        <StatusBadge status={agent.status} />
-        <span className="text-xs text-zinc-300 truncate font-medium flex-1 min-w-0">
-          {agent.name || agent.id}
-        </span>
-        <span className="text-[10px] text-zinc-600 truncate hidden sm:block max-w-[120px]">
-          {repoShort(agent)}
-        </span>
-        {agent.target.branchName && (
-          <span className="text-[10px] text-zinc-600 truncate hidden sm:block max-w-[140px] font-mono leading-none">
-            {agent.target.branchName}
+      <div className="border-b border-zinc-800 bg-zinc-900/60 shrink-0 min-h-0 relative z-20">
+        <div className="flex items-center gap-2 px-3 sm:px-2 py-2 sm:py-1">
+          <StatusBadge status={agent.status} />
+          <span className="text-xs text-zinc-300 truncate font-medium flex-1 min-w-0">
+            {agent.name || agent.id}
           </span>
-        )}
-        {(agent.linesAdded != null || agent.linesRemoved != null) && (
-          <span className="text-[10px] font-mono shrink-0 hidden sm:flex items-center gap-1">
-            {agent.linesAdded != null && agent.linesAdded > 0 && (
-              <span className="text-green-600">+{agent.linesAdded}</span>
-            )}
-            {agent.linesRemoved != null && agent.linesRemoved > 0 && (
-              <span className="text-red-600">-{agent.linesRemoved}</span>
-            )}
+          <span className="text-[10px] text-zinc-600 truncate hidden sm:block max-w-[120px]">
+            {repoShort(agent)}
           </span>
-        )}
-        {agent.target.prUrl && (
-          <a
-            href={agent.target.prUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className={`text-[10px] shrink-0 hover:brightness-125 ${prStatus ? PR_COLORS[prStatus] : "text-zinc-500"}`}
-          >
-            {prStatus ? PR_LABELS[prStatus] : "PR"}
-          </a>
-        )}
-        {isActive && (
+          {agent.target.branchName && (
+            <span className="text-[10px] text-zinc-600 truncate hidden sm:block max-w-[140px] font-mono leading-none">
+              {agent.target.branchName}
+            </span>
+          )}
+          {(agent.linesAdded != null || agent.linesRemoved != null) && (
+            <span className="text-[10px] font-mono shrink-0 hidden sm:flex items-center gap-1">
+              {agent.linesAdded != null && agent.linesAdded > 0 && (
+                <span className="text-green-600">+{agent.linesAdded}</span>
+              )}
+              {agent.linesRemoved != null && agent.linesRemoved > 0 && (
+                <span className="text-red-600">-{agent.linesRemoved}</span>
+              )}
+            </span>
+          )}
+          {agent.target.prUrl && (
+            <a
+              href={agent.target.prUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className={`text-[10px] shrink-0 hover:brightness-125 ${prStatus ? PR_COLORS[prStatus] : "text-zinc-500"}`}
+            >
+              {prStatus ? PR_LABELS[prStatus] : "PR"}
+            </a>
+          )}
+          {isActive && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStop();
+              }}
+              className="text-[10px] text-amber-500 hover:text-amber-300 shrink-0"
+            >
+              stop
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handleStop();
+              onClose();
             }}
-            className="text-[10px] text-amber-500 hover:text-amber-300 shrink-0"
+            className="text-zinc-600 hover:text-zinc-300 shrink-0"
+            title="close pane"
           >
-            stop
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
           </button>
+        </div>
+        {(repoShort(agent) || agent.target.branchName) && (
+          <div className="flex items-center gap-1.5 px-3 pb-1.5 -mt-0.5 sm:hidden min-w-0">
+            {repoShort(agent) && (
+              <span className="text-[10px] text-zinc-600 truncate min-w-0">
+                {repoShort(agent)}
+              </span>
+            )}
+            {repoShort(agent) && agent.target.branchName && (
+              <span className="text-[10px] text-zinc-700 shrink-0">·</span>
+            )}
+            {agent.target.branchName && (
+              <span className="text-[10px] text-zinc-600 truncate font-mono leading-none min-w-0">
+                {agent.target.branchName}
+              </span>
+            )}
+          </div>
         )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
-          className="text-zinc-600 hover:text-zinc-300 shrink-0"
-          title="close pane"
-        >
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-          >
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
       </div>
 
       {/* Messages */}
