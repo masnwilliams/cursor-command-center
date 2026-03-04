@@ -17,6 +17,10 @@ import {
   playCompletionSound,
   unlockAudio,
   ensureAudioUnlockListener,
+  showCompletionNotification,
+  requestNotificationPermission,
+  hasPendingSound,
+  clearPendingSound,
 } from "@/lib/sounds";
 import {
   useAgents,
@@ -81,6 +85,7 @@ export default function DashboardPage() {
   >(new Map());
   const [soundOn, setSoundOn] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [pendingBlink, setPendingBlink] = useState(false);
   const prevStatuses = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
@@ -96,7 +101,15 @@ export default function DashboardPage() {
     mq.addEventListener("change", handler);
     setMounted(true);
     ensureAudioUnlockListener();
-    return () => mq.removeEventListener("change", handler);
+    requestNotificationPermission();
+    const clearBlink = () => setPendingBlink(false);
+    window.addEventListener("click", clearBlink, true);
+    window.addEventListener("touchstart", clearBlink, true);
+    return () => {
+      mq.removeEventListener("change", handler);
+      window.removeEventListener("click", clearBlink, true);
+      window.removeEventListener("touchstart", clearBlink, true);
+    };
   }, [router]);
 
   const { data: agentsData } = useAgents();
@@ -126,7 +139,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!mounted) return;
     const gridIds = new Set(grid.map((g) => g.agentId));
-    let shouldPlay = false;
+    let finishedAgent: Agent | null = null;
 
     for (const [id, agent] of agentMap) {
       if (!gridIds.has(id)) continue;
@@ -136,7 +149,7 @@ export default function DashboardPage() {
         (prev === "RUNNING" || prev === "CREATING") &&
         agent.status === "FINISHED"
       ) {
-        shouldPlay = true;
+        finishedAgent = agent;
       }
     }
 
@@ -146,8 +159,11 @@ export default function DashboardPage() {
     }
     prevStatuses.current = next;
 
-    if (shouldPlay && soundOn) {
-      playCompletionSound();
+    if (finishedAgent && soundOn) {
+      playCompletionSound().then(() => {
+        if (hasPendingSound()) setPendingBlink(true);
+      });
+      showCompletionNotification(finishedAgent.name || finishedAgent.id);
     }
   });
 
@@ -420,6 +436,8 @@ export default function DashboardPage() {
       section: "app",
       action: () => {
         unlockAudio();
+        clearPendingSound();
+        setPendingBlink(false);
         const next = !soundOn;
         setSoundOn(next);
         setSoundEnabled(next);
@@ -727,15 +745,29 @@ export default function DashboardPage() {
           <button
             onClick={() => {
               unlockAudio();
+              clearPendingSound();
+              setPendingBlink(false);
               const next = !soundOn;
               setSoundOn(next);
               setSoundEnabled(next);
               if (next) playCompletionSound();
             }}
-            className={`text-xs sm:text-[10px] font-mono ${soundOn ? "text-zinc-500 hover:text-zinc-200" : "text-zinc-700 hover:text-zinc-400"}`}
-            title={soundOn ? "notifications on (click to mute)" : "notifications muted (click to unmute)"}
+            className={`text-xs sm:text-[10px] font-mono ${
+              pendingBlink
+                ? "text-amber-400 animate-pulse"
+                : soundOn
+                  ? "text-zinc-500 hover:text-zinc-200"
+                  : "text-zinc-700 hover:text-zinc-400"
+            }`}
+            title={
+              pendingBlink
+                ? "agent finished! tap to play sound"
+                : soundOn
+                  ? "notifications on (click to mute)"
+                  : "notifications muted (click to unmute)"
+            }
           >
-            <span className={soundOn ? "" : "line-through"}>{soundOn ? "♪" : "♪"}</span>
+            <span className={soundOn ? "" : "line-through"}>♪</span>
           </button>
           <button
             onClick={() => setShowPalette(true)}
