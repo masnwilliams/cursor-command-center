@@ -24,10 +24,10 @@ export function CodeBlock({ children }: { children: ReactNode }) {
   }, [children]);
 
   return (
-    <pre className="group/code relative">
+    <div className="group/code relative">
       <button
         onClick={handleCopy}
-        className="absolute top-1 right-1 opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover/code:opacity-100 transition-opacity text-zinc-600 hover:text-zinc-300 p-0.5"
+        className="absolute top-1 right-1 z-10 opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover/code:opacity-100 transition-opacity text-zinc-600 hover:text-zinc-300 p-0.5"
         title="copy"
       >
         {copied ? (
@@ -41,7 +41,7 @@ export function CodeBlock({ children }: { children: ReactNode }) {
           </svg>
         )}
       </button>
-      {children}
-    </pre>
+      <pre>{children}</pre>
+    </div>
   );
 }
