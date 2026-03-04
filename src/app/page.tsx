@@ -13,7 +13,11 @@ import {
   getSoundEnabled,
   setSoundEnabled,
 } from "@/lib/storage";
-import { playCompletionSound } from "@/lib/sounds";
+import {
+  playCompletionSound,
+  unlockAudio,
+  ensureAudioUnlockListener,
+} from "@/lib/sounds";
 import {
   useAgents,
   useReviewRequests,
@@ -91,6 +95,7 @@ export default function DashboardPage() {
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mq.addEventListener("change", handler);
     setMounted(true);
+    ensureAudioUnlockListener();
     return () => mq.removeEventListener("change", handler);
   }, [router]);
 
@@ -414,6 +419,7 @@ export default function DashboardPage() {
       label: soundOn ? "mute completion sound" : "unmute completion sound",
       section: "app",
       action: () => {
+        unlockAudio();
         const next = !soundOn;
         setSoundOn(next);
         setSoundEnabled(next);
@@ -720,6 +726,7 @@ export default function DashboardPage() {
           </button>
           <button
             onClick={() => {
+              unlockAudio();
               const next = !soundOn;
               setSoundOn(next);
               setSoundEnabled(next);

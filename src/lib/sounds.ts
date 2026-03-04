@@ -1,20 +1,45 @@
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext {
-  if (!audioCtx) audioCtx = new AudioContext();
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext)();
+  }
   return audioCtx;
 }
 
 /**
- * Plays a two-tone chime via Web Audio API — no audio file needed.
- * First tone is a soft high note, second resolves down, like a
- * gentle "task complete" notification.
+ * Call on any user gesture (click/tap) to ensure the AudioContext
+ * is unlocked for future programmatic playback (e.g. when an agent
+ * finishes in the background). Mobile browsers and PWAs require a
+ * user gesture to move the context out of "suspended" state.
  */
-export function playCompletionSound(): void {
+export function unlockAudio(): void {
   try {
     const ctx = getAudioContext();
-    if (ctx.state === "suspended") ctx.resume();
+    if (ctx.state === "suspended") {
+      ctx.resume();
+    }
+  } catch {
+    // Web Audio not available
+  }
+}
 
+/**
+ * Plays a two-tone chime via Web Audio API — no audio file needed.
+ * First tone is a soft high note, second resolves up, like a
+ * gentle "task complete" notification.
+ */
+export async function playCompletionSound(): Promise<void> {
+  try {
+    const ctx = getAudioContext();
+
+    if (ctx.state === "suspended") {
+      await ctx.resume();
+    }
+
+    // Re-read currentTime after resume — it may have been frozen at 0
     const now = ctx.currentTime;
 
     const gain = ctx.createGain();
@@ -41,4 +66,24 @@ export function playCompletionSound(): void {
   } catch {
     // Web Audio not available — silently ignore
   }
+}
+
+let _listenerAttached = false;
+
+/**
+ * Registers global interaction listeners that unlock the AudioContext
+ * on every tap/click/keydown. Kept permanent (not one-shot) because
+ * iOS PWAs re-suspend the AudioContext when backgrounded — we need
+ * to re-unlock on the next interaction after returning to foreground.
+ * Safe to call multiple times — only attaches once.
+ */
+export function ensureAudioUnlockListener(): void {
+  if (_listenerAttached || typeof window === "undefined") return;
+  _listenerAttached = true;
+
+  const onInteraction = () => unlockAudio();
+
+  window.addEventListener("click", onInteraction, true);
+  window.addEventListener("touchstart", onInteraction, true);
+  window.addEventListener("keydown", onInteraction, true);
 }
