@@ -615,7 +615,7 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
   ).length;
 
   return (
-    <div className="min-h-full bg-zinc-950 flex flex-col">
+    <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
       {/* Top bar */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 bg-zinc-900/60 shrink-0">
         <div className="flex items-center gap-3">
