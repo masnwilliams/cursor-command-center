@@ -72,6 +72,16 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+function buildDesktopUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    url.searchParams.set("password", "changeme");
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 function SetupView({
   onConnected,
 }: {
@@ -505,25 +515,32 @@ function ContextDetailPanel({
         {(ctx.shell_ws_url || ctx.desktop_url || ctx.shell_connect_command) && (
           <div className="space-y-1.5">
             <span className="text-zinc-600">connections</span>
+            {ctx.desktop_url && (
+              <div className="space-y-0.5">
+                <span className="text-[10px] text-zinc-600">desktop</span>
+                <div className="border border-zinc-800 bg-black" style={{ aspectRatio: "16/9" }}>
+                  <iframe
+                    src={buildDesktopUrl(ctx.desktop_url)}
+                    className="w-full h-full"
+                    allow="clipboard-read; clipboard-write"
+                  />
+                </div>
+                <a
+                  href={buildDesktopUrl(ctx.desktop_url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-blue-400 hover:text-blue-300 text-[10px] underline truncate"
+                >
+                  open in new tab
+                </a>
+              </div>
+            )}
             {ctx.shell_connect_command && (
               <div className="space-y-0.5">
                 <span className="text-[10px] text-zinc-600">shell command</span>
                 <div className="text-zinc-300 bg-zinc-900/60 border border-zinc-800 p-2 text-[10px] font-mono break-all select-all">
                   {ctx.shell_connect_command}
                 </div>
-              </div>
-            )}
-            {ctx.desktop_url && (
-              <div className="space-y-0.5">
-                <span className="text-[10px] text-zinc-600">desktop</span>
-                <a
-                  href={ctx.desktop_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block text-blue-400 hover:text-blue-300 text-[10px] underline truncate"
-                >
-                  {ctx.desktop_url}
-                </a>
               </div>
             )}
             {ctx.shell_ws_url && (
