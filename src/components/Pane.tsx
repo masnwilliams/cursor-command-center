@@ -136,7 +136,7 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`flex flex-col min-w-0 min-h-0 border-r border-b border-zinc-800 relative ${
+      className={`flex flex-col flex-1 min-w-0 min-h-0 border-r border-b border-zinc-800 relative ${
         focused ? "ring-1 ring-inset ring-blue-500/60" : ""
       }`}
     >
@@ -157,7 +157,7 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
       )}
 
       {/* Info bar */}
-      <div className="flex items-center gap-2 border-b border-zinc-800 bg-zinc-900/60 px-2 py-1 shrink-0 min-h-0 relative z-20">
+      <div className="flex items-center gap-2 border-b border-zinc-800 bg-zinc-900/60 px-3 sm:px-2 py-2 sm:py-1 shrink-0 min-h-0 relative z-20">
         <StatusBadge status={agent.status} />
         <span className="text-xs text-zinc-300 truncate font-medium flex-1 min-w-0">
           {agent.name || agent.id}

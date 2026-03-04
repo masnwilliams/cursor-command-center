@@ -97,7 +97,7 @@ export const FollowUpInput = forwardRef<HTMLTextAreaElement, FollowUpInputProps>
             placeholder={sending ? "sending..." : "follow up..."}
             disabled={disabled || sending}
             rows={1}
-            className="flex-1 bg-zinc-900/50 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-600 outline-none disabled:opacity-40 min-w-0 resize-none px-2 py-1 font-mono focus:border-zinc-600 overflow-hidden"
+            className="flex-1 bg-zinc-900/50 border border-zinc-800 text-sm sm:text-xs text-zinc-100 placeholder-zinc-600 outline-none disabled:opacity-40 min-w-0 resize-none px-3 sm:px-2 py-2 sm:py-1 font-mono focus:border-zinc-600 overflow-hidden"
           />
           <input
             ref={fileRef}
