@@ -142,3 +142,74 @@ export interface PrFile {
 export interface PrFilesResponse {
   files: PrFile[];
 }
+
+// ── Hypeship types ──
+
+export type HypeshipAgentType =
+  | "cursor_cli"
+  | "codex_cli"
+  | "cursor_desktop"
+  | "claude_code_cli";
+
+export type HypeshipLaunchMode = "interactive" | "non_interactive";
+export type HypeshipApprovalMode = "human_in_loop" | "auto_approve";
+
+export type HypeshipWorkContextState =
+  | "launching"
+  | "working"
+  | "archived"
+  | "gone";
+
+export interface HypeshipWorkContext {
+  id: string;
+  topic: string;
+  summary: string;
+  repositories: string[];
+  branch_name?: string;
+  initial_prompt: string;
+  start_command: string;
+  agent_type: HypeshipAgentType;
+  launch_mode: HypeshipLaunchMode;
+  approval_mode: HypeshipApprovalMode;
+  launch_image: string;
+  hypeman_name: string;
+  hypeman_instance_id?: string;
+  state: HypeshipWorkContextState;
+  last_error?: string;
+  shell_ws_url?: string;
+  desktop_url?: string;
+  shell_connect_command?: string;
+  created_at: string;
+  updated_at: string;
+  started_at?: string;
+  finished_at?: string;
+  last_heartbeat_at?: string;
+}
+
+export interface HypeshipWorkContextListResponse {
+  work_contexts: HypeshipWorkContext[];
+}
+
+export interface HypeshipWorkContextResponse {
+  work_context: HypeshipWorkContext;
+}
+
+export interface HypeshipCreateWorkContextRequest {
+  repositories: string[];
+  agent_type: HypeshipAgentType;
+  initial_prompt: string;
+  branch_name?: string;
+  topic?: string;
+  launch_image?: string;
+  launch_mode?: HypeshipLaunchMode;
+  approval_mode?: HypeshipApprovalMode;
+}
+
+export interface HypeshipUpdateStateRequest {
+  state: "working" | "archived" | "gone";
+  summary?: string;
+}
+
+export interface HypeshipHealthResponse {
+  ok: boolean;
+}

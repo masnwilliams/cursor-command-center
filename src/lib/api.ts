@@ -11,6 +11,11 @@ import type {
   PrStatusResponse,
   RepositoriesResponse,
   ReviewRequestsResponse,
+  HypeshipWorkContextListResponse,
+  HypeshipWorkContextResponse,
+  HypeshipCreateWorkContextRequest,
+  HypeshipUpdateStateRequest,
+  HypeshipHealthResponse,
 } from "./types";
 import {
   getApiKey,
@@ -24,6 +29,8 @@ import {
   getCachedBranches,
   getBranchesFromCache,
   setCachedBranches,
+  getHypeshipApiUrl,
+  getHypeshipJwt,
 } from "./storage";
 
 function headers(): Record<string, string> {
@@ -274,5 +281,95 @@ export async function testGithubToken(): Promise<{ login: string }> {
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
   if (data.login) setGithubLogin(data.login);
+  return data;
+}
+
+// ── Hypeship ──
+
+function hypeshipHeaders(): Record<string, string> {
+  const h: Record<string, string> = { "Content-Type": "application/json" };
+  const url = getHypeshipApiUrl();
+  if (url) h["x-hypeship-url"] = url;
+  const jwt = getHypeshipJwt();
+  if (jwt) h["x-hypeship-jwt"] = jwt;
+  return h;
+}
+
+async function hypeshipFetcher<T>(url: string): Promise<T> {
+  const res = await fetch(url, { headers: hypeshipHeaders() });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function testHypeshipConnection(): Promise<HypeshipHealthResponse> {
+  const res = await fetch("/api/hypeship/healthz", {
+    headers: hypeshipHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export function useHypeshipWorkContexts(includeArchived = false) {
+  return useSWR<HypeshipWorkContextListResponse>(
+    `/api/hypeship/work-contexts?include_archived=${includeArchived}`,
+    hypeshipFetcher<HypeshipWorkContextListResponse>,
+    { refreshInterval: 10_000 },
+  );
+}
+
+export function useHypeshipWorkContext(id: string | null) {
+  return useSWR<HypeshipWorkContextResponse>(
+    id ? `/api/hypeship/work-contexts/${id}` : null,
+    hypeshipFetcher<HypeshipWorkContextResponse>,
+    {
+      refreshInterval: (data) => {
+        if (!data) return 3_000;
+        const state = data.work_context.state;
+        return state === "launching" || state === "working" ? 5_000 : 0;
+      },
+    },
+  );
+}
+
+export async function createHypeshipWorkContext(
+  body: HypeshipCreateWorkContextRequest,
+): Promise<HypeshipWorkContextResponse> {
+  const res = await fetch("/api/hypeship/work-contexts", {
+    method: "POST",
+    headers: hypeshipHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  mutate(
+    (key: string) =>
+      typeof key === "string" && key.startsWith("/api/hypeship/work-contexts"),
+    undefined,
+    { revalidate: true },
+  );
+  return data;
+}
+
+export async function updateHypeshipWorkContextState(
+  id: string,
+  body: HypeshipUpdateStateRequest,
+): Promise<HypeshipWorkContextResponse> {
+  const res = await fetch(`/api/hypeship/work-contexts/${id}`, {
+    method: "PATCH",
+    headers: hypeshipHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  mutate(`/api/hypeship/work-contexts/${id}`);
+  mutate(
+    (key: string) =>
+      typeof key === "string" && key.startsWith("/api/hypeship/work-contexts"),
+    undefined,
+    { revalidate: true },
+  );
   return data;
 }
