@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { mutate } from "swr";
 import {
@@ -10,7 +10,10 @@ import {
   addToGrid,
   removeFromGrid,
   replaceInGrid,
+  getSoundEnabled,
+  setSoundEnabled,
 } from "@/lib/storage";
+import { playCompletionSound } from "@/lib/sounds";
 import {
   useAgents,
   useReviewRequests,
@@ -71,6 +74,8 @@ export default function DashboardPage() {
   const [pendingLaunches, setPendingLaunches] = useState<
     Map<string, PendingLaunch>
   >(new Map());
+  const [soundOn, setSoundOn] = useState(true);
+  const prevStatuses = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (!getApiKey() || !getGithubToken()) {
@@ -78,6 +83,7 @@ export default function DashboardPage() {
       return;
     }
     setGrid(getGrid());
+    setSoundOn(getSoundEnabled());
     setMounted(true);
   }, [router]);
 
@@ -102,6 +108,34 @@ export default function DashboardPage() {
         },
         createdAt: new Date().toISOString(),
       });
+    }
+  });
+
+  useEffect(() => {
+    if (!mounted) return;
+    const gridIds = new Set(grid.map((g) => g.agentId));
+    let shouldPlay = false;
+
+    for (const [id, agent] of agentMap) {
+      if (!gridIds.has(id)) continue;
+      const prev = prevStatuses.current.get(id);
+      if (
+        prev &&
+        (prev === "RUNNING" || prev === "CREATING") &&
+        agent.status === "FINISHED"
+      ) {
+        shouldPlay = true;
+      }
+    }
+
+    const next = new Map<string, string>();
+    for (const [id, agent] of agentMap) {
+      if (gridIds.has(id)) next.set(id, agent.status);
+    }
+    prevStatuses.current = next;
+
+    if (shouldPlay && soundOn) {
+      playCompletionSound();
     }
   });
 
@@ -312,6 +346,18 @@ export default function DashboardPage() {
     });
 
     cmds.push({
+      id: "toggle-sound",
+      label: soundOn ? "mute completion sound" : "unmute completion sound",
+      section: "app",
+      action: () => {
+        const next = !soundOn;
+        setSoundOn(next);
+        setSoundEnabled(next);
+        if (next) playCompletionSound();
+      },
+    });
+
+    cmds.push({
       id: "settings",
       label: "settings",
       section: "app",
@@ -319,7 +365,7 @@ export default function DashboardPage() {
     });
 
     return cmds;
-  }, [focusedAgent, focusedId, focusedPrStatus, sorted, agentMap, showDiffBar]);
+  }, [focusedAgent, focusedId, focusedPrStatus, sorted, agentMap, showDiffBar, soundOn]);
 
   useEffect(() => {
     if (showAdd || showLaunch || showReviewInput || mergeTarget || reviewerTarget) {
@@ -607,6 +653,18 @@ export default function DashboardPage() {
             ) : (
               <span>0 reviews</span>
             )}
+          </button>
+          <button
+            onClick={() => {
+              const next = !soundOn;
+              setSoundOn(next);
+              setSoundEnabled(next);
+              if (next) playCompletionSound();
+            }}
+            className={`text-[10px] font-mono ${soundOn ? "text-zinc-500 hover:text-zinc-200" : "text-zinc-700 hover:text-zinc-400"}`}
+            title={soundOn ? "notifications on (click to mute)" : "notifications muted (click to unmute)"}
+          >
+            <span className={soundOn ? "" : "line-through"}>{soundOn ? "♪" : "♪"}</span>
           </button>
           <button
             onClick={() => setShowPalette(true)}

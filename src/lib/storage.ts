@@ -9,6 +9,7 @@ const KEYS = {
   reposTimestamp: "cursor-agents-repos-ts",
   branches: "cursor-agents-branches",
   drafts: "cursor-agents-drafts",
+  soundEnabled: "cursor-agents-sound-enabled",
 } as const;
 
 export function getApiKey(): string | null {
@@ -182,4 +183,14 @@ export function setDraft(agentId: string, text: string): void {
     delete drafts[agentId];
   }
   localStorage.setItem(KEYS.drafts, JSON.stringify(drafts));
+}
+
+export function getSoundEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+  const val = localStorage.getItem(KEYS.soundEnabled);
+  return val !== "false"; // enabled by default
+}
+
+export function setSoundEnabled(enabled: boolean): void {
+  localStorage.setItem(KEYS.soundEnabled, String(enabled));
 }
