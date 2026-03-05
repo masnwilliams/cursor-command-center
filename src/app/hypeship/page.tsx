@@ -1035,10 +1035,14 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                     <span className="text-[10px] text-zinc-600 font-mono">
                       {AGENT_LABELS[agent.agent_type]}
                     </span>
-                    <span className="text-[10px] text-zinc-700 font-mono">·</span>
-                    <span className="text-[10px] text-zinc-600 font-mono truncate">
-                      {agent.repositories[0]}
-                    </span>
+                    {agent.repositories[0] && (
+                      <>
+                        <span className="text-[10px] text-zinc-700 font-mono">·</span>
+                        <span className="text-[10px] text-zinc-600 font-mono truncate">
+                          {agent.repositories[0]}
+                        </span>
+                      </>
+                    )}
                     {agent.launch_mode && (
                       <>
                         <span className="text-[10px] text-zinc-700 font-mono">·</span>
