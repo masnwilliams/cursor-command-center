@@ -142,3 +142,18 @@ export interface PrFile {
 export interface PrFilesResponse {
   files: PrFile[];
 }
+
+export interface Artifact {
+  absolutePath: string;
+  sizeBytes: number;
+  updatedAt: string;
+}
+
+export interface ArtifactsResponse {
+  artifacts: Artifact[];
+}
+
+export interface ArtifactDownloadResponse {
+  url: string;
+  expiresAt: string;
+}
