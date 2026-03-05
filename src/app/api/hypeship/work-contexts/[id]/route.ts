@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  return proxyToHypeship(req, `/v1/work-contexts/${id}`);
+  return proxyToHypeship(req, `/v1/agents/${id}`);
 }
 
 export async function PATCH(
@@ -14,5 +14,5 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  return proxyToHypeship(req, `/v1/work-contexts/${id}`, { method: "PATCH" });
+  return proxyToHypeship(req, `/v1/agents/${id}/state`, { method: "PATCH" });
 }

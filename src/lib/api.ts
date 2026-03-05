@@ -320,7 +320,11 @@ export async function testHypeshipConnection(): Promise<HypeshipHealthResponse> 
 export function useHypeshipWorkContexts(includeArchived = false) {
   return useSWR<HypeshipWorkContextListResponse>(
     `/api/hypeship/work-contexts?include_archived=${includeArchived}`,
-    hypeshipFetcher<HypeshipWorkContextListResponse>,
+    async (url: string) => {
+      const raw = await hypeshipFetcher<any>(url);
+      if (raw.agents) return { work_contexts: raw.agents };
+      return raw;
+    },
     { refreshInterval: 10_000 },
   );
 }
@@ -328,7 +332,11 @@ export function useHypeshipWorkContexts(includeArchived = false) {
 export function useHypeshipWorkContext(id: string | null) {
   return useSWR<HypeshipWorkContextResponse>(
     id ? `/api/hypeship/work-contexts/${id}` : null,
-    hypeshipFetcher<HypeshipWorkContextResponse>,
+    async (url: string) => {
+      const raw = await hypeshipFetcher<any>(url);
+      if (raw.agent) return { work_context: raw.agent };
+      return raw;
+    },
     {
       refreshInterval: (data) => {
         if (!data) return 3_000;
@@ -348,10 +356,15 @@ export async function createHypeshipWorkContext(
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await res.text());
-  const data = await res.json();
+  const raw = await res.json();
+  const data: HypeshipWorkContextResponse = raw.agent
+    ? { work_context: raw.agent }
+    : raw;
   mutate(
     (key: string) =>
-      typeof key === "string" && key.startsWith("/api/hypeship/work-contexts"),
+      typeof key === "string" &&
+      (key.startsWith("/api/hypeship/work-contexts") ||
+        key.startsWith("/api/hypeship/agents")),
     undefined,
     { revalidate: true },
   );
@@ -368,11 +381,16 @@ export async function updateHypeshipWorkContextState(
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await res.text());
-  const data = await res.json();
+  const raw = await res.json();
+  const data: HypeshipWorkContextResponse = raw.agent
+    ? { work_context: raw.agent }
+    : raw;
   mutate(`/api/hypeship/work-contexts/${id}`);
   mutate(
     (key: string) =>
-      typeof key === "string" && key.startsWith("/api/hypeship/work-contexts"),
+      typeof key === "string" &&
+      (key.startsWith("/api/hypeship/work-contexts") ||
+        key.startsWith("/api/hypeship/agents")),
     undefined,
     { revalidate: true },
   );

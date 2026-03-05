@@ -7,10 +7,10 @@ export async function GET(req: NextRequest) {
   const includeGone = url.searchParams.get("include_gone") ?? "false";
   return proxyToHypeship(
     req,
-    `/v1/work-contexts?include_archived=${includeArchived}&include_gone=${includeGone}`,
+    `/v1/agents?include_archived=${includeArchived}&include_gone=${includeGone}`,
   );
 }
 
 export async function POST(req: NextRequest) {
-  return proxyToHypeship(req, "/v1/work-contexts", { method: "POST" });
+  return proxyToHypeship(req, "/v1/agents", { method: "POST" });
 }
