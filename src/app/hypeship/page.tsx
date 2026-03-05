@@ -15,7 +15,7 @@ import {
   useHypeshipAgents,
   useHypeshipAgent,
   useHypeshipConversation,
-  createHypeshipAgent,
+  sendHypeshipPrompt,
   sendHypeshipMessage,
   updateHypeshipAgentState,
   useHypeshipSecrets,
@@ -30,8 +30,8 @@ import type {
   HypeshipAgent,
   HypeshipAgentState,
   HypeshipAgentType,
-  HypeshipCreateAgentRequest,
   HypeshipConversationTurn,
+  HypeshipPromptResponse,
   HypeshipAuthConfig,
 } from "@/lib/types";
 
@@ -209,58 +209,45 @@ function SetupView({ onConnected }: { onConnected: () => void }) {
   );
 }
 
-// ── Inline Launch Bar ──
+// ── Inline Prompt Bar ──
 
-function LaunchBar({
+function PromptBar({
   onClose,
-  onLaunch,
+  onPromptResponse,
 }: {
   onClose: () => void;
-  onLaunch: (body: HypeshipCreateAgentRequest) => void;
+  onPromptResponse: (resp: HypeshipPromptResponse) => void;
 }) {
-  const [repo, setRepo] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [agentType, setAgentType] = useState<HypeshipAgentType>("codex_cli");
-  const [branchName, setBranchName] = useState("");
-  const [mode, setMode] = useState<"read" | "write">("write");
-  const [launching, setLaunching] = useState(false);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [showOptions, setShowOptions] = useState(false);
-  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const [responseMsg, setResponseMsg] = useState("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const agentTypes: HypeshipAgentType[] = ["codex_cli", "claude_code_cli"];
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
-  async function handleLaunch() {
-    if (!repo.trim() || !prompt.trim()) return;
-    setLaunching(true);
+  async function handleSend() {
+    if (!prompt.trim() || sending) return;
+    setSending(true);
     setError("");
+    setResponseMsg("");
     try {
-      const body: HypeshipCreateAgentRequest = {
-        repositories: [repo.trim()],
-        agent_type: agentType,
-        initial_prompt: prompt.trim(),
-        mode,
-      };
-      if (branchName.trim()) body.branch_name = branchName.trim();
-      onLaunch(body);
-      onClose();
+      const resp = await sendHypeshipPrompt({ message: prompt.trim() });
+      setResponseMsg(resp.message);
+      onPromptResponse(resp);
+      setPrompt("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "launch failed");
-      setLaunching(false);
+      setError(e instanceof Error ? e.message : "prompt failed");
+    } finally {
+      setSending(false);
     }
   }
 
   useEffect(() => {
-    promptRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        e.preventDefault();
-        handleLaunch();
-      }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -268,40 +255,29 @@ function LaunchBar({
 
   return (
     <div className="border-b border-zinc-800 bg-zinc-900/40 shrink-0">
-      <div className="px-3 py-2 space-y-2">
-        <div className="flex gap-2 items-start">
-          <div className="flex-1 space-y-2">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={repo}
-                onChange={(e) => setRepo(e.target.value)}
-                placeholder="github.com/org/repo"
-                className="w-48 border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
-              />
-              <button
-                onClick={() => setShowOptions(!showOptions)}
-                className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 px-1.5 py-1 transition-colors"
-              >
-                {showOptions ? "less ▴" : "more ▾"}
-              </button>
-            </div>
-            <textarea
-              ref={promptRef}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="describe the task..."
-              rows={2}
-              className="w-full border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
-            />
-          </div>
-          <div className="flex flex-col gap-1 shrink-0 pt-0.5">
+      <div className="px-3 py-2">
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={inputRef}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="what do you want to build?"
+            rows={2}
+            className="flex-1 border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
+          />
+          <div className="flex flex-col gap-1 shrink-0">
             <button
-              onClick={handleLaunch}
-              disabled={!repo.trim() || !prompt.trim() || launching}
+              onClick={handleSend}
+              disabled={!prompt.trim() || sending}
               className="bg-blue-600 px-3 py-1 text-[10px] text-white hover:bg-blue-500 font-mono disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {launching ? "..." : "⌘↵"}
+              {sending ? "..." : "⌘↵"}
             </button>
             <button
               onClick={onClose}
@@ -311,55 +287,10 @@ function LaunchBar({
             </button>
           </div>
         </div>
-
-        {showOptions && (
-          <div className="flex gap-3 items-center flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-zinc-600 font-mono">agent</span>
-              {agentTypes.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setAgentType(t)}
-                  className={`px-1.5 py-0.5 text-[10px] font-mono border transition-colors ${
-                    agentType === t
-                      ? "border-blue-500 text-blue-400 bg-blue-500/10"
-                      : "border-zinc-800 text-zinc-600 hover:text-zinc-300 hover:border-zinc-600"
-                  }`}
-                >
-                  {AGENT_LABELS[t]}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-zinc-600 font-mono">mode</span>
-              {(["write", "read"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className={`px-1.5 py-0.5 text-[10px] font-mono border transition-colors ${
-                    mode === m
-                      ? "border-blue-500 text-blue-400 bg-blue-500/10"
-                      : "border-zinc-800 text-zinc-600 hover:text-zinc-300 hover:border-zinc-600"
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-zinc-600 font-mono">branch</span>
-              <input
-                type="text"
-                value={branchName}
-                onChange={(e) => setBranchName(e.target.value)}
-                placeholder="optional"
-                className="w-32 border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-[10px] text-zinc-100 placeholder-zinc-700 outline-none focus:border-zinc-600 font-mono"
-              />
-            </div>
-          </div>
+        {responseMsg && (
+          <p className="text-[10px] text-zinc-400 font-mono mt-1.5">{responseMsg}</p>
         )}
-
-        {error && <p className="text-[10px] text-red-400/70 font-mono">{error}</p>}
+        {error && <p className="text-[10px] text-red-400/70 font-mono mt-1.5">{error}</p>}
       </div>
     </div>
   );
@@ -943,22 +874,17 @@ type DashboardTab = "agents" | "secrets" | "settings";
 
 function DashboardView({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<DashboardTab>("agents");
-  const [showLaunch, setShowLaunch] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [includeArchived, setIncludeArchived] = useState(false);
-  const [launchError, setLaunchError] = useState("");
 
   const { data, error, isLoading } = useHypeshipAgents(includeArchived);
   const agents = data?.agents ?? [];
 
-  const handleLaunch = useCallback(
-    async (body: HypeshipCreateAgentRequest) => {
-      setLaunchError("");
-      try {
-        const result = await createHypeshipAgent(body);
-        setSelectedId(result.agent.id);
-      } catch (e) {
-        setLaunchError(e instanceof Error ? e.message : "launch failed");
+  const handlePromptResponse = useCallback(
+    (resp: HypeshipPromptResponse) => {
+      if (resp.agent?.id) {
+        setSelectedId(resp.agent.id);
       }
     },
     [],
@@ -975,13 +901,13 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        if (showLaunch) setShowLaunch(false);
+        if (showPrompt) setShowPrompt(false);
         else if (selectedId) setSelectedId(null);
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [showLaunch, selectedId]);
+  }, [showPrompt, selectedId]);
 
   const activeCount = agents.filter(
     (a) => a.state === "launching" || a.state === "working",
@@ -1031,10 +957,14 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                 {includeArchived ? "hide archived" : "show archived"}
               </button>
               <button
-                onClick={() => setShowLaunch(true)}
-                className="text-[10px] font-mono text-blue-400 hover:text-blue-300 px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors"
+                onClick={() => setShowPrompt(!showPrompt)}
+                className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
+                  showPrompt
+                    ? "text-blue-400 border-blue-500/50"
+                    : "text-blue-400 hover:text-blue-300 border-zinc-800 hover:border-zinc-600"
+                }`}
               >
-                [launch]
+                [prompt]
               </button>
             </>
           )}
@@ -1047,12 +977,6 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
         </div>
       </div>
 
-      {launchError && (
-        <div className="px-3 py-1.5 bg-red-900/20 border-b border-red-900/30 shrink-0">
-          <p className="text-[10px] text-red-400 font-mono">{launchError}</p>
-        </div>
-      )}
-
       <div className="flex-1 flex min-h-0">
         {tab === "agents" && (
           <>
@@ -1060,8 +984,8 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
             <div
               className={`${selectedId ? "w-1/3 border-r border-zinc-800" : "w-full"} flex flex-col overflow-hidden shrink-0`}
             >
-              {showLaunch && (
-                <LaunchBar onClose={() => setShowLaunch(false)} onLaunch={handleLaunch} />
+              {showPrompt && (
+                <PromptBar onClose={() => setShowPrompt(false)} onPromptResponse={handlePromptResponse} />
               )}
               <div className="flex-1 overflow-y-auto">
               {isLoading && agents.length === 0 && (
@@ -1082,10 +1006,10 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                 <div className="px-3 py-8 text-center space-y-2">
                   <p className="text-[10px] text-zinc-600 font-mono">no agents yet</p>
                   <button
-                    onClick={() => setShowLaunch(true)}
+                    onClick={() => setShowPrompt(true)}
                     className="text-[10px] font-mono text-blue-400 hover:text-blue-300"
                   >
-                    launch one →
+                    start one →
                   </button>
                 </div>
               )}
