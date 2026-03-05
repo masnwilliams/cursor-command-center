@@ -448,7 +448,7 @@ export function useHypeshipAgent(id: string | null) {
     {
       refreshInterval: (data) => {
         if (!data) return 3_000;
-        const s = data.agent.status;
+        const s = data.agent.state;
         return s === "launching" || s === "working" ? 3_000 : 0;
       },
     },

@@ -56,7 +56,7 @@ export default function HypeshipPane({
   const { data: agentData } = useHypeshipAgent(agentId);
   const agent = agentData?.agent;
   const isActive =
-    agent?.status === "launching" || agent?.status === "working";
+    agent?.state === "launching" || agent?.state === "working";
 
   const { data: convData } = useHypeshipConversation(
     agentId,
@@ -115,7 +115,7 @@ export default function HypeshipPane({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-2 py-1 bg-zinc-900/60 shrink-0">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          {agent && <StateDot state={agent.status} />}
+          {agent && <StateDot state={agent.state} />}
           <span className="text-[10px] text-zinc-300 font-mono truncate">
             {topic}
           </span>

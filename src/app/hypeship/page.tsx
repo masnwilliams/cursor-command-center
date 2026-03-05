@@ -260,7 +260,7 @@ function AgentSidebar({
 }: {
   agents: Array<{
     id: string;
-    status: HypeshipWorkContextState;
+    state: HypeshipWorkContextState;
     topic: string;
     repositories: string[];
     agent_type: HypeshipAgentType;
@@ -301,7 +301,7 @@ function AgentSidebar({
                 className="w-full text-left px-2 py-1.5"
               >
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <StateDot state={a.status} />
+                  <StateDot state={a.state} />
                   <span className="text-[10px] text-zinc-200 font-mono truncate flex-1">
                     {a.topic || a.id.slice(0, 10)}
                   </span>
@@ -326,7 +326,7 @@ function AgentSidebar({
                 </div>
               </button>
               {isOpen &&
-                (a.status === "launching" || a.status === "working") && (
+                (a.state === "launching" || a.state === "working") && (
                   <div className="px-2 pb-1.5">
                     <button
                       onClick={(e) => {

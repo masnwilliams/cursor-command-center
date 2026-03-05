@@ -154,13 +154,13 @@ export type HypeshipAgentType =
 export type HypeshipLaunchMode = "interactive" | "non_interactive";
 export type HypeshipApprovalMode = "human_in_loop" | "auto_approve";
 
-export type HypeshipWorkContextState =
+export type HypeshipAgentState =
   | "launching"
   | "working"
   | "archived"
   | "gone";
 
-export interface HypeshipWorkContext {
+export interface HypeshipAgentData {
   id: string;
   topic: string;
   summary: string;
@@ -169,12 +169,10 @@ export interface HypeshipWorkContext {
   initial_prompt: string;
   start_command: string;
   agent_type: HypeshipAgentType;
-  launch_mode: HypeshipLaunchMode;
-  approval_mode: HypeshipApprovalMode;
   launch_image: string;
   hypeman_name: string;
   hypeman_instance_id?: string;
-  state: HypeshipWorkContextState;
+  state: HypeshipAgentState;
   last_error?: string;
   shell_ws_url?: string;
   desktop_url?: string;
@@ -186,29 +184,34 @@ export interface HypeshipWorkContext {
   last_heartbeat_at?: string;
 }
 
-export interface HypeshipWorkContextListResponse {
-  work_contexts: HypeshipWorkContext[];
+export interface HypeshipAgentListResponse {
+  agents: HypeshipAgentData[];
 }
 
-export interface HypeshipWorkContextResponse {
-  work_context: HypeshipWorkContext;
+export interface HypeshipAgentSingleResponse {
+  agent: HypeshipAgentData;
 }
 
-export interface HypeshipCreateWorkContextRequest {
+export interface HypeshipCreateAgentRequest {
   repositories: string[];
   agent_type: HypeshipAgentType;
   initial_prompt: string;
   branch_name?: string;
   topic?: string;
   launch_image?: string;
-  launch_mode?: HypeshipLaunchMode;
-  approval_mode?: HypeshipApprovalMode;
 }
 
 export interface HypeshipUpdateStateRequest {
   state: "working" | "archived" | "gone";
   summary?: string;
 }
+
+// Backward-compat aliases used by existing page code
+export type HypeshipWorkContextState = HypeshipAgentState;
+export type HypeshipWorkContext = HypeshipAgentData;
+export type HypeshipWorkContextListResponse = { work_contexts: HypeshipAgentData[] };
+export type HypeshipWorkContextResponse = { work_context: HypeshipAgentData };
+export type HypeshipCreateWorkContextRequest = HypeshipCreateAgentRequest;
 
 export interface HypeshipHealthResponse {
   ok: boolean;
@@ -237,27 +240,10 @@ export interface HypeshipPromptResponse {
   message: string;
 }
 
-export interface HypeshipAgent {
-  id: string;
-  status: HypeshipWorkContextState;
-  topic: string;
-  summary: string;
-  repositories: string[];
-  agent_type: HypeshipAgentType;
-  shell_ws_url?: string;
-  desktop_url?: string;
-  shell_connect_command?: string;
-  created_at: string;
-  updated_at: string;
-  started_at?: string;
-}
-
-export interface HypeshipAgentListResponse {
-  agents: HypeshipAgent[];
-}
+export type HypeshipAgent = HypeshipAgentData;
 
 export interface HypeshipAgentResponse {
-  agent: HypeshipAgent;
+  agent: HypeshipAgentData;
 }
 
 export interface HypeshipConversationTurn {
