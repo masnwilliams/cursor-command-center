@@ -16,6 +16,11 @@ import type {
   HypeshipCreateWorkContextRequest,
   HypeshipUpdateStateRequest,
   HypeshipHealthResponse,
+  HypeshipPromptRequest,
+  HypeshipPromptResponse,
+  HypeshipAgentListResponse,
+  HypeshipAgentResponse,
+  HypeshipConversationResponse,
 } from "./types";
 import {
   getApiKey,
@@ -372,4 +377,83 @@ export async function updateHypeshipWorkContextState(
     { revalidate: true },
   );
   return data;
+}
+
+// ── Hypeship Prompt + Agents API ──
+
+export async function sendHypeshipPrompt(
+  body: HypeshipPromptRequest,
+): Promise<HypeshipPromptResponse> {
+  const res = await fetch("/api/hypeship/prompt", {
+    method: "POST",
+    headers: hypeshipHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  mutate(
+    (key: string) =>
+      typeof key === "string" &&
+      (key.startsWith("/api/hypeship/agents") ||
+        key.startsWith("/api/hypeship/work-contexts")),
+    undefined,
+    { revalidate: true },
+  );
+  return data;
+}
+
+export async function sendHypeshipFollowUp(
+  threadId: string,
+  message: string,
+): Promise<HypeshipPromptResponse> {
+  const res = await fetch(`/api/hypeship/prompt/${threadId}`, {
+    method: "POST",
+    headers: hypeshipHeaders(),
+    body: JSON.stringify({ message }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export function useHypeshipAgents() {
+  return useSWR<HypeshipAgentListResponse>(
+    "/api/hypeship/agents",
+    hypeshipFetcher<HypeshipAgentListResponse>,
+    { refreshInterval: 5_000 },
+  );
+}
+
+export function useHypeshipAgent(id: string | null) {
+  return useSWR<HypeshipAgentResponse>(
+    id ? `/api/hypeship/agents/${id}` : null,
+    hypeshipFetcher<HypeshipAgentResponse>,
+    {
+      refreshInterval: (data) => {
+        if (!data) return 3_000;
+        const s = data.agent.status;
+        return s === "launching" || s === "working" ? 3_000 : 0;
+      },
+    },
+  );
+}
+
+export function useHypeshipConversation(id: string | null, active = true) {
+  return useSWR<HypeshipConversationResponse>(
+    id ? `/api/hypeship/agents/${id}/conversation` : null,
+    hypeshipFetcher<HypeshipConversationResponse>,
+    { refreshInterval: active ? 3_000 : 0 },
+  );
+}
+
+export async function sendHypeshipMessage(
+  id: string,
+  content: string,
+): Promise<void> {
+  const res = await fetch(`/api/hypeship/agents/${id}/message`, {
+    method: "POST",
+    headers: hypeshipHeaders(),
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  mutate(`/api/hypeship/agents/${id}/conversation`);
 }

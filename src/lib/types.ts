@@ -213,3 +213,59 @@ export interface HypeshipUpdateStateRequest {
 export interface HypeshipHealthResponse {
   ok: boolean;
 }
+
+// ── Hypeship Prompt API types ──
+
+export interface HypeshipPromptRequest {
+  message: string;
+  context?: {
+    source?: string;
+    channel_id?: string;
+    thread_ts?: string;
+    user_id?: string;
+  };
+}
+
+export interface HypeshipPromptResponse {
+  thread_id: string;
+  agent?: {
+    id: string;
+    status: string;
+    repositories?: string[];
+    mode?: string;
+  };
+  message: string;
+}
+
+export interface HypeshipAgent {
+  id: string;
+  status: HypeshipWorkContextState;
+  topic: string;
+  summary: string;
+  repositories: string[];
+  agent_type: HypeshipAgentType;
+  shell_ws_url?: string;
+  desktop_url?: string;
+  shell_connect_command?: string;
+  created_at: string;
+  updated_at: string;
+  started_at?: string;
+}
+
+export interface HypeshipAgentListResponse {
+  agents: HypeshipAgent[];
+}
+
+export interface HypeshipAgentResponse {
+  agent: HypeshipAgent;
+}
+
+export interface HypeshipConversationTurn {
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
+export interface HypeshipConversationResponse {
+  conversation: HypeshipConversationTurn[];
+}
