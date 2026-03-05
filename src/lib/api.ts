@@ -22,6 +22,11 @@ import type {
   HypeshipHealthResponse,
   HypeshipPromptRequest,
   HypeshipPromptResponse,
+  HypeshipSecretListResponse,
+  HypeshipSecretResponse,
+  HypeshipUserResponse,
+  HypeshipIdentityListResponse,
+  HypeshipAuthConfig,
 } from "./types";
 import {
   getApiKey,
@@ -449,6 +454,101 @@ export async function sendHypeshipFollowUp(
     method: "POST",
     headers: hypeshipHeaders(),
     body: JSON.stringify({ message }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Hypeship Secrets ──
+
+export function useHypeshipSecrets(scope?: string, userId?: string) {
+  const params = new URLSearchParams();
+  if (scope) params.set("scope", scope);
+  if (userId) params.set("user_id", userId);
+  const qs = params.toString();
+  return useSWR<HypeshipSecretListResponse>(
+    `/api/hypeship/secrets${qs ? `?${qs}` : ""}`,
+    hypeshipFetcher<HypeshipSecretListResponse>,
+    { refreshInterval: 30_000 },
+  );
+}
+
+export async function createHypeshipSecret(
+  name: string,
+  value: string,
+  scope: "team" | "user",
+  userId?: string,
+): Promise<HypeshipSecretResponse> {
+  const res = await fetch("/api/hypeship/secrets", {
+    method: "POST",
+    headers: hypeshipHeaders(),
+    body: JSON.stringify({ name, value, scope, user_id: userId }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  mutate(
+    (key: string) =>
+      typeof key === "string" && key.startsWith("/api/hypeship/secrets"),
+    undefined,
+    { revalidate: true },
+  );
+  return data;
+}
+
+export async function deleteHypeshipSecret(
+  name: string,
+  scope?: string,
+  userId?: string,
+): Promise<void> {
+  const params = new URLSearchParams();
+  if (scope) params.set("scope", scope);
+  if (userId) params.set("user_id", userId);
+  const qs = params.toString();
+  const res = await fetch(
+    `/api/hypeship/secrets/${encodeURIComponent(name)}${qs ? `?${qs}` : ""}`,
+    { method: "DELETE", headers: hypeshipHeaders() },
+  );
+  if (!res.ok) throw new Error(await res.text());
+  mutate(
+    (key: string) =>
+      typeof key === "string" && key.startsWith("/api/hypeship/secrets"),
+    undefined,
+    { revalidate: true },
+  );
+}
+
+// ── Hypeship Users & Identities ──
+
+export function useHypeshipUser() {
+  return useSWR<HypeshipUserResponse>(
+    "/api/hypeship/users/me",
+    hypeshipFetcher<HypeshipUserResponse>,
+    { revalidateOnFocus: false },
+  );
+}
+
+export function useHypeshipIdentities() {
+  return useSWR<HypeshipIdentityListResponse>(
+    "/api/hypeship/users/me/identities",
+    hypeshipFetcher<HypeshipIdentityListResponse>,
+    { revalidateOnFocus: false },
+  );
+}
+
+export async function unlinkHypeshipIdentity(provider: string): Promise<void> {
+  const res = await fetch(
+    `/api/hypeship/users/me/identities/${encodeURIComponent(provider)}`,
+    { method: "DELETE", headers: hypeshipHeaders() },
+  );
+  if (!res.ok) throw new Error(await res.text());
+  mutate("/api/hypeship/users/me/identities");
+}
+
+// ── Hypeship Auth Config ──
+
+export async function getHypeshipAuthConfig(): Promise<HypeshipAuthConfig> {
+  const res = await fetch("/api/hypeship/auth/config", {
+    headers: hypeshipHeaders(),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();

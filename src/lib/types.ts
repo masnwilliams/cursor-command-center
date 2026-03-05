@@ -167,6 +167,9 @@ export type HypeshipAgentState =
   | "archived"
   | "gone";
 
+export type HypeshipLaunchMode = "interactive" | "non_interactive";
+export type HypeshipApprovalMode = "auto_approve" | "human_in_loop";
+
 export interface HypeshipAgent {
   id: string;
   topic: string;
@@ -176,6 +179,8 @@ export interface HypeshipAgent {
   initial_prompt: string;
   start_command: string;
   agent_type: HypeshipAgentType;
+  launch_mode: HypeshipLaunchMode;
+  approval_mode: HypeshipApprovalMode;
   launch_image: string;
   hypeman_name: string;
   hypeman_instance_id?: string;
@@ -260,4 +265,64 @@ export interface HypeshipPromptResponse {
     mode?: string;
   };
   message: string;
+}
+
+// ── Hypeship User & Identity types ──
+
+export interface HypeshipUser {
+  id: string;
+  display_name: string;
+  email?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HypeshipUserResponse {
+  user: HypeshipUser;
+}
+
+export interface HypeshipUserIdentity {
+  id: string;
+  user_id: string;
+  provider: string;
+  provider_id: string;
+  metadata?: Record<string, unknown>;
+  has_token: boolean;
+  created_at: string;
+}
+
+export interface HypeshipIdentityListResponse {
+  identities: HypeshipUserIdentity[];
+}
+
+// ── Hypeship Secrets types ──
+
+export interface HypeshipSecret {
+  id: string;
+  name: string;
+  scope: string;
+  user_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HypeshipSecretListResponse {
+  secrets: HypeshipSecret[];
+}
+
+export interface HypeshipSecretResponse {
+  secret: HypeshipSecret;
+}
+
+export interface HypeshipCreateSecretRequest {
+  name: string;
+  value: string;
+  scope: "team" | "user";
+  user_id?: string;
+}
+
+// ── Hypeship Auth Config types ──
+
+export interface HypeshipAuthConfig {
+  providers: { type: string; client_id: string }[];
 }

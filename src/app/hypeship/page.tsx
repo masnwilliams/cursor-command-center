@@ -18,6 +18,13 @@ import {
   createHypeshipAgent,
   sendHypeshipMessage,
   updateHypeshipAgentState,
+  useHypeshipSecrets,
+  createHypeshipSecret,
+  deleteHypeshipSecret,
+  useHypeshipUser,
+  useHypeshipIdentities,
+  unlinkHypeshipIdentity,
+  getHypeshipAuthConfig,
 } from "@/lib/api";
 import type {
   HypeshipAgent,
@@ -25,6 +32,7 @@ import type {
   HypeshipAgentType,
   HypeshipCreateAgentRequest,
   HypeshipConversationTurn,
+  HypeshipAuthConfig,
 } from "@/lib/types";
 
 type SetupState = "idle" | "testing" | "success" | "error";
@@ -571,6 +579,12 @@ function AgentInfoTab({ agent }: { agent: HypeshipAgent }) {
         <span className="text-zinc-600">agent</span>
         <span className="text-zinc-300">{AGENT_LABELS[agent.agent_type]}</span>
 
+        <span className="text-zinc-600">mode</span>
+        <span className="text-zinc-300">{agent.launch_mode?.replace("_", " ") ?? "—"}</span>
+
+        <span className="text-zinc-600">approval</span>
+        <span className="text-zinc-300">{agent.approval_mode?.replace("_", " ") ?? "—"}</span>
+
         <span className="text-zinc-600">repos</span>
         <span className="text-zinc-300 truncate">{agent.repositories.join(", ")}</span>
 
@@ -673,9 +687,255 @@ function AgentInfoTab({ agent }: { agent: HypeshipAgent }) {
   );
 }
 
+// ── Secrets View ──
+
+function SecretsView() {
+  const { data, error, isLoading } = useHypeshipSecrets();
+  const secrets = data?.secrets ?? [];
+  const [name, setName] = useState("");
+  const [value, setValue] = useState("");
+  const [scope, setScope] = useState<"team" | "user">("team");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  async function handleCreate() {
+    if (!name.trim() || !value.trim()) return;
+    setCreating(true);
+    setCreateError("");
+    try {
+      await createHypeshipSecret(name.trim(), value.trim(), scope);
+      setName("");
+      setValue("");
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : "failed to create secret");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleDelete(secretName: string, secretScope: string) {
+    try {
+      await deleteHypeshipSecret(secretName, secretScope);
+    } catch {
+      // ignore
+    }
+  }
+
+  return (
+    <div className="overflow-y-auto h-full">
+      <div className="px-3 py-3 space-y-4">
+        <div className="space-y-2">
+          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide">add secret</p>
+          <div className="flex gap-2 items-end">
+            <div className="flex-1 space-y-1">
+              <p className="text-[10px] text-zinc-600 font-mono">name</p>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="MY_SECRET"
+                className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
+              />
+            </div>
+            <div className="flex-1 space-y-1">
+              <p className="text-[10px] text-zinc-600 font-mono">value</p>
+              <input
+                type="password"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder="secret value"
+                className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
+              />
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] text-zinc-600 font-mono">scope</p>
+              <div className="flex gap-1">
+                {(["team", "user"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setScope(s)}
+                    className={`px-2 py-1.5 text-[10px] font-mono border transition-colors ${
+                      scope === s
+                        ? "border-blue-500 text-blue-400 bg-blue-500/10"
+                        : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={handleCreate}
+              disabled={!name.trim() || !value.trim() || creating}
+              className="px-3 py-1.5 text-[10px] font-mono bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+            >
+              {creating ? "..." : "add"}
+            </button>
+          </div>
+          {createError && (
+            <p className="text-[10px] text-red-400/70 font-mono">{createError}</p>
+          )}
+        </div>
+
+        <div className="border-t border-zinc-800 pt-3">
+          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide mb-2">
+            secrets ({secrets.length})
+          </p>
+
+          {isLoading && secrets.length === 0 && (
+            <p className="text-[10px] text-zinc-600 font-mono animate-pulse">loading...</p>
+          )}
+
+          {error && (
+            <p className="text-[10px] text-red-400 font-mono">{error.message}</p>
+          )}
+
+          {!isLoading && secrets.length === 0 && !error && (
+            <p className="text-[10px] text-zinc-600 font-mono">no secrets yet</p>
+          )}
+
+          <div className="space-y-0.5">
+            {secrets.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center justify-between px-2 py-1.5 hover:bg-zinc-900/40 transition-colors group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-[11px] text-zinc-200 font-mono truncate">{s.name}</span>
+                  <span className="text-[10px] text-zinc-600 font-mono">{s.scope}</span>
+                  <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(s.created_at)}</span>
+                </div>
+                <button
+                  onClick={() => handleDelete(s.name, s.scope)}
+                  className="text-[10px] text-zinc-700 hover:text-red-400 font-mono opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Settings View ──
+
+function SettingsView() {
+  const { data: userData, error: userError } = useHypeshipUser();
+  const { data: identData, error: identError } = useHypeshipIdentities();
+  const [authConfig, setAuthConfig] = useState<HypeshipAuthConfig | null>(null);
+  const user = userData?.user;
+  const identities = identData?.identities ?? [];
+
+  useEffect(() => {
+    getHypeshipAuthConfig()
+      .then(setAuthConfig)
+      .catch(() => {});
+  }, []);
+
+  async function handleUnlink(provider: string) {
+    try {
+      await unlinkHypeshipIdentity(provider);
+    } catch {
+      // ignore
+    }
+  }
+
+  return (
+    <div className="overflow-y-auto h-full px-3 py-3 space-y-4">
+      <div className="space-y-2">
+        <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide">user</p>
+        {userError && (
+          <p className="text-[10px] text-red-400 font-mono">{userError.message}</p>
+        )}
+        {!user && !userError && (
+          <p className="text-[10px] text-zinc-600 font-mono animate-pulse">loading...</p>
+        )}
+        {user && (
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] font-mono">
+            <span className="text-zinc-600">id</span>
+            <span className="text-zinc-400 truncate">{user.id}</span>
+            <span className="text-zinc-600">name</span>
+            <span className="text-zinc-300">{user.display_name}</span>
+            {user.email && (
+              <>
+                <span className="text-zinc-600">email</span>
+                <span className="text-zinc-300">{user.email}</span>
+              </>
+            )}
+            <span className="text-zinc-600">created</span>
+            <span className="text-zinc-300">{timeAgo(user.created_at)}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-zinc-800 pt-3 space-y-2">
+        <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide">
+          linked identities ({identities.length})
+        </p>
+        {identError && (
+          <p className="text-[10px] text-red-400 font-mono">{identError.message}</p>
+        )}
+        {identities.length === 0 && !identError && (
+          <p className="text-[10px] text-zinc-600 font-mono">no linked identities</p>
+        )}
+        <div className="space-y-1">
+          {identities.map((ident) => (
+            <div
+              key={ident.id}
+              className="flex items-center justify-between px-2 py-1.5 border border-zinc-800 group"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-[11px] text-zinc-200 font-mono">{ident.provider}</span>
+                <span className="text-[10px] text-zinc-500 font-mono truncate">
+                  {ident.provider_id}
+                </span>
+                {ident.has_token && (
+                  <span className="text-[10px] text-emerald-400/70 font-mono">token</span>
+                )}
+              </div>
+              <button
+                onClick={() => handleUnlink(ident.provider)}
+                className="text-[10px] text-zinc-700 hover:text-red-400 font-mono opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                unlink
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {authConfig && authConfig.providers.length > 0 && (
+        <div className="border-t border-zinc-800 pt-3 space-y-2">
+          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide">
+            available providers
+          </p>
+          {authConfig.providers.map((p) => (
+            <div key={p.type} className="flex items-center gap-3 px-2 py-1.5 border border-zinc-800">
+              <span className="text-[11px] text-zinc-200 font-mono">{p.type}</span>
+              <span className="text-[10px] text-zinc-600 font-mono truncate">
+                client: {p.client_id}
+              </span>
+            </div>
+          ))}
+          <p className="text-[10px] text-zinc-600 font-mono">
+            link accounts via the settings page on your hypeship api
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Dashboard ──
 
+type DashboardTab = "agents" | "secrets" | "settings";
+
 function DashboardView({ onLogout }: { onLogout: () => void }) {
+  const [tab, setTab] = useState<DashboardTab>("agents");
   const [showLaunch, setShowLaunch] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -726,30 +986,51 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
       <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 bg-zinc-900/60 shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-xs text-zinc-300 font-mono">hypeship</span>
-          <span className="text-[10px] text-zinc-600 font-mono">
-            {agents.length} agent{agents.length !== 1 ? "s" : ""}
-            {activeCount > 0 && (
-              <span className="text-blue-400"> · {activeCount} active</span>
-            )}
-          </span>
+          <div className="flex items-center gap-0.5 ml-2">
+            {(["agents", "secrets", "settings"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => { setTab(t); setSelectedId(null); }}
+                className={`px-2 py-0.5 text-[10px] font-mono transition-colors ${
+                  tab === t
+                    ? "text-zinc-200 bg-zinc-800"
+                    : "text-zinc-600 hover:text-zinc-400"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          {tab === "agents" && (
+            <span className="text-[10px] text-zinc-600 font-mono">
+              {agents.length} agent{agents.length !== 1 ? "s" : ""}
+              {activeCount > 0 && (
+                <span className="text-blue-400"> · {activeCount} active</span>
+              )}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIncludeArchived(!includeArchived)}
-            className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
-              includeArchived
-                ? "border-zinc-600 text-zinc-300"
-                : "border-zinc-800 text-zinc-600 hover:text-zinc-400"
-            }`}
-          >
-            {includeArchived ? "hide archived" : "show archived"}
-          </button>
-          <button
-            onClick={() => setShowLaunch(true)}
-            className="text-[10px] font-mono text-blue-400 hover:text-blue-300 px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors"
-          >
-            [launch]
-          </button>
+          {tab === "agents" && (
+            <>
+              <button
+                onClick={() => setIncludeArchived(!includeArchived)}
+                className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
+                  includeArchived
+                    ? "border-zinc-600 text-zinc-300"
+                    : "border-zinc-800 text-zinc-600 hover:text-zinc-400"
+                }`}
+              >
+                {includeArchived ? "hide archived" : "show archived"}
+              </button>
+              <button
+                onClick={() => setShowLaunch(true)}
+                className="text-[10px] font-mono text-blue-400 hover:text-blue-300 px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors"
+              >
+                [launch]
+              </button>
+            </>
+          )}
           <button
             onClick={onLogout}
             className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors"
@@ -766,85 +1047,109 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
       )}
 
       <div className="flex-1 flex min-h-0">
-        {/* Agent list */}
-        <div
-          className={`${selectedId ? "w-1/3 border-r border-zinc-800" : "w-full"} overflow-y-auto shrink-0`}
-        >
-          {isLoading && agents.length === 0 && (
-            <div className="px-3 py-8 text-center">
-              <p className="text-[10px] text-zinc-600 font-mono animate-pulse">
-                loading agents...
-              </p>
-            </div>
-          )}
-
-          {error && (
-            <div className="px-3 py-8 text-center">
-              <p className="text-[10px] text-red-400 font-mono">{error.message}</p>
-            </div>
-          )}
-
-          {!isLoading && agents.length === 0 && !error && (
-            <div className="px-3 py-8 text-center space-y-2">
-              <p className="text-[10px] text-zinc-600 font-mono">no agents yet</p>
-              <button
-                onClick={() => setShowLaunch(true)}
-                className="text-[10px] font-mono text-blue-400 hover:text-blue-300"
-              >
-                launch one →
-              </button>
-            </div>
-          )}
-
-          {agents.map((agent) => (
-            <button
-              key={agent.id}
-              onClick={() => setSelectedId(agent.id)}
-              className={`w-full text-left border-b border-zinc-800/50 px-3 py-2 hover:bg-zinc-900/40 transition-colors ${
-                selectedId === agent.id ? "bg-zinc-900/60" : ""
-              }`}
+        {tab === "agents" && (
+          <>
+            {/* Agent list */}
+            <div
+              className={`${selectedId ? "w-1/3 border-r border-zinc-800" : "w-full"} overflow-y-auto shrink-0`}
             >
-              <div className="flex items-center gap-2 mb-1">
-                <StateDot state={agent.state} />
-                <span className="text-[11px] text-zinc-200 font-mono truncate flex-1">
-                  {agent.topic || agent.id.slice(0, 12)}
-                </span>
-                <span className="text-[10px] text-zinc-600 font-mono shrink-0">
-                  {timeAgo(agent.created_at)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 ml-4">
-                <span className="text-[10px] text-zinc-600 font-mono">
-                  {AGENT_LABELS[agent.agent_type]}
-                </span>
-                <span className="text-[10px] text-zinc-700 font-mono">·</span>
-                <span className="text-[10px] text-zinc-600 font-mono truncate">
-                  {agent.repositories[0]}
-                </span>
-              </div>
-              {agent.summary && (
-                <p className="text-[10px] text-zinc-500 font-mono mt-1 ml-4 line-clamp-2">
-                  {agent.summary}
-                </p>
+              {isLoading && agents.length === 0 && (
+                <div className="px-3 py-8 text-center">
+                  <p className="text-[10px] text-zinc-600 font-mono animate-pulse">
+                    loading agents...
+                  </p>
+                </div>
               )}
-              {agent.last_error && (
-                <p className="text-[10px] text-red-400/60 font-mono mt-1 ml-4 truncate">
-                  {agent.last_error}
-                </p>
-              )}
-            </button>
-          ))}
-        </div>
 
-        {/* Detail panel */}
-        {selectedId && (
-          <div className="flex-1 min-h-0 min-w-0">
-            <AgentDetailPanel
-              key={selectedId}
-              agentId={selectedId}
-              onClose={() => setSelectedId(null)}
-              onArchive={handleArchive}
-            />
+              {error && (
+                <div className="px-3 py-8 text-center">
+                  <p className="text-[10px] text-red-400 font-mono">{error.message}</p>
+                </div>
+              )}
+
+              {!isLoading && agents.length === 0 && !error && (
+                <div className="px-3 py-8 text-center space-y-2">
+                  <p className="text-[10px] text-zinc-600 font-mono">no agents yet</p>
+                  <button
+                    onClick={() => setShowLaunch(true)}
+                    className="text-[10px] font-mono text-blue-400 hover:text-blue-300"
+                  >
+                    launch one →
+                  </button>
+                </div>
+              )}
+
+              {agents.map((agent) => (
+                <button
+                  key={agent.id}
+                  onClick={() => setSelectedId(agent.id)}
+                  className={`w-full text-left border-b border-zinc-800/50 px-3 py-2 hover:bg-zinc-900/40 transition-colors ${
+                    selectedId === agent.id ? "bg-zinc-900/60" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <StateDot state={agent.state} />
+                    <span className="text-[11px] text-zinc-200 font-mono truncate flex-1">
+                      {agent.topic || agent.id.slice(0, 12)}
+                    </span>
+                    <span className="text-[10px] text-zinc-600 font-mono shrink-0">
+                      {timeAgo(agent.created_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4">
+                    <span className="text-[10px] text-zinc-600 font-mono">
+                      {AGENT_LABELS[agent.agent_type]}
+                    </span>
+                    <span className="text-[10px] text-zinc-700 font-mono">·</span>
+                    <span className="text-[10px] text-zinc-600 font-mono truncate">
+                      {agent.repositories[0]}
+                    </span>
+                    {agent.launch_mode && (
+                      <>
+                        <span className="text-[10px] text-zinc-700 font-mono">·</span>
+                        <span className="text-[10px] text-zinc-700 font-mono">
+                          {agent.launch_mode === "interactive" ? "interactive" : "non-interactive"}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {agent.summary && (
+                    <p className="text-[10px] text-zinc-500 font-mono mt-1 ml-4 line-clamp-2">
+                      {agent.summary}
+                    </p>
+                  )}
+                  {agent.last_error && (
+                    <p className="text-[10px] text-red-400/60 font-mono mt-1 ml-4 truncate">
+                      {agent.last_error}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Detail panel */}
+            {selectedId && (
+              <div className="flex-1 min-h-0 min-w-0">
+                <AgentDetailPanel
+                  key={selectedId}
+                  agentId={selectedId}
+                  onClose={() => setSelectedId(null)}
+                  onArchive={handleArchive}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === "secrets" && (
+          <div className="w-full">
+            <SecretsView />
+          </div>
+        )}
+
+        {tab === "settings" && (
+          <div className="w-full">
+            <SettingsView />
           </div>
         )}
       </div>
