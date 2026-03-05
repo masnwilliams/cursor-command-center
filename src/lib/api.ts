@@ -2,6 +2,8 @@ import useSWR, { mutate } from "swr";
 import type {
   Agent,
   AgentListResponse,
+  ArtifactDownloadResponse,
+  ArtifactsResponse,
   ConversationResponse,
   FollowUpRequest,
   LaunchAgentRequest,
@@ -180,6 +182,25 @@ export function usePrFiles(prUrl: string | undefined | null) {
     fetcher<PrFilesResponse>,
     { revalidateOnFocus: false, dedupingInterval: 30_000 },
   );
+}
+
+// Artifacts (fetched once when panel is opened)
+export function useArtifacts(id: string | null) {
+  return useSWR<ArtifactsResponse>(
+    id ? `/api/agents/${id}/artifacts` : null,
+    fetcher<ArtifactsResponse>,
+    { revalidateOnFocus: false, dedupingInterval: 30_000 },
+  );
+}
+
+export async function getArtifactDownloadUrl(
+  agentId: string,
+  artifactPath: string,
+): Promise<ArtifactDownloadResponse> {
+  const url = `/api/agents/${agentId}/artifacts/download?path=${encodeURIComponent(artifactPath)}`;
+  const res = await fetch(url, { headers: headers() });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 }
 
 // Mutations

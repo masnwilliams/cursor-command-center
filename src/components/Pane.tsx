@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { useConversation, usePrStatus, sendFollowUp, stopAgent } from "@/lib/api";
+import { useConversation, useArtifacts, usePrStatus, sendFollowUp, stopAgent } from "@/lib/api";
 import type { Agent, ConversationMessage, ConversationResponse, PrStatus } from "@/lib/types";
+import { ArtifactsPanel } from "./ArtifactsPanel";
 import type { ImageAttachment } from "@/lib/images";
 import { readFilesAsImages } from "@/lib/images";
 import { StatusBadge } from "./StatusBadge";
@@ -56,6 +57,10 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
   const [rejections, setRejections] = useState<string[]>([]);
   const [expandedMsgs, setExpandedMsgs] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showArtifacts, setShowArtifacts] = useState(false);
+  const isDone = agent.status === "FINISHED" || agent.status === "STOPPED" || agent.status === "ERROR";
+  const { data: artifactsData } = useArtifacts(isDone ? agent.id : null);
+  const artifactCount = artifactsData?.artifacts?.length ?? 0;
 
   const addImages = useCallback(async (files: FileList | File[]) => {
     const { images: newImages, rejected } = await readFilesAsImages(files);
@@ -181,6 +186,17 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
               )}
             </span>
           )}
+          {isDone && artifactCount > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowArtifacts((v) => !v);
+              }}
+              className={`text-[10px] shrink-0 hover:text-cyan-300 ${showArtifacts ? "text-cyan-300" : "text-cyan-600"}`}
+            >
+              art:{artifactCount}
+            </button>
+          )}
           {agent.target.prUrl && (
             <a
               href={agent.target.prUrl}
@@ -242,10 +258,18 @@ export function Pane({ agent, focused, onFocus, onClose, conversation }: PanePro
         )}
       </div>
 
+      {/* Artifacts panel */}
+      {showArtifacts && (
+        <ArtifactsPanel
+          agentId={agent.id}
+          onClose={() => setShowArtifacts(false)}
+        />
+      )}
+
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+        className={`flex-1 overflow-y-auto overflow-x-hidden min-h-0 ${showArtifacts ? "hidden" : ""}`}
       >
         {convo?.messages?.length ? (
           (() => {

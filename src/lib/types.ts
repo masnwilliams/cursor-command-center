@@ -143,8 +143,22 @@ export interface PrFilesResponse {
   files: PrFile[];
 }
 
-// ── Hypeship types ──
+export interface Artifact {
+  absolutePath: string;
+  sizeBytes: number;
+  updatedAt: string;
+}
 
+export interface ArtifactsResponse {
+  artifacts: Artifact[];
+}
+
+export interface ArtifactDownloadResponse {
+  url: string;
+  expiresAt: string;
+}
+
+// ── Hypeship types ──
 export type HypeshipAgentType = "codex_cli" | "claude_code_cli";
 
 export type HypeshipAgentState =
