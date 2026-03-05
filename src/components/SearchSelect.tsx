@@ -183,6 +183,7 @@ export const SearchSelect = forwardRef<SearchSelectHandle, SearchSelectProps>(
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={allowCustom ? "search or type..." : "search..."}
+                autoComplete="off"
                 className="w-full bg-transparent text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono"
                 onKeyDown={handleKeyDown}
               />
