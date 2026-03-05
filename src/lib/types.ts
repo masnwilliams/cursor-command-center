@@ -156,6 +156,7 @@ export interface ArtifactsResponse {
 export interface ArtifactDownloadResponse {
   url: string;
   expiresAt: string;
+}
 
 // ── Hypeship types ──
 export type HypeshipAgentType = "codex_cli" | "claude_code_cli";
