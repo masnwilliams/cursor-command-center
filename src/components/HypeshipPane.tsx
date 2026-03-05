@@ -6,16 +6,16 @@ import {
   useHypeshipConversation,
   sendHypeshipMessage,
 } from "@/lib/api";
-import type { HypeshipWorkContextState } from "@/lib/types";
+import type { HypeshipAgentState } from "@/lib/types";
 
-const STATE_COLORS: Record<HypeshipWorkContextState, string> = {
+const STATE_COLORS: Record<HypeshipAgentState, string> = {
   launching: "bg-amber-400",
   working: "bg-blue-400",
   archived: "bg-zinc-400",
   gone: "bg-red-400",
 };
 
-function StateDot({ state }: { state: HypeshipWorkContextState }) {
+function StateDot({ state }: { state: HypeshipAgentState }) {
   const color = STATE_COLORS[state] ?? "bg-zinc-400";
   const pulse = state === "launching" || state === "working";
   return (
