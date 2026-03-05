@@ -84,6 +84,7 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
+            autoComplete="off"
             placeholder="type a command..."
             className="w-full bg-transparent text-sm sm:text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono"
           />

@@ -276,6 +276,7 @@ export function LaunchModal({ onClose, onLaunch }: LaunchModalProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
+            autoComplete="off"
             placeholder={
               phase === "repo"
                 ? "search repos..."

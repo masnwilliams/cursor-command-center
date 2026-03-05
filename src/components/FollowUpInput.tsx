@@ -84,6 +84,7 @@ export const FollowUpInput = forwardRef<HTMLTextAreaElement, FollowUpInputProps>
           <textarea
             ref={setRefs}
             value={text}
+            autoComplete="off"
             onChange={(e) => {
               updateText(e.target.value);
               autoResize();
