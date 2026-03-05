@@ -446,6 +446,13 @@ export default function DashboardPage() {
     });
 
     cmds.push({
+      id: "hypeship",
+      label: "open hypeship",
+      section: "app",
+      action: () => router.push("/hypeship"),
+    });
+
+    cmds.push({
       id: "settings",
       label: "settings",
       section: "app",

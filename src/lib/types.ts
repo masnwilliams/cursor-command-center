@@ -156,4 +156,107 @@ export interface ArtifactsResponse {
 export interface ArtifactDownloadResponse {
   url: string;
   expiresAt: string;
+
+// ── Hypeship types ──
+export type HypeshipAgentType = "codex_cli" | "claude_code_cli";
+
+export type HypeshipAgentState =
+  | "launching"
+  | "working"
+  | "archived"
+  | "gone";
+
+export interface HypeshipAgent {
+  id: string;
+  topic: string;
+  summary: string;
+  repositories: string[];
+  branch_name?: string;
+  initial_prompt: string;
+  start_command: string;
+  agent_type: HypeshipAgentType;
+  launch_image: string;
+  hypeman_name: string;
+  hypeman_instance_id?: string;
+  state: HypeshipAgentState;
+  last_error?: string;
+  shell_ws_url?: string;
+  desktop_url?: string;
+  shell_connect_command?: string;
+  created_at: string;
+  updated_at: string;
+  started_at?: string;
+  finished_at?: string;
+  last_heartbeat_at?: string;
+}
+
+export interface HypeshipAgentListResponse {
+  agents: HypeshipAgent[];
+}
+
+export interface HypeshipAgentResponse {
+  agent: HypeshipAgent;
+}
+
+export interface HypeshipCreateAgentRequest {
+  repositories: string[];
+  agent_type: HypeshipAgentType;
+  initial_prompt: string;
+  branch_name?: string;
+  topic?: string;
+  launch_image?: string;
+  env_vars?: Record<string, string>;
+  setup_command?: string;
+  mode?: "read" | "write";
+}
+
+export interface HypeshipUpdateStateRequest {
+  state: "working" | "archived" | "gone";
+  summary?: string;
+}
+
+export interface HypeshipConversationTurn {
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
+export interface HypeshipConversationResponse {
+  conversation: HypeshipConversationTurn[];
+}
+
+export interface HypeshipSendMessageRequest {
+  content: string;
+}
+
+export interface HypeshipSendMessageResponse {
+  status: string;
+  agent_id: string;
+}
+
+export interface HypeshipHealthResponse {
+  ok: boolean;
+}
+
+// ── Hypeship Prompt API types ──
+
+export interface HypeshipPromptRequest {
+  message: string;
+  context?: {
+    source?: string;
+    channel_id?: string;
+    thread_ts?: string;
+    user_id?: string;
+  };
+}
+
+export interface HypeshipPromptResponse {
+  thread_id: string;
+  agent?: {
+    id: string;
+    status: string;
+    repositories?: string[];
+    mode?: string;
+  };
+  message: string;
 }
