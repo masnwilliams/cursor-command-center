@@ -209,9 +209,9 @@ function SetupView({ onConnected }: { onConnected: () => void }) {
   );
 }
 
-// ── Launch Modal ──
+// ── Inline Launch Bar ──
 
-function LaunchAgentModal({
+function LaunchBar({
   onClose,
   onLaunch,
 }: {
@@ -225,6 +225,8 @@ function LaunchAgentModal({
   const [mode, setMode] = useState<"read" | "write">("write");
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState("");
+  const [showOptions, setShowOptions] = useState(false);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
 
   const agentTypes: HypeshipAgentType[] = ["codex_cli", "claude_code_cli"];
 
@@ -249,6 +251,10 @@ function LaunchAgentModal({
   }
 
   useEffect(() => {
+    promptRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
@@ -261,98 +267,99 @@ function LaunchAgentModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-lg border border-zinc-800 bg-zinc-950">
-        <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 bg-zinc-900/60">
-          <span className="text-xs text-zinc-300 font-mono">launch agent</span>
-          <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 text-xs font-mono">
-            [esc]
-          </button>
-        </div>
-        <div className="px-3 py-3 space-y-3">
-          <div className="space-y-1">
-            <p className="text-[10px] text-zinc-500 font-mono">repository</p>
-            <input
-              type="text"
-              value={repo}
-              onChange={(e) => setRepo(e.target.value)}
-              placeholder="github.com/org/repo"
-              autoFocus
-              className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
+    <div className="border-b border-zinc-800 bg-zinc-900/40 shrink-0">
+      <div className="px-3 py-2 space-y-2">
+        <div className="flex gap-2 items-start">
+          <div className="flex-1 space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={repo}
+                onChange={(e) => setRepo(e.target.value)}
+                placeholder="github.com/org/repo"
+                className="w-48 border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
+              />
+              <button
+                onClick={() => setShowOptions(!showOptions)}
+                className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 px-1.5 py-1 transition-colors"
+              >
+                {showOptions ? "less ▴" : "more ▾"}
+              </button>
+            </div>
+            <textarea
+              ref={promptRef}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="describe the task..."
+              rows={2}
+              className="w-full border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
             />
           </div>
-          <div className="space-y-1">
-            <p className="text-[10px] text-zinc-500 font-mono">agent type</p>
-            <div className="flex gap-1 flex-wrap">
+          <div className="flex flex-col gap-1 shrink-0 pt-0.5">
+            <button
+              onClick={handleLaunch}
+              disabled={!repo.trim() || !prompt.trim() || launching}
+              className="bg-blue-600 px-3 py-1 text-[10px] text-white hover:bg-blue-500 font-mono disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {launching ? "..." : "⌘↵"}
+            </button>
+            <button
+              onClick={onClose}
+              className="text-[10px] text-zinc-700 hover:text-zinc-400 font-mono px-3 py-1 transition-colors"
+            >
+              esc
+            </button>
+          </div>
+        </div>
+
+        {showOptions && (
+          <div className="flex gap-3 items-center flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-zinc-600 font-mono">agent</span>
               {agentTypes.map((t) => (
                 <button
                   key={t}
                   onClick={() => setAgentType(t)}
-                  className={`px-2 py-1 text-[10px] font-mono border transition-colors ${
+                  className={`px-1.5 py-0.5 text-[10px] font-mono border transition-colors ${
                     agentType === t
                       ? "border-blue-500 text-blue-400 bg-blue-500/10"
-                      : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
+                      : "border-zinc-800 text-zinc-600 hover:text-zinc-300 hover:border-zinc-600"
                   }`}
                 >
                   {AGENT_LABELS[t]}
                 </button>
               ))}
             </div>
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1 space-y-1">
-              <p className="text-[10px] text-zinc-500 font-mono">
-                branch <span className="text-zinc-700">(optional)</span>
-              </p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-zinc-600 font-mono">mode</span>
+              {(["write", "read"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  className={`px-1.5 py-0.5 text-[10px] font-mono border transition-colors ${
+                    mode === m
+                      ? "border-blue-500 text-blue-400 bg-blue-500/10"
+                      : "border-zinc-800 text-zinc-600 hover:text-zinc-300 hover:border-zinc-600"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-zinc-600 font-mono">branch</span>
               <input
                 type="text"
                 value={branchName}
                 onChange={(e) => setBranchName(e.target.value)}
-                placeholder="feature/my-branch"
-                className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
+                placeholder="optional"
+                className="w-32 border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-[10px] text-zinc-100 placeholder-zinc-700 outline-none focus:border-zinc-600 font-mono"
               />
             </div>
-            <div className="space-y-1">
-              <p className="text-[10px] text-zinc-500 font-mono">mode</p>
-              <div className="flex gap-1">
-                {(["write", "read"] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setMode(m)}
-                    className={`px-2 py-1 text-[10px] font-mono border transition-colors ${
-                      mode === m
-                        ? "border-blue-500 text-blue-400 bg-blue-500/10"
-                        : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
-          <div className="space-y-1">
-            <p className="text-[10px] text-zinc-500 font-mono">prompt</p>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="describe the task..."
-              rows={4}
-              className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
-            />
-          </div>
-          {error && <p className="text-[10px] text-red-400/70 font-mono">{error}</p>}
-        </div>
-        <div className="border-t border-zinc-800 px-3 py-2 flex justify-between items-center">
-          <span className="text-[10px] text-zinc-600 font-mono">⌘↵ launch</span>
-          <button
-            onClick={handleLaunch}
-            disabled={!repo.trim() || !prompt.trim() || launching}
-            className="bg-blue-600 px-4 py-1.5 text-xs text-white hover:bg-blue-500 font-mono disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            {launching ? "launching..." : "launch"}
-          </button>
-        </div>
+        )}
+
+        {error && <p className="text-[10px] text-red-400/70 font-mono">{error}</p>}
       </div>
     </div>
   );
@@ -1051,8 +1058,12 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
           <>
             {/* Agent list */}
             <div
-              className={`${selectedId ? "w-1/3 border-r border-zinc-800" : "w-full"} overflow-y-auto shrink-0`}
+              className={`${selectedId ? "w-1/3 border-r border-zinc-800" : "w-full"} flex flex-col overflow-hidden shrink-0`}
             >
+              {showLaunch && (
+                <LaunchBar onClose={() => setShowLaunch(false)} onLaunch={handleLaunch} />
+              )}
+              <div className="flex-1 overflow-y-auto">
               {isLoading && agents.length === 0 && (
                 <div className="px-3 py-8 text-center">
                   <p className="text-[10px] text-zinc-600 font-mono animate-pulse">
@@ -1125,6 +1136,7 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                   )}
                 </button>
               ))}
+              </div>
             </div>
 
             {/* Detail panel */}
@@ -1154,9 +1166,6 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
         )}
       </div>
 
-      {showLaunch && (
-        <LaunchAgentModal onClose={() => setShowLaunch(false)} onLaunch={handleLaunch} />
-      )}
     </div>
   );
 }
