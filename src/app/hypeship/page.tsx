@@ -241,7 +241,7 @@ function LaunchContextModal({
 }) {
   const [repo, setRepo] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [agentType, setAgentType] = useState<HypeshipAgentType>("cursor_cli");
+  const [agentType, setAgentType] = useState<HypeshipAgentType>("claude_code_cli");
   const [branchName, setBranchName] = useState("");
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState("");
