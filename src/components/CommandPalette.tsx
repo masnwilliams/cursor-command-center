@@ -70,12 +70,12 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-start justify-center sm:pt-[20vh] bg-black/70"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] sm:pt-[20vh] bg-black/70"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-md border border-zinc-800 bg-zinc-950 flex flex-col max-h-[80vh] sm:max-h-[60vh] safe-area-bottom"
+        className="w-full sm:max-w-md border border-zinc-800 bg-zinc-950 flex flex-col max-h-[60vh]"
       >
         <div className="border-b border-zinc-800 px-3 py-3 sm:py-2 shrink-0">
           <input
