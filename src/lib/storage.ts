@@ -10,6 +10,8 @@ const KEYS = {
   branches: "cursor-agents-branches",
   drafts: "cursor-agents-drafts",
   soundEnabled: "cursor-agents-sound-enabled",
+  hypeshipApiUrl: "hypeship-api-url",
+  hypeshipJwt: "hypeship-jwt",
 } as const;
 
 export function getApiKey(): string | null {
@@ -201,4 +203,29 @@ export function getSoundEnabled(): boolean {
 
 export function setSoundEnabled(enabled: boolean): void {
   localStorage.setItem(KEYS.soundEnabled, String(enabled));
+}
+
+// ── Hypeship ──
+
+export function getHypeshipApiUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(KEYS.hypeshipApiUrl) || null;
+}
+
+export function setHypeshipApiUrl(url: string): void {
+  localStorage.setItem(KEYS.hypeshipApiUrl, url);
+}
+
+export function getHypeshipJwt(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(KEYS.hypeshipJwt) || null;
+}
+
+export function setHypeshipJwt(jwt: string): void {
+  localStorage.setItem(KEYS.hypeshipJwt, jwt);
+}
+
+export function clearHypeshipAuth(): void {
+  localStorage.removeItem(KEYS.hypeshipApiUrl);
+  localStorage.removeItem(KEYS.hypeshipJwt);
 }
