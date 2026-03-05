@@ -145,14 +145,7 @@ export interface PrFilesResponse {
 
 // ── Hypeship types ──
 
-export type HypeshipAgentType =
-  | "cursor_cli"
-  | "codex_cli"
-  | "cursor_desktop"
-  | "claude_code_cli";
-
-export type HypeshipLaunchMode = "interactive" | "non_interactive";
-export type HypeshipApprovalMode = "human_in_loop" | "auto_approve";
+export type HypeshipAgentType = "codex_cli" | "claude_code_cli";
 
 export type HypeshipAgentState =
   | "launching"
@@ -160,7 +153,7 @@ export type HypeshipAgentState =
   | "archived"
   | "gone";
 
-export interface HypeshipAgentData {
+export interface HypeshipAgent {
   id: string;
   topic: string;
   summary: string;
@@ -185,11 +178,11 @@ export interface HypeshipAgentData {
 }
 
 export interface HypeshipAgentListResponse {
-  agents: HypeshipAgentData[];
+  agents: HypeshipAgent[];
 }
 
-export interface HypeshipAgentSingleResponse {
-  agent: HypeshipAgentData;
+export interface HypeshipAgentResponse {
+  agent: HypeshipAgent;
 }
 
 export interface HypeshipCreateAgentRequest {
@@ -199,6 +192,9 @@ export interface HypeshipCreateAgentRequest {
   branch_name?: string;
   topic?: string;
   launch_image?: string;
+  env_vars?: Record<string, string>;
+  setup_command?: string;
+  mode?: "read" | "write";
 }
 
 export interface HypeshipUpdateStateRequest {
@@ -206,12 +202,24 @@ export interface HypeshipUpdateStateRequest {
   summary?: string;
 }
 
-// Backward-compat aliases used by existing page code
-export type HypeshipWorkContextState = HypeshipAgentState;
-export type HypeshipWorkContext = HypeshipAgentData;
-export type HypeshipWorkContextListResponse = { work_contexts: HypeshipAgentData[] };
-export type HypeshipWorkContextResponse = { work_context: HypeshipAgentData };
-export type HypeshipCreateWorkContextRequest = HypeshipCreateAgentRequest;
+export interface HypeshipConversationTurn {
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
+export interface HypeshipConversationResponse {
+  conversation: HypeshipConversationTurn[];
+}
+
+export interface HypeshipSendMessageRequest {
+  content: string;
+}
+
+export interface HypeshipSendMessageResponse {
+  status: string;
+  agent_id: string;
+}
 
 export interface HypeshipHealthResponse {
   ok: boolean;
@@ -238,20 +246,4 @@ export interface HypeshipPromptResponse {
     mode?: string;
   };
   message: string;
-}
-
-export type HypeshipAgent = HypeshipAgentData;
-
-export interface HypeshipAgentResponse {
-  agent: HypeshipAgentData;
-}
-
-export interface HypeshipConversationTurn {
-  role: string;
-  content: string;
-  timestamp: string;
-}
-
-export interface HypeshipConversationResponse {
-  conversation: HypeshipConversationTurn[];
 }

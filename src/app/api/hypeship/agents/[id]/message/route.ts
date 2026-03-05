@@ -6,5 +6,5 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  return proxyToHypeship(req, `/v1/agents/${id}/message`);
+  return proxyToHypeship(req, `/v1/agents/${id}/message`, { method: "POST" });
 }
