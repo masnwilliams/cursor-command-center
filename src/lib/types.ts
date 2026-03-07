@@ -174,8 +174,8 @@ export interface HypeshipAgent {
   id: string;
   topic: string;
   summary: string;
-  repositories: string[];
   branch_name?: string;
+  orchestrator_id?: string;
   initial_prompt: string;
   start_command: string;
   agent_type: HypeshipAgentType;
@@ -205,7 +205,6 @@ export interface HypeshipAgentResponse {
 }
 
 export interface HypeshipCreateAgentRequest {
-  repositories: string[];
   agent_type: HypeshipAgentType;
   initial_prompt: string;
   branch_name?: string;
@@ -261,7 +260,6 @@ export interface HypeshipPromptResponse {
   agent?: {
     id: string;
     status: string;
-    repositories?: string[];
     mode?: string;
   };
   message: string;

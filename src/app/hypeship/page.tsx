@@ -523,9 +523,6 @@ function AgentInfoTab({ agent }: { agent: HypeshipAgent }) {
         <span className="text-zinc-600">approval</span>
         <span className="text-zinc-300">{agent.approval_mode?.replace("_", " ") ?? "—"}</span>
 
-        <span className="text-zinc-600">repos</span>
-        <span className="text-zinc-300 truncate">{agent.repositories.join(", ")}</span>
-
         {agent.branch_name && (
           <>
             <span className="text-zinc-600">branch</span>
@@ -1035,14 +1032,6 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                     <span className="text-[10px] text-zinc-600 font-mono">
                       {AGENT_LABELS[agent.agent_type]}
                     </span>
-                    {agent.repositories[0] && (
-                      <>
-                        <span className="text-[10px] text-zinc-700 font-mono">·</span>
-                        <span className="text-[10px] text-zinc-600 font-mono truncate">
-                          {agent.repositories[0]}
-                        </span>
-                      </>
-                    )}
                     {agent.launch_mode && (
                       <>
                         <span className="text-[10px] text-zinc-700 font-mono">·</span>

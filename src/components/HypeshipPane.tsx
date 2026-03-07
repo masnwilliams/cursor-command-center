@@ -105,7 +105,6 @@ export default function HypeshipPane({
   );
 
   const topic = agent?.topic || agentId.slice(0, 12);
-  const repos = agent?.repositories?.join(", ") ?? "";
 
   return (
     <div
@@ -119,11 +118,6 @@ export default function HypeshipPane({
           <span className="text-[10px] text-zinc-300 font-mono truncate">
             {topic}
           </span>
-          {repos && (
-            <span className="text-[10px] text-zinc-600 font-mono truncate hidden sm:inline">
-              {repos}
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {/* Tab buttons */}
