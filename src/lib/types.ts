@@ -220,9 +220,35 @@ export interface HypeshipUpdateStateRequest {
   summary?: string;
 }
 
+export interface HypeshipThreadSummary {
+  id: string;
+  source: string;
+  preview: string;
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HypeshipThreadListResponse {
+  threads: HypeshipThreadSummary[];
+}
+
+export interface HypeshipThreadDetail {
+  id: string;
+  source: string;
+  messages: HypeshipConversationTurn[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HypeshipThreadResponse {
+  thread: HypeshipThreadDetail;
+}
+
 export interface HypeshipConversationTurn {
   role: string;
   content: string;
+  source?: string;
   timestamp: string;
 }
 

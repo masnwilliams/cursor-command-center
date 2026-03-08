@@ -15,7 +15,10 @@ import {
   useHypeshipAgents,
   useHypeshipAgent,
   useHypeshipConversation,
+  useHypeshipThreads,
+  useHypeshipThread,
   sendHypeshipPrompt,
+  sendHypeshipFollowUp,
   sendHypeshipMessage,
   updateHypeshipAgentState,
   useHypeshipSecrets,
@@ -33,6 +36,7 @@ import type {
   HypeshipConversationTurn,
   HypeshipPromptResponse,
   HypeshipAuthConfig,
+  HypeshipThreadSummary,
 } from "@/lib/types";
 
 type SetupState = "idle" | "testing" | "success" | "error";
@@ -303,22 +307,185 @@ function ConversationThread({
 }
 
 function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
+  const source = turn.source || "";
   const isUser = turn.role === "user";
+  const isSystem = source === "system";
+  const isWorker = source.startsWith("worker:");
+  const workerID = isWorker ? source.slice(7) : "";
+
+  if (isSystem) {
+    return (
+      <div className="px-3 py-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-zinc-600">*</span>
+          <span className="text-[10px] text-zinc-600 font-mono">{turn.content}</span>
+          <span className="text-[10px] text-zinc-700 font-mono ml-auto">
+            {timeAgo(turn.timestamp)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  const prefix = isUser ? ">" : "$";
+  const label = isUser
+    ? "user"
+    : isWorker
+      ? `worker ${workerID.slice(0, 12)}`
+      : "orchestrator";
+  const color = isUser
+    ? "text-blue-400"
+    : isWorker
+      ? "text-amber-400"
+      : "text-emerald-400";
+
   return (
     <div className={`px-3 py-2 ${isUser ? "bg-zinc-900/30" : ""}`}>
       <div className="flex items-center gap-2 mb-1">
-        <span
-          className={`text-[10px] font-mono ${isUser ? "text-blue-400" : "text-emerald-400"}`}
-        >
-          {isUser ? ">" : "$"}
-        </span>
-        <span className="text-[10px] text-zinc-500 font-mono">{turn.role}</span>
+        <span className={`text-[10px] font-mono ${color}`}>{prefix}</span>
+        <span className="text-[10px] text-zinc-500 font-mono">{label}</span>
         <span className="text-[10px] text-zinc-700 font-mono ml-auto">
           {timeAgo(turn.timestamp)}
         </span>
       </div>
       <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.content}</ReactMarkdown>
+      </div>
+    </div>
+  );
+}
+
+// ── Thread Detail Panel ──
+
+function ThreadDetailPanel({
+  threadId,
+  onClose,
+}: {
+  threadId: string;
+  onClose: () => void;
+}) {
+  const { data, error } = useHypeshipThread(threadId);
+  const turns = data?.thread?.messages ?? [];
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [streamChunks, setStreamChunks] = useState<string[]>([]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [turns.length, streamChunks.length]);
+
+  // SSE streaming for real-time updates
+  useEffect(() => {
+    const apiUrl = getHypeshipApiUrl();
+    const jwt = getHypeshipJwt();
+    if (!apiUrl || !jwt) return;
+
+    const evtSource = new EventSource(
+      `/api/hypeship/threads/${threadId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
+    );
+
+    evtSource.addEventListener("message", (e) => {
+      try {
+        const ev = JSON.parse(e.data);
+        if (ev.type === "chunk" && ev.text) {
+          setStreamChunks((prev) => [...prev, ev.text]);
+        }
+        if (ev.type === "done") {
+          setStreamChunks([]);
+        }
+      } catch {}
+    });
+
+    return () => evtSource.close();
+  }, [threadId]);
+
+  const streamingText = streamChunks.join("");
+
+  async function handleSend() {
+    const text = input.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      await sendHypeshipFollowUp(threadId, text);
+      setInput("");
+    } catch {}
+    setSending(false);
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-zinc-300 font-mono truncate">
+            {turns.length > 0 ? (turns.find((t) => t.role === "user")?.content?.slice(0, 60) || threadId) : threadId}
+          </span>
+          <span className="text-[10px] text-zinc-600 font-mono">
+            {data?.thread?.source}
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-[10px] text-zinc-600 hover:text-zinc-400 font-mono px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors"
+        >
+          [close]
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {error && (
+          <div className="px-3 py-2">
+            <p className="text-[10px] text-red-400/70 font-mono">{error.message}</p>
+          </div>
+        )}
+        {!error && turns.length === 0 && (
+          <div className="px-3 py-8 text-center">
+            <p className="text-[10px] text-zinc-600 font-mono">
+              waiting for conversation...
+            </p>
+          </div>
+        )}
+        <div className="divide-y divide-zinc-800/30">
+          {turns.map((turn, i) => (
+            <ConversationBubble key={i} turn={turn} />
+          ))}
+        </div>
+        {streamingText && (
+          <div className="px-3 py-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-mono text-emerald-400">$</span>
+              <span className="text-[10px] text-zinc-500 font-mono">orchestrator</span>
+              <span className="text-[10px] text-zinc-700 font-mono ml-auto animate-pulse">streaming...</span>
+            </div>
+            <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words">
+              {streamingText}
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      <div className="shrink-0 border-t border-zinc-800 px-2 py-2 flex gap-2 items-end">
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          placeholder="send a follow-up..."
+          rows={1}
+          className="flex-1 border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
+        />
+        <button
+          onClick={handleSend}
+          disabled={!input.trim() || sending}
+          className="px-3 py-1.5 text-[10px] font-mono bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+        >
+          {sending ? "..." : "↵"}
+        </button>
       </div>
     </div>
   );
@@ -976,18 +1143,9 @@ type DashboardTab = "agents" | "secrets" | "settings";
 function DashboardView({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<DashboardTab>("agents");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [includeArchived, setIncludeArchived] = useState(false);
 
-  const { data, error, isLoading } = useHypeshipAgents(includeArchived);
-  const agents = data?.agents ?? [];
-
-  const handleArchive = useCallback(async (id: string) => {
-    try {
-      await updateHypeshipAgentState(id, { state: "archived" });
-    } catch {
-      // ignore
-    }
-  }, []);
+  const { data: threadsData, error: threadsError, isLoading: threadsLoading } = useHypeshipThreads();
+  const threads = threadsData?.threads ?? [];
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -999,9 +1157,7 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
     return () => window.removeEventListener("keydown", handleKey);
   }, [selectedId]);
 
-  const activeCount = agents.filter(
-    (a) => a.state === "launching" || a.state === "working",
-  ).length;
+  const threadCount = threads.length;
 
   return (
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
@@ -1026,37 +1182,22 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
           </div>
           {tab === "agents" && (
             <span className="text-[10px] text-zinc-600 font-mono">
-              {agents.length} agent{agents.length !== 1 ? "s" : ""}
-              {activeCount > 0 && (
-                <span className="text-blue-400"> · {activeCount} active</span>
-              )}
+              {threadCount} thread{threadCount !== 1 ? "s" : ""}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {tab === "agents" && (
-            <>
-              <button
-                onClick={() => setIncludeArchived(!includeArchived)}
-                className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
-                  includeArchived
-                    ? "border-zinc-600 text-zinc-300"
-                    : "border-zinc-800 text-zinc-600 hover:text-zinc-400"
-                }`}
-              >
-                {includeArchived ? "hide archived" : "show archived"}
-              </button>
-              <button
-                onClick={() => setSelectedId("new")}
-                className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
-                  selectedId === "new"
-                    ? "text-blue-400 border-blue-500/50"
-                    : "text-blue-400 hover:text-blue-300 border-zinc-800 hover:border-zinc-600"
-                }`}
-              >
-                [new chat]
-              </button>
-            </>
+            <button
+              onClick={() => setSelectedId("new")}
+              className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
+                selectedId === "new"
+                  ? "text-blue-400 border-blue-500/50"
+                  : "text-blue-400 hover:text-blue-300 border-zinc-800 hover:border-zinc-600"
+              }`}
+            >
+              [new chat]
+            </button>
           )}
           <button
             onClick={onLogout}
@@ -1070,28 +1211,28 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
       <div className="flex-1 flex min-h-0">
         {tab === "agents" && (
           <>
-            {/* Agent list */}
+            {/* Thread list */}
             <div
               className={`${selectedId ? "w-1/3 border-r border-zinc-800" : "w-full"} flex flex-col overflow-hidden shrink-0`}
             >
               <div className="flex-1 overflow-y-auto">
-              {isLoading && agents.length === 0 && (
+              {threadsLoading && threads.length === 0 && (
                 <div className="px-3 py-8 text-center">
                   <p className="text-[10px] text-zinc-600 font-mono animate-pulse">
-                    loading agents...
+                    loading threads...
                   </p>
                 </div>
               )}
 
-              {error && (
+              {threadsError && (
                 <div className="px-3 py-8 text-center">
-                  <p className="text-[10px] text-red-400 font-mono">{error.message}</p>
+                  <p className="text-[10px] text-red-400 font-mono">{threadsError.message}</p>
                 </div>
               )}
 
-              {!isLoading && agents.length === 0 && !error && (
+              {!threadsLoading && threads.length === 0 && !threadsError && (
                 <div className="px-3 py-16 text-center space-y-3">
-                  <p className="text-[10px] text-zinc-600 font-mono">no agents yet</p>
+                  <p className="text-[10px] text-zinc-600 font-mono">no conversations yet</p>
                   <button
                     onClick={() => setSelectedId("new")}
                     className="text-[10px] font-mono text-blue-400 hover:text-blue-300 border border-zinc-800 hover:border-zinc-600 px-3 py-1.5 transition-colors"
@@ -1101,46 +1242,31 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                 </div>
               )}
 
-              {agents.map((agent) => (
+              {threads.map((thread) => (
                 <button
-                  key={agent.id}
-                  onClick={() => setSelectedId(agent.id)}
+                  key={thread.id}
+                  onClick={() => setSelectedId(thread.id)}
                   className={`w-full text-left border-b border-zinc-800/50 px-3 py-2 hover:bg-zinc-900/40 transition-colors ${
-                    selectedId === agent.id ? "bg-zinc-900/60" : ""
+                    selectedId === thread.id ? "bg-zinc-900/60" : ""
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <StateDot state={agent.state} />
                     <span className="text-[11px] text-zinc-200 font-mono truncate flex-1">
-                      {agent.topic || agent.id.slice(0, 12)}
+                      {thread.preview || thread.id.slice(0, 16)}
                     </span>
                     <span className="text-[10px] text-zinc-600 font-mono shrink-0">
-                      {timeAgo(agent.created_at)}
+                      {timeAgo(thread.updated_at)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
+                  <div className="flex items-center gap-2 ml-0">
                     <span className="text-[10px] text-zinc-600 font-mono">
-                      {AGENT_LABELS[agent.agent_type]}
+                      {thread.source}
                     </span>
-                    {agent.launch_mode && (
-                      <>
-                        <span className="text-[10px] text-zinc-700 font-mono">·</span>
-                        <span className="text-[10px] text-zinc-700 font-mono">
-                          {agent.launch_mode === "interactive" ? "interactive" : "non-interactive"}
-                        </span>
-                      </>
-                    )}
+                    <span className="text-[10px] text-zinc-700 font-mono">·</span>
+                    <span className="text-[10px] text-zinc-700 font-mono">
+                      {thread.message_count} msg{thread.message_count !== 1 ? "s" : ""}
+                    </span>
                   </div>
-                  {agent.summary && (
-                    <p className="text-[10px] text-zinc-500 font-mono mt-1 ml-4 line-clamp-2">
-                      {agent.summary}
-                    </p>
-                  )}
-                  {agent.last_error && (
-                    <p className="text-[10px] text-red-400/60 font-mono mt-1 ml-4 truncate">
-                      {agent.last_error}
-                    </p>
-                  )}
                 </button>
               ))}
               </div>
@@ -1153,17 +1279,15 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                   <NewChatPanel
                     key="new"
                     onClose={() => setSelectedId(null)}
-                    onThreadCreated={() => {
-                      // Thread created -- the orchestrator is processing.
-                      // The agents list will update via SWR polling.
+                    onThreadCreated={(threadId) => {
+                      setSelectedId(threadId);
                     }}
                   />
                 ) : (
-                  <AgentDetailPanel
+                  <ThreadDetailPanel
                     key={selectedId}
-                    agentId={selectedId}
+                    threadId={selectedId}
                     onClose={() => setSelectedId(null)}
-                    onArchive={handleArchive}
                   />
                 )}
               </div>

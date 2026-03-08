@@ -27,6 +27,8 @@ import type {
   HypeshipUserResponse,
   HypeshipIdentityListResponse,
   HypeshipAuthConfig,
+  HypeshipThreadListResponse,
+  HypeshipThreadResponse,
 } from "./types";
 import {
   getApiKey,
@@ -340,6 +342,22 @@ export async function testHypeshipConnection(): Promise<HypeshipHealthResponse> 
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+export function useHypeshipThreads() {
+  return useSWR<HypeshipThreadListResponse>(
+    "/api/hypeship/threads",
+    hypeshipFetcher<HypeshipThreadListResponse>,
+    { refreshInterval: 10_000 },
+  );
+}
+
+export function useHypeshipThread(id: string | null) {
+  return useSWR<HypeshipThreadResponse>(
+    id ? `/api/hypeship/threads/${id}` : null,
+    hypeshipFetcher<HypeshipThreadResponse>,
+    { refreshInterval: 3_000 },
+  );
 }
 
 export function useHypeshipAgents(includeArchived = false) {
