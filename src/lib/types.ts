@@ -257,11 +257,6 @@ export interface HypeshipPromptRequest {
 
 export interface HypeshipPromptResponse {
   thread_id: string;
-  agent?: {
-    id: string;
-    status: string;
-    mode?: string;
-  };
   message: string;
 }
 

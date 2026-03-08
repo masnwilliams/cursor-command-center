@@ -209,93 +209,6 @@ function SetupView({ onConnected }: { onConnected: () => void }) {
   );
 }
 
-// ── Inline Prompt Bar ──
-
-function PromptBar({
-  onClose,
-  onPromptResponse,
-}: {
-  onClose: () => void;
-  onPromptResponse: (resp: HypeshipPromptResponse) => void;
-}) {
-  const [prompt, setPrompt] = useState("");
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState("");
-  const [responseMsg, setResponseMsg] = useState("");
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  async function handleSend() {
-    if (!prompt.trim() || sending) return;
-    setSending(true);
-    setError("");
-    setResponseMsg("");
-    try {
-      const resp = await sendHypeshipPrompt({ message: prompt.trim() });
-      setResponseMsg(resp.message);
-      onPromptResponse(resp);
-      setPrompt("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "prompt failed");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  });
-
-  return (
-    <div className="border-b border-zinc-800 bg-zinc-900/40 shrink-0">
-      <div className="px-3 py-2">
-        <div className="flex gap-2 items-end">
-          <textarea
-            ref={inputRef}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="what do you want to build?"
-            rows={2}
-            className="flex-1 border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
-          />
-          <div className="flex flex-col gap-1 shrink-0">
-            <button
-              onClick={handleSend}
-              disabled={!prompt.trim() || sending}
-              className="bg-blue-600 px-3 py-1 text-[10px] text-white hover:bg-blue-500 font-mono disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {sending ? "..." : "⌘↵"}
-            </button>
-            <button
-              onClick={onClose}
-              className="text-[10px] text-zinc-700 hover:text-zinc-400 font-mono px-3 py-1 transition-colors"
-            >
-              esc
-            </button>
-          </div>
-        </div>
-        {responseMsg && (
-          <p className="text-[10px] text-zinc-400 font-mono mt-1.5">{responseMsg}</p>
-        )}
-        {error && <p className="text-[10px] text-red-400/70 font-mono mt-1.5">{error}</p>}
-      </div>
-    </div>
-  );
-}
-
 // ── Conversation Thread ──
 
 function ConversationThread({
@@ -406,6 +319,197 @@ function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
       </div>
       <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.content}</ReactMarkdown>
+      </div>
+    </div>
+  );
+}
+
+// ── New Chat Panel ──
+
+interface LocalMessage {
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
+function NewChatPanel({
+  onClose,
+  onThreadCreated,
+}: {
+  onClose: () => void;
+  onThreadCreated: (threadId: string) => void;
+}) {
+  const [messages, setMessages] = useState<LocalMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [streamChunks, setStreamChunks] = useState<string[]>([]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length, streamChunks.length]);
+
+  // SSE streaming: connect when we have a threadId
+  useEffect(() => {
+    if (!threadId) return;
+    const apiUrl = getHypeshipApiUrl();
+    const jwt = getHypeshipJwt();
+    if (!apiUrl || !jwt) return;
+
+    const evtSource = new EventSource(
+      `/api/hypeship/threads/${threadId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
+    );
+
+    evtSource.addEventListener("message", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === "chunk" && data.text) {
+          setStreamChunks((prev) => [...prev, data.text]);
+        }
+        if (data.type === "done" && data.text) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: data.text, timestamp: new Date().toISOString() },
+          ]);
+          setStreamChunks([]);
+        }
+      } catch {
+        // ignore parse errors
+      }
+    });
+
+    return () => evtSource.close();
+  }, [threadId]);
+
+  async function handleSend() {
+    const text = input.trim();
+    if (!text || sending) return;
+    setSending(true);
+    setError("");
+
+    const userMsg: LocalMessage = {
+      role: "user",
+      content: text,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+
+    try {
+      const resp = await sendHypeshipPrompt({ message: text });
+
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: resp.message, timestamp: new Date().toISOString() },
+      ]);
+
+      if (resp.thread_id) {
+        setThreadId(resp.thread_id);
+        onThreadCreated(resp.thread_id);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed to send");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const streamingText = streamChunks.join("");
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 bg-zinc-900/60 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-400" />
+          </span>
+          <span className="text-[10px] text-zinc-300 font-mono">new chat</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-zinc-600 hover:text-zinc-300 text-[10px] font-mono px-1.5 py-0.5"
+        >
+          [close]
+        </button>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {messages.length === 0 && !sending && (
+          <div className="h-full flex items-center justify-center">
+            <p className="text-[10px] text-zinc-600 font-mono">what do you want to build?</p>
+          </div>
+        )}
+        <div className="divide-y divide-zinc-800/30">
+          {messages.map((msg, i) => (
+            <div key={i} className={`px-3 py-2 ${msg.role === "user" ? "bg-zinc-900/30" : ""}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-[10px] font-mono ${msg.role === "user" ? "text-blue-400" : "text-emerald-400"}`}>
+                  {msg.role === "user" ? ">" : "$"}
+                </span>
+                <span className="text-[10px] text-zinc-500 font-mono">{msg.role}</span>
+                <span className="text-[10px] text-zinc-700 font-mono ml-auto">
+                  {timeAgo(msg.timestamp)}
+                </span>
+              </div>
+              <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+              </div>
+            </div>
+          ))}
+          {streamingText && (
+            <div className="px-3 py-2">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-mono text-emerald-400">$</span>
+                <span className="text-[10px] text-zinc-500 font-mono">assistant</span>
+                <span className="text-[10px] text-zinc-700 font-mono ml-auto animate-pulse">streaming...</span>
+              </div>
+              <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words">
+                {streamingText}
+              </div>
+            </div>
+          )}
+        </div>
+        <div ref={bottomRef} />
+      </div>
+
+      {error && (
+        <div className="px-3 py-1 border-t border-red-900/30">
+          <p className="text-[10px] text-red-400/70 font-mono">{error}</p>
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="shrink-0 border-t border-zinc-800 px-2 py-2 flex gap-2 items-end">
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          placeholder="send a message..."
+          rows={1}
+          className="flex-1 border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
+        />
+        <button
+          onClick={handleSend}
+          disabled={!input.trim() || sending}
+          className="px-3 py-1.5 text-[10px] font-mono bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+        >
+          {sending ? "..." : "↵"}
+        </button>
       </div>
     </div>
   );
@@ -871,21 +975,11 @@ type DashboardTab = "agents" | "secrets" | "settings";
 
 function DashboardView({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<DashboardTab>("agents");
-  const [showPrompt, setShowPrompt] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [includeArchived, setIncludeArchived] = useState(false);
 
   const { data, error, isLoading } = useHypeshipAgents(includeArchived);
   const agents = data?.agents ?? [];
-
-  const handlePromptResponse = useCallback(
-    (resp: HypeshipPromptResponse) => {
-      if (resp.agent?.id) {
-        setSelectedId(resp.agent.id);
-      }
-    },
-    [],
-  );
 
   const handleArchive = useCallback(async (id: string) => {
     try {
@@ -897,14 +991,13 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        if (showPrompt) setShowPrompt(false);
-        else if (selectedId) setSelectedId(null);
+      if (e.key === "Escape" && selectedId) {
+        setSelectedId(null);
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [showPrompt, selectedId]);
+  }, [selectedId]);
 
   const activeCount = agents.filter(
     (a) => a.state === "launching" || a.state === "working",
@@ -954,14 +1047,14 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                 {includeArchived ? "hide archived" : "show archived"}
               </button>
               <button
-                onClick={() => setShowPrompt(!showPrompt)}
+                onClick={() => setSelectedId("new")}
                 className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
-                  showPrompt
+                  selectedId === "new"
                     ? "text-blue-400 border-blue-500/50"
                     : "text-blue-400 hover:text-blue-300 border-zinc-800 hover:border-zinc-600"
                 }`}
               >
-                [prompt]
+                [new chat]
               </button>
             </>
           )}
@@ -981,9 +1074,6 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
             <div
               className={`${selectedId ? "w-1/3 border-r border-zinc-800" : "w-full"} flex flex-col overflow-hidden shrink-0`}
             >
-              {showPrompt && (
-                <PromptBar onClose={() => setShowPrompt(false)} onPromptResponse={handlePromptResponse} />
-              )}
               <div className="flex-1 overflow-y-auto">
               {isLoading && agents.length === 0 && (
                 <div className="px-3 py-8 text-center">
@@ -1000,13 +1090,13 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
               )}
 
               {!isLoading && agents.length === 0 && !error && (
-                <div className="px-3 py-8 text-center space-y-2">
+                <div className="px-3 py-16 text-center space-y-3">
                   <p className="text-[10px] text-zinc-600 font-mono">no agents yet</p>
                   <button
-                    onClick={() => setShowPrompt(true)}
-                    className="text-[10px] font-mono text-blue-400 hover:text-blue-300"
+                    onClick={() => setSelectedId("new")}
+                    className="text-[10px] font-mono text-blue-400 hover:text-blue-300 border border-zinc-800 hover:border-zinc-600 px-3 py-1.5 transition-colors"
                   >
-                    start one →
+                    start a new chat
                   </button>
                 </div>
               )}
@@ -1059,12 +1149,23 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
             {/* Detail panel */}
             {selectedId && (
               <div className="flex-1 min-h-0 min-w-0">
-                <AgentDetailPanel
-                  key={selectedId}
-                  agentId={selectedId}
-                  onClose={() => setSelectedId(null)}
-                  onArchive={handleArchive}
-                />
+                {selectedId === "new" ? (
+                  <NewChatPanel
+                    key="new"
+                    onClose={() => setSelectedId(null)}
+                    onThreadCreated={() => {
+                      // Thread created -- the orchestrator is processing.
+                      // The agents list will update via SWR polling.
+                    }}
+                  />
+                ) : (
+                  <AgentDetailPanel
+                    key={selectedId}
+                    agentId={selectedId}
+                    onClose={() => setSelectedId(null)}
+                    onArchive={handleArchive}
+                  />
+                )}
               </div>
             )}
           </>
