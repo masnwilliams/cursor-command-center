@@ -459,6 +459,137 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
   );
 }
 
+// ── Shared views for shell/desktop ──
+
+function buildDesktopUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    url.searchParams.set("password", "changeme");
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+function TerminalView({ wsUrl }: { wsUrl: string }) {
+  const termRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!termRef.current || !wsUrl) return;
+
+    let cleanup: (() => void) | undefined;
+
+    (async () => {
+      const { Terminal } = await import("@xterm/xterm");
+      const { FitAddon } = await import("@xterm/addon-fit");
+
+      const terminal = new Terminal({
+        fontSize: 12,
+        fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
+        theme: {
+          background: "#09090b",
+          foreground: "#d4d4d8",
+          cursor: "#3b82f6",
+          selectionBackground: "#3b82f640",
+        },
+        cursorBlink: true,
+        scrollback: 5000,
+      });
+
+      const fitAddon = new FitAddon();
+      terminal.loadAddon(fitAddon);
+      terminal.open(termRef.current!);
+      fitAddon.fit();
+
+      const ws = new WebSocket(wsUrl);
+      ws.binaryType = "arraybuffer";
+
+      ws.onopen = () => {
+        terminal.writeln("\x1b[32m● Connected to shell\x1b[0m\r\n");
+      };
+
+      ws.onmessage = (event) => {
+        if (event.data instanceof ArrayBuffer) {
+          terminal.write(new Uint8Array(event.data));
+        } else {
+          terminal.write(event.data);
+        }
+      };
+
+      ws.onclose = () => {
+        terminal.writeln("\r\n\x1b[31m● Disconnected\x1b[0m");
+      };
+
+      ws.onerror = () => {
+        terminal.writeln("\r\n\x1b[31m● Connection error\x1b[0m");
+      };
+
+      terminal.onData((data) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(data);
+        }
+      });
+
+      const el = termRef.current!;
+      const resizeObserver = new ResizeObserver(() => {
+        try {
+          fitAddon.fit();
+        } catch {}
+      });
+      resizeObserver.observe(el);
+
+      cleanup = () => {
+        resizeObserver.disconnect();
+        ws.close();
+        terminal.dispose();
+      };
+    })();
+
+    return () => {
+      cleanup?.();
+    };
+  }, [wsUrl]);
+
+  return <div ref={termRef} className="h-full w-full bg-[#09090b] p-1" />;
+}
+
+function DesktopView({ desktopUrl }: { desktopUrl: string }) {
+  const url = buildDesktopUrl(desktopUrl);
+  return (
+    <div className="h-full flex flex-col">
+      <iframe
+        src={url}
+        className="flex-1 w-full bg-black"
+        allow="clipboard-read; clipboard-write"
+      />
+      <div className="px-2 py-1 border-t border-zinc-800 flex items-center justify-between shrink-0">
+        <span className="text-[9px] text-zinc-600 font-mono">KasmVNC</span>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[9px] text-blue-400 hover:text-blue-300 font-mono"
+        >
+          open in tab ↗
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function NoConnectionView({ label }: { label: string }) {
+  return (
+    <div className="h-full flex items-center justify-center">
+      <div className="text-center space-y-1">
+        <p className="text-[10px] text-zinc-600 font-mono">no {label} available</p>
+        <p className="text-[10px] text-zinc-700 font-mono">waiting for worker to start...</p>
+      </div>
+    </div>
+  );
+}
+
+type DetailTab = "chat" | "shell" | "desktop";
+
 // ── Agent Detail Panel ──
 
 function AgentConversationPanel({
@@ -470,14 +601,35 @@ function AgentConversationPanel({
 }) {
   const { data, error } = useHypeshipAgent(agentId);
   const turns = data?.agent?.messages ?? [];
+  const [detailTab, setDetailTab] = useState<DetailTab>("chat");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [streamChunks, setStreamChunks] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Extract the most recent worker ID from conversation turns
+  const activeWorkerId = useMemo(() => {
+    for (let i = turns.length - 1; i >= 0; i--) {
+      if (turns[i].worker_id) return turns[i].worker_id;
+    }
+    return null;
+  }, [turns]);
+
+  const { data: workerData } = useHypeshipWorker(activeWorkerId ?? null);
+  const worker = workerData?.agent;
+  const hasShell = !!worker?.shell_ws_url;
+  const hasDesktop = !!worker?.desktop_url;
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [turns.length, streamChunks.length]);
+    if (detailTab === "shell" && !hasShell) setDetailTab("chat");
+    if (detailTab === "desktop" && !hasDesktop) setDetailTab("chat");
+  }, [detailTab, hasShell, hasDesktop]);
+
+  useEffect(() => {
+    if (detailTab === "chat") {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [turns.length, streamChunks.length, detailTab]);
 
   // SSE streaming for real-time updates
   useEffect(() => {
@@ -520,7 +672,7 @@ function AgentConversationPanel({
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 shrink-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <span className="text-[11px] text-zinc-300 font-mono truncate">
             {turns.length > 0 ? (turns.find((t) => t.role === "user")?.content?.slice(0, 60) || agentId) : agentId}
           </span>
@@ -529,9 +681,26 @@ function AgentConversationPanel({
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {(["chat", "shell", "desktop"] as const).map((t) => {
+            if (t === "shell" && !hasShell) return null;
+            if (t === "desktop" && !hasDesktop) return null;
+            return (
+              <button
+                key={t}
+                onClick={() => setDetailTab(t)}
+                className={`px-1.5 py-0.5 text-[9px] font-mono border transition-colors ${
+                  detailTab === t
+                    ? "border-blue-500/50 text-blue-400"
+                    : "border-transparent text-zinc-600 hover:text-zinc-400"
+                }`}
+              >
+                {t}
+              </button>
+            );
+          })}
           <button
             onClick={async () => { try { await stopHypeshipAgent(agentId); } catch {} }}
-            className="text-[10px] text-zinc-600 hover:text-red-400 font-mono px-2 py-0.5 border border-zinc-800 hover:border-red-900/50 transition-colors"
+            className="text-[10px] text-zinc-600 hover:text-red-400 font-mono px-2 py-0.5 border border-zinc-800 hover:border-red-900/50 transition-colors ml-1"
           >
             [stop]
           </button>
@@ -544,59 +713,62 @@ function AgentConversationPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {error && (
-          <div className="px-3 py-2">
-            <p className="text-[10px] text-red-400/70 font-mono">{error.message}</p>
-          </div>
-        )}
-        {!error && turns.length === 0 && (
-          <div className="px-3 py-8 text-center">
-            <p className="text-[10px] text-zinc-600 font-mono">
-              waiting for conversation...
-            </p>
-          </div>
-        )}
-        <div className="divide-y divide-zinc-800/30">
-          {groupTurnsByWorker(turns).map((group, gi) =>
-            group.type === "worker" && group.workerId ? (
-              <WorkerGroup key={`w-${group.workerId}-${gi}`} workerId={group.workerId} turns={group.turns} />
-            ) : (
-              group.turns.map((turn, ti) => (
-                <ConversationBubble key={`m-${gi}-${ti}`} turn={turn} />
-              ))
-            )
-          )}
-        </div>
-        {streamingText && (
-          <div className="px-3 py-2">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] font-mono text-emerald-400">$</span>
-              <span className="text-[10px] text-zinc-500 font-mono">orchestrator</span>
-              <span className="text-[10px] text-zinc-700 font-mono ml-auto animate-pulse">streaming...</span>
+      <div className="flex-1 overflow-hidden min-h-0">
+        {detailTab === "chat" && (
+          <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {error && (
+                <div className="px-3 py-2">
+                  <p className="text-[10px] text-red-400/70 font-mono">{error.message}</p>
+                </div>
+              )}
+              {!error && turns.length === 0 && (
+                <div className="px-3 py-8 text-center">
+                  <p className="text-[10px] text-zinc-600 font-mono">
+                    waiting for conversation...
+                  </p>
+                </div>
+              )}
+              <div className="divide-y divide-zinc-800/30">
+                {groupTurnsByWorker(turns).map((group, gi) =>
+                  group.type === "worker" && group.workerId ? (
+                    <WorkerGroup key={`w-${group.workerId}-${gi}`} workerId={group.workerId} turns={group.turns} />
+                  ) : (
+                    group.turns.map((turn, ti) => (
+                      <ConversationBubble key={`m-${gi}-${ti}`} turn={turn} />
+                    ))
+                  )
+                )}
+              </div>
+              {streamingText && (
+                <div className="px-3 py-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-mono text-emerald-400">$</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">orchestrator</span>
+                    <span className="text-[10px] text-zinc-700 font-mono ml-auto animate-pulse">streaming...</span>
+                  </div>
+                  <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words">
+                    {streamingText}
+                  </div>
+                </div>
+              )}
+              <div ref={bottomRef} />
             </div>
-            <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words">
-              {streamingText}
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
 
-      <div className="shrink-0 border-t border-zinc-800 px-2 py-2 flex gap-2 items-end">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-          placeholder="send a follow-up..."
-          rows={1}
-          className="flex-1 border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
-        />
+            <div className="shrink-0 border-t border-zinc-800 px-2 py-2 flex gap-2 items-end">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="send a follow-up..."
+                rows={1}
+                className="flex-1 border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
+              />
         <button
           onClick={handleSend}
           disabled={!input.trim() || sending}
@@ -604,6 +776,17 @@ function AgentConversationPanel({
         >
           {sending ? "..." : "↵"}
         </button>
+      </div>
+          </div>
+        )}
+
+        {detailTab === "shell" && (
+          hasShell ? <TerminalView wsUrl={worker!.shell_ws_url!} /> : <NoConnectionView label="shell" />
+        )}
+
+        {detailTab === "desktop" && (
+          hasDesktop ? <DesktopView desktopUrl={worker!.desktop_url!} /> : <NoConnectionView label="desktop" />
+        )}
       </div>
     </div>
   );
@@ -802,6 +985,8 @@ function NewChatPanel({
 
 // ── Worker Detail (info + conversation tabs) ──
 
+type WorkerTab = "chat" | "shell" | "desktop" | "info";
+
 function WorkerDetailPanel({
   workerId,
   onClose,
@@ -813,7 +998,15 @@ function WorkerDetailPanel({
 }) {
   const { data, error } = useHypeshipWorker(workerId);
   const agent = data?.agent;
-  const [tab, setTab] = useState<"chat" | "info">("chat");
+  const [tab, setTab] = useState<WorkerTab>("chat");
+
+  const hasShell = !!agent?.shell_ws_url;
+  const hasDesktop = !!agent?.desktop_url;
+
+  useEffect(() => {
+    if (tab === "shell" && !hasShell) setTab("chat");
+    if (tab === "desktop" && !hasDesktop) setTab("chat");
+  }, [tab, hasShell, hasDesktop]);
 
   if (error) {
     return (
@@ -832,6 +1025,11 @@ function WorkerDetailPanel({
   }
 
   const isActive = agent.state === "launching" || agent.state === "working";
+
+  const tabs: WorkerTab[] = ["chat"];
+  if (hasShell) tabs.push("shell");
+  if (hasDesktop) tabs.push("desktop");
+  tabs.push("info");
 
   return (
     <div className="flex flex-col h-full">
@@ -866,7 +1064,7 @@ function WorkerDetailPanel({
 
       {/* Tabs */}
       <div className="flex border-b border-zinc-800 shrink-0">
-        {(["chat", "info"] as const).map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -883,9 +1081,16 @@ function WorkerDetailPanel({
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "chat" ? (
+        {tab === "chat" && (
           <AgentConversation workerId={agent.id} workerState={agent.state} />
-        ) : (
+        )}
+        {tab === "shell" && (
+          hasShell ? <TerminalView wsUrl={agent.shell_ws_url!} /> : <NoConnectionView label="shell" />
+        )}
+        {tab === "desktop" && (
+          hasDesktop ? <DesktopView desktopUrl={agent.desktop_url!} /> : <NoConnectionView label="desktop" />
+        )}
+        {tab === "info" && (
           <WorkerInfoTab worker={agent} />
         )}
       </div>
