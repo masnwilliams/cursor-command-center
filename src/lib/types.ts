@@ -167,7 +167,7 @@ export type HypeshipWorkerState =
   | "archived"
   | "gone";
 
-export type HypeshipAgentStatus = "creating" | "running" | "finished" | "stopped" | "error";
+export type HypeshipAgentStatus = "pending" | "running" | "finished" | "stopped" | "error";
 
 export type HypeshipLaunchMode = "interactive" | "non_interactive";
 export type HypeshipApprovalMode = "auto_approve" | "human_in_loop";

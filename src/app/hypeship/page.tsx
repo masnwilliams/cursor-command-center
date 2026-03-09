@@ -43,7 +43,7 @@ import type {
 type SetupState = "idle" | "testing" | "success" | "error";
 
 const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
-  creating: "bg-amber-400",
+  pending: "bg-amber-400",
   running: "bg-blue-400",
   finished: "bg-emerald-400",
   stopped: "bg-zinc-400",
@@ -51,7 +51,7 @@ const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
 };
 
 const STATUS_PULSE: Record<HypeshipAgentStatus, boolean> = {
-  creating: true,
+  pending: false,
   running: true,
   finished: false,
   stopped: false,
