@@ -346,7 +346,7 @@ export async function testHypeshipConnection(): Promise<HypeshipHealthResponse> 
 
 export function useHypeshipAgents() {
   return useSWR<HypeshipAgentListResponse>(
-    "/api/hypeship/threads",
+    "/api/hypeship/agents",
     hypeshipFetcher<HypeshipAgentListResponse>,
     { refreshInterval: 10_000 },
   );
@@ -354,7 +354,7 @@ export function useHypeshipAgents() {
 
 export function useHypeshipAgent(id: string | null) {
   return useSWR<HypeshipAgentDetailResponse>(
-    id ? `/api/hypeship/threads/${id}` : null,
+    id ? `/api/hypeship/agents/${id}` : null,
     hypeshipFetcher<HypeshipAgentDetailResponse>,
     { refreshInterval: 3_000 },
   );

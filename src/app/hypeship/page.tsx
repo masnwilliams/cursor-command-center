@@ -245,9 +245,9 @@ function SetupView({ onConnected }: { onConnected: () => void }) {
   );
 }
 
-// ── Conversation Thread ──
+// ── Agent Conversation ──
 
-function ConversationThread({
+function AgentConversation({
   workerId,
   workerState,
 }: {
@@ -414,7 +414,7 @@ function AgentConversationPanel({
     if (!apiUrl || !jwt) return;
 
     const evtSource = new EventSource(
-      `/api/hypeship/threads/${agentId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
+      `/api/hypeship/agents/${agentId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
     );
 
     evtSource.addEventListener("message", (e) => {
@@ -563,7 +563,7 @@ function NewChatPanel({
     if (!apiUrl || !jwt) return;
 
     const evtSource = new EventSource(
-      `/api/hypeship/threads/${agentId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
+      `/api/hypeship/agents/${agentId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
     );
 
     evtSource.addEventListener("message", (e) => {
@@ -798,7 +798,7 @@ function WorkerDetailPanel({
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "chat" ? (
-          <ConversationThread workerId={agent.id} workerState={agent.state} />
+          <AgentConversation workerId={agent.id} workerState={agent.state} />
         ) : (
           <WorkerInfoTab worker={agent} />
         )}
