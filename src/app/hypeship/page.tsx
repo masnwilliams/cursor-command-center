@@ -1159,6 +1159,17 @@ function SettingsView() {
 
   return (
     <div className="overflow-y-auto h-full px-3 py-3 space-y-4">
+      <div className="flex items-center gap-2">
+        <a
+          href={`${getHypeshipApiUrl()}/settings`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] font-mono text-blue-400 hover:text-blue-300 border border-zinc-800 hover:border-zinc-600 px-2 py-1 transition-colors"
+        >
+          open api settings page ↗
+        </a>
+      </div>
+
       <div className="space-y-2">
         <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide">user</p>
         {userError && (
@@ -1235,7 +1246,16 @@ function SettingsView() {
             </div>
           ))}
           <p className="text-[10px] text-zinc-600 font-mono">
-            link accounts via the settings page on your hypeship api
+            link accounts via{" "}
+            <a
+              href={`${getHypeshipApiUrl()}/settings`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline"
+            >
+              the settings page
+            </a>{" "}
+            on your hypeship api
           </p>
         </div>
       )}
