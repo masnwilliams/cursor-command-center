@@ -1264,16 +1264,6 @@ function SettingsView() {
               </span>
             </div>
           ))}
-          <p className="text-[10px] text-zinc-600 font-mono">
-            link accounts via{" "}
-            <button
-              onClick={openSettingsPage}
-              className="text-blue-400 hover:text-blue-300 underline inline"
-            >
-              the settings page
-            </button>{" "}
-            on your hypeship api
-          </p>
         </div>
       )}
 
