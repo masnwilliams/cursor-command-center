@@ -30,6 +30,7 @@ import {
   getHypeshipAuthConfig,
   stopHypeshipAgent,
   resetHypeshipOrchestrator,
+  getHypeshipSettingsLink,
 } from "@/lib/api";
 import type {
   HypeshipWorker,
@@ -1140,6 +1141,8 @@ function SettingsView() {
   const { data: userData, error: userError } = useHypeshipUser();
   const { data: identData, error: identError } = useHypeshipIdentities();
   const [authConfig, setAuthConfig] = useState<HypeshipAuthConfig | null>(null);
+  const [settingsLinkLoading, setSettingsLinkLoading] = useState(false);
+  const [settingsLinkError, setSettingsLinkError] = useState("");
   const user = userData?.user;
   const identities = identData?.identities ?? [];
 
@@ -1157,17 +1160,33 @@ function SettingsView() {
     }
   }
 
+  async function openSettingsPage() {
+    if (settingsLinkLoading) return;
+    setSettingsLinkLoading(true);
+    setSettingsLinkError("");
+    try {
+      const { url } = await getHypeshipSettingsLink();
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      setSettingsLinkError(e instanceof Error ? e.message : "failed to generate link");
+    } finally {
+      setSettingsLinkLoading(false);
+    }
+  }
+
   return (
     <div className="overflow-y-auto h-full px-3 py-3 space-y-4">
       <div className="flex items-center gap-2">
-        <a
-          href={`${getHypeshipApiUrl()}/settings`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[10px] font-mono text-blue-400 hover:text-blue-300 border border-zinc-800 hover:border-zinc-600 px-2 py-1 transition-colors"
+        <button
+          onClick={openSettingsPage}
+          disabled={settingsLinkLoading}
+          className="text-[10px] font-mono text-blue-400 hover:text-blue-300 border border-zinc-800 hover:border-zinc-600 px-2 py-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          open api settings page ↗
-        </a>
+          {settingsLinkLoading ? "generating link..." : "open api settings page ↗"}
+        </button>
+        {settingsLinkError && (
+          <span className="text-[10px] text-red-400/70 font-mono">{settingsLinkError}</span>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -1247,14 +1266,12 @@ function SettingsView() {
           ))}
           <p className="text-[10px] text-zinc-600 font-mono">
             link accounts via{" "}
-            <a
-              href={`${getHypeshipApiUrl()}/settings`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 underline"
+            <button
+              onClick={openSettingsPage}
+              className="text-blue-400 hover:text-blue-300 underline inline"
             >
               the settings page
-            </a>{" "}
+            </button>{" "}
             on your hypeship api
           </p>
         </div>

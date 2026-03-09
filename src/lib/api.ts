@@ -502,6 +502,17 @@ export async function resetHypeshipOrchestrator(): Promise<{ status: string }> {
   return res.json();
 }
 
+// ── Hypeship Settings ──
+
+export async function getHypeshipSettingsLink(): Promise<{ url: string; expires_in: number }> {
+  const res = await fetch("/api/hypeship/settings/link", {
+    method: "POST",
+    headers: hypeshipHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 // ── Hypeship Secrets ──
 
 export function useHypeshipSecrets(scope?: string, userId?: string) {
