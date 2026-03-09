@@ -29,6 +29,7 @@ import {
   unlinkHypeshipIdentity,
   getHypeshipAuthConfig,
   stopHypeshipAgent,
+  resetHypeshipOrchestrator,
 } from "@/lib/api";
 import type {
   HypeshipWorker,
@@ -1237,6 +1238,56 @@ function SettingsView() {
             link accounts via the settings page on your hypeship api
           </p>
         </div>
+      )}
+
+      <ResetSection />
+    </div>
+  );
+}
+
+function ResetSection() {
+  const [resetting, setResetting] = useState(false);
+  const [result, setResult] = useState<"ok" | "error" | null>(null);
+
+  async function handleReset() {
+    if (resetting) return;
+    setResetting(true);
+    setResult(null);
+    try {
+      await resetHypeshipOrchestrator();
+      setResult("ok");
+    } catch {
+      setResult("error");
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  return (
+    <div className="border-t border-zinc-800 pt-3 space-y-2">
+      <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide">
+        orchestrator
+      </p>
+      <p className="text-[10px] text-zinc-600 font-mono">
+        reset destroys the orchestrator VM and picks up the latest image on next message.
+        existing conversations are preserved but claude session context is lost.
+      </p>
+      <button
+        onClick={handleReset}
+        disabled={resetting}
+        className="px-3 py-1.5 text-[10px] font-mono border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-900/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        {resetting ? "resetting..." : "reset orchestrator"}
+      </button>
+      {result === "ok" && (
+        <p className="text-[10px] text-emerald-400/70 font-mono">
+          orchestrator reset. next message will spin up a fresh one.
+        </p>
+      )}
+      {result === "error" && (
+        <p className="text-[10px] text-red-400/70 font-mono">
+          reset failed
+        </p>
       )}
     </div>
   );

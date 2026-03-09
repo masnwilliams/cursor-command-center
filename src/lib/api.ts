@@ -493,6 +493,15 @@ export async function stopHypeshipAgent(agentId: string): Promise<{ id: string }
   return data;
 }
 
+export async function resetHypeshipOrchestrator(): Promise<{ status: string }> {
+  const res = await fetch("/api/hypeship/orchestrators/reset", {
+    method: "POST",
+    headers: hypeshipHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 // ── Hypeship Secrets ──
 
 export function useHypeshipSecrets(scope?: string, userId?: string) {
