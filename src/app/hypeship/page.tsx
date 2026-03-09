@@ -12,12 +12,15 @@ import {
 } from "@/lib/storage";
 import {
   testHypeshipConnection,
+  useHypeshipWorkers,
+  useHypeshipWorker,
+  useHypeshipConversation,
   useHypeshipAgents,
   useHypeshipAgent,
-  useHypeshipConversation,
   sendHypeshipPrompt,
+  sendHypeshipFollowUp,
   sendHypeshipMessage,
-  updateHypeshipAgentState,
+  updateHypeshipWorkerState,
   useHypeshipSecrets,
   createHypeshipSecret,
   deleteHypeshipSecret,
@@ -25,26 +28,47 @@ import {
   useHypeshipIdentities,
   unlinkHypeshipIdentity,
   getHypeshipAuthConfig,
+  stopHypeshipAgent,
+  resetHypeshipOrchestrator,
+  getHypeshipSettingsLink,
 } from "@/lib/api";
 import type {
-  HypeshipAgent,
-  HypeshipAgentState,
+  HypeshipWorker,
+  HypeshipWorkerState,
+  HypeshipAgentStatus,
   HypeshipAgentType,
   HypeshipConversationTurn,
   HypeshipPromptResponse,
   HypeshipAuthConfig,
+  HypeshipAgentSummary,
 } from "@/lib/types";
 
 type SetupState = "idle" | "testing" | "success" | "error";
 
-const STATE_COLORS: Record<HypeshipAgentState, string> = {
+const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
+  pending: "bg-amber-400",
+  running: "bg-blue-400",
+  finished: "bg-emerald-400",
+  stopped: "bg-zinc-400",
+  error: "bg-red-400",
+};
+
+const STATUS_PULSE: Record<HypeshipAgentStatus, boolean> = {
+  pending: false,
+  running: true,
+  finished: false,
+  stopped: false,
+  error: false,
+};
+
+const WORKER_STATE_COLORS: Record<HypeshipWorkerState, string> = {
   launching: "bg-amber-400",
   working: "bg-blue-400",
   archived: "bg-zinc-400",
   gone: "bg-red-400",
 };
 
-const STATE_PULSE: Record<HypeshipAgentState, boolean> = {
+const WORKER_STATE_PULSE: Record<HypeshipWorkerState, boolean> = {
   launching: true,
   working: true,
   archived: false,
@@ -56,9 +80,24 @@ const AGENT_LABELS: Record<HypeshipAgentType, string> = {
   claude_code_cli: "claude code cli",
 };
 
-function StateDot({ state }: { state: HypeshipAgentState }) {
-  const color = STATE_COLORS[state] ?? "bg-zinc-400";
-  const pulse = STATE_PULSE[state] ?? false;
+function StatusDot({ status }: { status: HypeshipAgentStatus }) {
+  const color = STATUS_COLORS[status] ?? "bg-zinc-400";
+  const pulse = STATUS_PULSE[status] ?? false;
+  return (
+    <span className="relative flex h-2 w-2 shrink-0">
+      {pulse && (
+        <span
+          className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${color}`}
+        />
+      )}
+      <span className={`relative inline-flex h-2 w-2 rounded-full ${color}`} />
+    </span>
+  );
+}
+
+function WorkerStateDot({ state }: { state: HypeshipWorkerState }) {
+  const color = WORKER_STATE_COLORS[state] ?? "bg-zinc-400";
+  const pulse = WORKER_STATE_PULSE[state] ?? false;
   return (
     <span className="relative flex h-2 w-2 shrink-0">
       {pulse && (
@@ -209,104 +248,17 @@ function SetupView({ onConnected }: { onConnected: () => void }) {
   );
 }
 
-// ── Inline Prompt Bar ──
+// ── Agent Conversation ──
 
-function PromptBar({
-  onClose,
-  onPromptResponse,
+function AgentConversation({
+  workerId,
+  workerState,
 }: {
-  onClose: () => void;
-  onPromptResponse: (resp: HypeshipPromptResponse) => void;
+  workerId: string;
+  workerState: HypeshipWorkerState;
 }) {
-  const [prompt, setPrompt] = useState("");
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState("");
-  const [responseMsg, setResponseMsg] = useState("");
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  async function handleSend() {
-    if (!prompt.trim() || sending) return;
-    setSending(true);
-    setError("");
-    setResponseMsg("");
-    try {
-      const resp = await sendHypeshipPrompt({ message: prompt.trim() });
-      setResponseMsg(resp.message);
-      onPromptResponse(resp);
-      setPrompt("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "prompt failed");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  });
-
-  return (
-    <div className="border-b border-zinc-800 bg-zinc-900/40 shrink-0">
-      <div className="px-3 py-2">
-        <div className="flex gap-2 items-end">
-          <textarea
-            ref={inputRef}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="what do you want to build?"
-            rows={2}
-            className="flex-1 border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
-          />
-          <div className="flex flex-col gap-1 shrink-0">
-            <button
-              onClick={handleSend}
-              disabled={!prompt.trim() || sending}
-              className="bg-blue-600 px-3 py-1 text-[10px] text-white hover:bg-blue-500 font-mono disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {sending ? "..." : "⌘↵"}
-            </button>
-            <button
-              onClick={onClose}
-              className="text-[10px] text-zinc-700 hover:text-zinc-400 font-mono px-3 py-1 transition-colors"
-            >
-              esc
-            </button>
-          </div>
-        </div>
-        {responseMsg && (
-          <p className="text-[10px] text-zinc-400 font-mono mt-1.5">{responseMsg}</p>
-        )}
-        {error && <p className="text-[10px] text-red-400/70 font-mono mt-1.5">{error}</p>}
-      </div>
-    </div>
-  );
-}
-
-// ── Conversation Thread ──
-
-function ConversationThread({
-  agentId,
-  agentState,
-}: {
-  agentId: string;
-  agentState: HypeshipAgentState;
-}) {
-  const isActive = agentState === "launching" || agentState === "working";
-  const { data, error } = useHypeshipConversation(agentId, isActive);
+  const isActive = workerState === "launching" || workerState === "working";
+  const { data, error } = useHypeshipConversation(workerId, isActive);
   const turns = data?.conversation ?? [];
   const bottomRef = useRef<HTMLDivElement>(null);
   const [msgInput, setMsgInput] = useState("");
@@ -322,14 +274,14 @@ function ConversationThread({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView();
-  }, [agentId]);
+  }, [workerId]);
 
   async function handleSend() {
     const text = msgInput.trim();
     if (!text || sending) return;
     setSending(true);
     try {
-      await sendHypeshipMessage(agentId, text);
+      await sendHypeshipMessage(workerId, text);
       setMsgInput("");
     } catch {
       // keep input for retry
@@ -390,16 +342,43 @@ function ConversationThread({
 }
 
 function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
+  const source = turn.source || "";
   const isUser = turn.role === "user";
+  const isSystem = source === "system";
+  const isWorker = source.startsWith("worker:");
+  const workerID = isWorker ? source.slice(7) : "";
+
+  if (isSystem) {
+    return (
+      <div className="px-3 py-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-zinc-600">*</span>
+          <span className="text-[10px] text-zinc-600 font-mono">{turn.content}</span>
+          <span className="text-[10px] text-zinc-700 font-mono ml-auto">
+            {timeAgo(turn.timestamp)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  const prefix = isUser ? ">" : "$";
+  const label = isUser
+    ? "user"
+    : isWorker
+      ? `worker ${workerID.slice(0, 12)}`
+      : "orchestrator";
+  const color = isUser
+    ? "text-blue-400"
+    : isWorker
+      ? "text-amber-400"
+      : "text-emerald-400";
+
   return (
     <div className={`px-3 py-2 ${isUser ? "bg-zinc-900/30" : ""}`}>
       <div className="flex items-center gap-2 mb-1">
-        <span
-          className={`text-[10px] font-mono ${isUser ? "text-blue-400" : "text-emerald-400"}`}
-        >
-          {isUser ? ">" : "$"}
-        </span>
-        <span className="text-[10px] text-zinc-500 font-mono">{turn.role}</span>
+        <span className={`text-[10px] font-mono ${color}`}>{prefix}</span>
+        <span className="text-[10px] text-zinc-500 font-mono">{label}</span>
         <span className="text-[10px] text-zinc-700 font-mono ml-auto">
           {timeAgo(turn.timestamp)}
         </span>
@@ -411,18 +390,418 @@ function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
   );
 }
 
-// ── Agent Detail (info + conversation tabs) ──
+// ── Worker Group (collapsible sub-agent) ──
 
-function AgentDetailPanel({
+interface TurnGroup {
+  type: "message" | "worker";
+  workerId?: string;
+  turns: HypeshipConversationTurn[];
+}
+
+function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup[] {
+  const groups: TurnGroup[] = [];
+  for (const turn of turns) {
+    const wid = turn.worker_id;
+    if (wid) {
+      const last = groups[groups.length - 1];
+      if (last && last.type === "worker" && last.workerId === wid) {
+        last.turns.push(turn);
+      } else {
+        groups.push({ type: "worker", workerId: wid, turns: [turn] });
+      }
+    } else {
+      groups.push({ type: "message", turns: [turn] });
+    }
+  }
+  return groups;
+}
+
+function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipConversationTurn[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const lastTurn = turns[turns.length - 1];
+  const isFinished = lastTurn?.role === "system" && lastTurn?.content?.includes("finished");
+  const shortId = workerId.slice(0, 12);
+
+  return (
+    <div className="border-l-2 border-amber-400/30 ml-3">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-900/30 transition-colors"
+      >
+        <span className="relative flex h-2 w-2 shrink-0">
+          {!isFinished && (
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+          )}
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${isFinished ? "bg-emerald-400" : "bg-amber-400"}`} />
+        </span>
+        <span className="text-[10px] text-amber-400 font-mono">worker {shortId}</span>
+        <span className="text-[10px] text-zinc-600 font-mono">{turns.length} msg{turns.length !== 1 ? "s" : ""}</span>
+        <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
+      </button>
+      {expanded && (
+        <div className="divide-y divide-zinc-800/20">
+          {turns.map((turn, i) => (
+            <ConversationBubble key={i} turn={turn} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Agent Detail Panel ──
+
+function AgentConversationPanel({
   agentId,
   onClose,
-  onArchive,
 }: {
   agentId: string;
   onClose: () => void;
-  onArchive: (id: string) => void;
 }) {
   const { data, error } = useHypeshipAgent(agentId);
+  const turns = data?.agent?.messages ?? [];
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [streamChunks, setStreamChunks] = useState<string[]>([]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [turns.length, streamChunks.length]);
+
+  // SSE streaming for real-time updates
+  useEffect(() => {
+    const apiUrl = getHypeshipApiUrl();
+    const jwt = getHypeshipJwt();
+    if (!apiUrl || !jwt) return;
+
+    const evtSource = new EventSource(
+      `/api/hypeship/agents/${agentId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
+    );
+
+    evtSource.addEventListener("message", (e) => {
+      try {
+        const ev = JSON.parse(e.data);
+        if (ev.type === "chunk" && ev.text) {
+          setStreamChunks((prev) => [...prev, ev.text]);
+        }
+        if (ev.type === "done" || ev.type === "stopped") {
+          setStreamChunks([]);
+        }
+      } catch {}
+    });
+
+    return () => evtSource.close();
+  }, [agentId]);
+
+  const streamingText = streamChunks.join("");
+
+  async function handleSend() {
+    const text = input.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      await sendHypeshipFollowUp(agentId, text);
+      setInput("");
+    } catch {}
+    setSending(false);
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-zinc-300 font-mono truncate">
+            {turns.length > 0 ? (turns.find((t) => t.role === "user")?.content?.slice(0, 60) || agentId) : agentId}
+          </span>
+          <span className="text-[10px] text-zinc-600 font-mono">
+            {data?.agent?.source}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={async () => { try { await stopHypeshipAgent(agentId); } catch {} }}
+            className="text-[10px] text-zinc-600 hover:text-red-400 font-mono px-2 py-0.5 border border-zinc-800 hover:border-red-900/50 transition-colors"
+          >
+            [stop]
+          </button>
+          <button
+            onClick={onClose}
+            className="text-[10px] text-zinc-600 hover:text-zinc-400 font-mono px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors"
+          >
+            [close]
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {error && (
+          <div className="px-3 py-2">
+            <p className="text-[10px] text-red-400/70 font-mono">{error.message}</p>
+          </div>
+        )}
+        {!error && turns.length === 0 && (
+          <div className="px-3 py-8 text-center">
+            <p className="text-[10px] text-zinc-600 font-mono">
+              waiting for conversation...
+            </p>
+          </div>
+        )}
+        <div className="divide-y divide-zinc-800/30">
+          {groupTurnsByWorker(turns).map((group, gi) =>
+            group.type === "worker" && group.workerId ? (
+              <WorkerGroup key={`w-${group.workerId}-${gi}`} workerId={group.workerId} turns={group.turns} />
+            ) : (
+              group.turns.map((turn, ti) => (
+                <ConversationBubble key={`m-${gi}-${ti}`} turn={turn} />
+              ))
+            )
+          )}
+        </div>
+        {streamingText && (
+          <div className="px-3 py-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-mono text-emerald-400">$</span>
+              <span className="text-[10px] text-zinc-500 font-mono">orchestrator</span>
+              <span className="text-[10px] text-zinc-700 font-mono ml-auto animate-pulse">streaming...</span>
+            </div>
+            <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words">
+              {streamingText}
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      <div className="shrink-0 border-t border-zinc-800 px-2 py-2 flex gap-2 items-end">
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          placeholder="send a follow-up..."
+          rows={1}
+          className="flex-1 border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
+        />
+        <button
+          onClick={handleSend}
+          disabled={!input.trim() || sending}
+          className="px-3 py-1.5 text-[10px] font-mono bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+        >
+          {sending ? "..." : "↵"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── New Chat Panel ──
+
+interface LocalMessage {
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
+function NewChatPanel({
+  onClose,
+  onAgentCreated,
+}: {
+  onClose: () => void;
+  onAgentCreated: (agentId: string) => void;
+}) {
+  const [messages, setMessages] = useState<LocalMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [streamChunks, setStreamChunks] = useState<string[]>([]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length, streamChunks.length]);
+
+  // SSE streaming: connect when we have an agentId
+  useEffect(() => {
+    if (!agentId) return;
+    const apiUrl = getHypeshipApiUrl();
+    const jwt = getHypeshipJwt();
+    if (!apiUrl || !jwt) return;
+
+    const evtSource = new EventSource(
+      `/api/hypeship/agents/${agentId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
+    );
+
+    evtSource.addEventListener("message", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === "chunk" && data.text) {
+          setStreamChunks((prev) => [...prev, data.text]);
+        }
+        if (data.type === "done" && data.text) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: data.text, timestamp: new Date().toISOString() },
+          ]);
+          setStreamChunks([]);
+        }
+      } catch {
+        // ignore parse errors
+      }
+    });
+
+    return () => evtSource.close();
+  }, [agentId]);
+
+  async function handleSend() {
+    const text = input.trim();
+    if (!text || sending) return;
+    setSending(true);
+    setError("");
+
+    const userMsg: LocalMessage = {
+      role: "user",
+      content: text,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+
+    try {
+      const resp = await sendHypeshipPrompt({ message: text });
+
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: resp.message, timestamp: new Date().toISOString() },
+      ]);
+
+      if (resp.agent_id) {
+        setAgentId(resp.agent_id);
+        onAgentCreated(resp.agent_id);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed to send");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const streamingText = streamChunks.join("");
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 bg-zinc-900/60 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-400" />
+          </span>
+          <span className="text-[10px] text-zinc-300 font-mono">new chat</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-zinc-600 hover:text-zinc-300 text-[10px] font-mono px-1.5 py-0.5"
+        >
+          [close]
+        </button>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {messages.length === 0 && !sending && (
+          <div className="h-full flex items-center justify-center">
+            <p className="text-[10px] text-zinc-600 font-mono">what do you want to build?</p>
+          </div>
+        )}
+        <div className="divide-y divide-zinc-800/30">
+          {messages.map((msg, i) => (
+            <div key={i} className={`px-3 py-2 ${msg.role === "user" ? "bg-zinc-900/30" : ""}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-[10px] font-mono ${msg.role === "user" ? "text-blue-400" : "text-emerald-400"}`}>
+                  {msg.role === "user" ? ">" : "$"}
+                </span>
+                <span className="text-[10px] text-zinc-500 font-mono">{msg.role}</span>
+                <span className="text-[10px] text-zinc-700 font-mono ml-auto">
+                  {timeAgo(msg.timestamp)}
+                </span>
+              </div>
+              <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+              </div>
+            </div>
+          ))}
+          {streamingText && (
+            <div className="px-3 py-2">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-mono text-emerald-400">$</span>
+                <span className="text-[10px] text-zinc-500 font-mono">assistant</span>
+                <span className="text-[10px] text-zinc-700 font-mono ml-auto animate-pulse">streaming...</span>
+              </div>
+              <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words">
+                {streamingText}
+              </div>
+            </div>
+          )}
+        </div>
+        <div ref={bottomRef} />
+      </div>
+
+      {error && (
+        <div className="px-3 py-1 border-t border-red-900/30">
+          <p className="text-[10px] text-red-400/70 font-mono">{error}</p>
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="shrink-0 border-t border-zinc-800 px-2 py-2 flex gap-2 items-end">
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          placeholder="send a message..."
+          rows={1}
+          className="flex-1 border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
+        />
+        <button
+          onClick={handleSend}
+          disabled={!input.trim() || sending}
+          className="px-3 py-1.5 text-[10px] font-mono bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+        >
+          {sending ? "..." : "↵"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Worker Detail (info + conversation tabs) ──
+
+function WorkerDetailPanel({
+  workerId,
+  onClose,
+  onArchive,
+}: {
+  workerId: string;
+  onClose: () => void;
+  onArchive: (id: string) => void;
+}) {
+  const { data, error } = useHypeshipWorker(workerId);
   const agent = data?.agent;
   const [tab, setTab] = useState<"chat" | "info">("chat");
 
@@ -449,7 +828,7 @@ function AgentDetailPanel({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 bg-zinc-900/60 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <StateDot state={agent.state} />
+          <WorkerStateDot state={agent.state} />
           <span className="text-[10px] text-zinc-300 font-mono truncate">
             {agent.topic || agent.id.slice(0, 8)}
           </span>
@@ -495,71 +874,68 @@ function AgentDetailPanel({
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "chat" ? (
-          <ConversationThread agentId={agent.id} agentState={agent.state} />
+          <AgentConversation workerId={agent.id} workerState={agent.state} />
         ) : (
-          <AgentInfoTab agent={agent} />
+          <WorkerInfoTab worker={agent} />
         )}
       </div>
     </div>
   );
 }
 
-function AgentInfoTab({ agent }: { agent: HypeshipAgent }) {
+function WorkerInfoTab({ worker }: { worker: HypeshipWorker }) {
   return (
     <div className="overflow-y-auto h-full px-3 py-2 space-y-3 text-[11px] font-mono">
       <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
         <span className="text-zinc-600">id</span>
-        <span className="text-zinc-400 truncate">{agent.id}</span>
+        <span className="text-zinc-400 truncate">{worker.id}</span>
 
         <span className="text-zinc-600">state</span>
-        <span className="text-zinc-300">{agent.state}</span>
+        <span className="text-zinc-300">{worker.state}</span>
 
         <span className="text-zinc-600">agent</span>
-        <span className="text-zinc-300">{AGENT_LABELS[agent.agent_type]}</span>
+        <span className="text-zinc-300">{AGENT_LABELS[worker.agent_type]}</span>
 
         <span className="text-zinc-600">mode</span>
-        <span className="text-zinc-300">{agent.launch_mode?.replace("_", " ") ?? "—"}</span>
+        <span className="text-zinc-300">{worker.launch_mode?.replace("_", " ") ?? "—"}</span>
 
         <span className="text-zinc-600">approval</span>
-        <span className="text-zinc-300">{agent.approval_mode?.replace("_", " ") ?? "—"}</span>
+        <span className="text-zinc-300">{worker.approval_mode?.replace("_", " ") ?? "—"}</span>
 
-        <span className="text-zinc-600">repos</span>
-        <span className="text-zinc-300 truncate">{agent.repositories.join(", ")}</span>
-
-        {agent.branch_name && (
+        {worker.branch_name && (
           <>
             <span className="text-zinc-600">branch</span>
-            <span className="text-zinc-300">{agent.branch_name}</span>
+            <span className="text-zinc-300">{worker.branch_name}</span>
           </>
         )}
 
         <span className="text-zinc-600">image</span>
-        <span className="text-zinc-300 truncate">{agent.launch_image}</span>
+        <span className="text-zinc-300 truncate">{worker.launch_image}</span>
 
         <span className="text-zinc-600">hypeman</span>
-        <span className="text-zinc-300 truncate">{agent.hypeman_name}</span>
+        <span className="text-zinc-300 truncate">{worker.hypeman_name}</span>
 
         <span className="text-zinc-600">created</span>
-        <span className="text-zinc-300">{timeAgo(agent.created_at)}</span>
+        <span className="text-zinc-300">{timeAgo(worker.created_at)}</span>
 
-        {agent.started_at && (
+        {worker.started_at && (
           <>
             <span className="text-zinc-600">started</span>
-            <span className="text-zinc-300">{timeAgo(agent.started_at)}</span>
+            <span className="text-zinc-300">{timeAgo(worker.started_at)}</span>
           </>
         )}
 
-        {agent.finished_at && (
+        {worker.finished_at && (
           <>
             <span className="text-zinc-600">finished</span>
-            <span className="text-zinc-300">{timeAgo(agent.finished_at)}</span>
+            <span className="text-zinc-300">{timeAgo(worker.finished_at)}</span>
           </>
         )}
 
-        {agent.last_heartbeat_at && (
+        {worker.last_heartbeat_at && (
           <>
             <span className="text-zinc-600">heartbeat</span>
-            <span className="text-zinc-300">{timeAgo(agent.last_heartbeat_at)}</span>
+            <span className="text-zinc-300">{timeAgo(worker.last_heartbeat_at)}</span>
           </>
         )}
       </div>
@@ -567,56 +943,56 @@ function AgentInfoTab({ agent }: { agent: HypeshipAgent }) {
       <div className="space-y-1">
         <span className="text-zinc-600">prompt</span>
         <div className="text-zinc-300 bg-zinc-900/60 border border-zinc-800 p-2 whitespace-pre-wrap text-[10px]">
-          {agent.initial_prompt}
+          {worker.initial_prompt}
         </div>
       </div>
 
-      {agent.summary && (
+      {worker.summary && (
         <div className="space-y-1">
           <span className="text-zinc-600">summary</span>
           <div className="text-zinc-300 bg-zinc-900/60 border border-zinc-800 p-2 whitespace-pre-wrap text-[10px]">
-            {agent.summary}
+            {worker.summary}
           </div>
         </div>
       )}
 
-      {agent.last_error && (
+      {worker.last_error && (
         <div className="space-y-1">
           <span className="text-red-400">error</span>
           <div className="text-red-300 bg-red-900/10 border border-red-900/30 p-2 whitespace-pre-wrap text-[10px]">
-            {agent.last_error}
+            {worker.last_error}
           </div>
         </div>
       )}
 
-      {(agent.shell_connect_command || agent.desktop_url || agent.shell_ws_url) && (
+      {(worker.shell_connect_command || worker.desktop_url || worker.shell_ws_url) && (
         <div className="space-y-1.5">
           <span className="text-zinc-600">connections</span>
-          {agent.shell_connect_command && (
+          {worker.shell_connect_command && (
             <div className="space-y-0.5">
               <span className="text-[10px] text-zinc-600">shell command</span>
               <div className="text-zinc-300 bg-zinc-900/60 border border-zinc-800 p-2 text-[10px] break-all select-all">
-                {agent.shell_connect_command}
+                {worker.shell_connect_command}
               </div>
             </div>
           )}
-          {agent.desktop_url && (
+          {worker.desktop_url && (
             <div className="space-y-0.5">
               <span className="text-[10px] text-zinc-600">desktop</span>
               <a
-                href={agent.desktop_url}
+                href={worker.desktop_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block text-blue-400 hover:text-blue-300 text-[10px] underline truncate"
               >
-                {agent.desktop_url}
+                {worker.desktop_url}
               </a>
             </div>
           )}
-          {agent.shell_ws_url && (
+          {worker.shell_ws_url && (
             <div className="space-y-0.5">
               <span className="text-[10px] text-zinc-600">shell ws</span>
-              <p className="text-zinc-400 text-[10px] break-all select-all">{agent.shell_ws_url}</p>
+              <p className="text-zinc-400 text-[10px] break-all select-all">{worker.shell_ws_url}</p>
             </div>
           )}
         </div>
@@ -765,6 +1141,8 @@ function SettingsView() {
   const { data: userData, error: userError } = useHypeshipUser();
   const { data: identData, error: identError } = useHypeshipIdentities();
   const [authConfig, setAuthConfig] = useState<HypeshipAuthConfig | null>(null);
+  const [settingsLinkLoading, setSettingsLinkLoading] = useState(false);
+  const [settingsLinkError, setSettingsLinkError] = useState("");
   const user = userData?.user;
   const identities = identData?.identities ?? [];
 
@@ -782,8 +1160,35 @@ function SettingsView() {
     }
   }
 
+  async function openSettingsPage() {
+    if (settingsLinkLoading) return;
+    setSettingsLinkLoading(true);
+    setSettingsLinkError("");
+    try {
+      const { url } = await getHypeshipSettingsLink();
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      setSettingsLinkError(e instanceof Error ? e.message : "failed to generate link");
+    } finally {
+      setSettingsLinkLoading(false);
+    }
+  }
+
   return (
     <div className="overflow-y-auto h-full px-3 py-3 space-y-4">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={openSettingsPage}
+          disabled={settingsLinkLoading}
+          className="text-[10px] font-mono text-blue-400 hover:text-blue-300 border border-zinc-800 hover:border-zinc-600 px-2 py-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {settingsLinkLoading ? "generating link..." : "open api settings page ↗"}
+        </button>
+        {settingsLinkError && (
+          <span className="text-[10px] text-red-400/70 font-mono">{settingsLinkError}</span>
+        )}
+      </div>
+
       <div className="space-y-2">
         <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide">user</p>
         {userError && (
@@ -859,10 +1264,57 @@ function SettingsView() {
               </span>
             </div>
           ))}
-          <p className="text-[10px] text-zinc-600 font-mono">
-            link accounts via the settings page on your hypeship api
-          </p>
         </div>
+      )}
+
+      <ResetSection />
+    </div>
+  );
+}
+
+function ResetSection() {
+  const [resetting, setResetting] = useState(false);
+  const [result, setResult] = useState<"ok" | "error" | null>(null);
+
+  async function handleReset() {
+    if (resetting) return;
+    setResetting(true);
+    setResult(null);
+    try {
+      await resetHypeshipOrchestrator();
+      setResult("ok");
+    } catch {
+      setResult("error");
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  return (
+    <div className="border-t border-zinc-800 pt-3 space-y-2">
+      <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide">
+        orchestrator
+      </p>
+      <p className="text-[10px] text-zinc-600 font-mono">
+        reset destroys the orchestrator VM and picks up the latest image on next message.
+        existing conversations are preserved but claude session context is lost.
+      </p>
+      <button
+        onClick={handleReset}
+        disabled={resetting}
+        className="px-3 py-1.5 text-[10px] font-mono border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-900/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        {resetting ? "resetting..." : "reset orchestrator"}
+      </button>
+      {result === "ok" && (
+        <p className="text-[10px] text-emerald-400/70 font-mono">
+          orchestrator reset. next message will spin up a fresh one.
+        </p>
+      )}
+      {result === "error" && (
+        <p className="text-[10px] text-red-400/70 font-mono">
+          reset failed
+        </p>
       )}
     </div>
   );
@@ -874,44 +1326,22 @@ type DashboardTab = "agents" | "secrets" | "settings";
 
 function DashboardView({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<DashboardTab>("agents");
-  const [showPrompt, setShowPrompt] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [includeArchived, setIncludeArchived] = useState(false);
 
-  const { data, error, isLoading } = useHypeshipAgents(includeArchived);
-  const agents = data?.agents ?? [];
-
-  const handlePromptResponse = useCallback(
-    (resp: HypeshipPromptResponse) => {
-      if (resp.agent?.id) {
-        setSelectedId(resp.agent.id);
-      }
-    },
-    [],
-  );
-
-  const handleArchive = useCallback(async (id: string) => {
-    try {
-      await updateHypeshipAgentState(id, { state: "archived" });
-    } catch {
-      // ignore
-    }
-  }, []);
+  const { data: agentsData, error: agentsError, isLoading: agentsLoading } = useHypeshipAgents();
+  const agents = agentsData?.agents ?? [];
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        if (showPrompt) setShowPrompt(false);
-        else if (selectedId) setSelectedId(null);
+      if (e.key === "Escape" && selectedId) {
+        setSelectedId(null);
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [showPrompt, selectedId]);
+  }, [selectedId]);
 
-  const activeCount = agents.filter(
-    (a) => a.state === "launching" || a.state === "working",
-  ).length;
+  const agentCount = agents.length;
 
   return (
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
@@ -936,37 +1366,22 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
           </div>
           {tab === "agents" && (
             <span className="text-[10px] text-zinc-600 font-mono">
-              {agents.length} agent{agents.length !== 1 ? "s" : ""}
-              {activeCount > 0 && (
-                <span className="text-blue-400"> · {activeCount} active</span>
-              )}
+              {agentCount} agent{agentCount !== 1 ? "s" : ""}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {tab === "agents" && (
-            <>
-              <button
-                onClick={() => setIncludeArchived(!includeArchived)}
-                className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
-                  includeArchived
-                    ? "border-zinc-600 text-zinc-300"
-                    : "border-zinc-800 text-zinc-600 hover:text-zinc-400"
-                }`}
-              >
-                {includeArchived ? "hide archived" : "show archived"}
-              </button>
-              <button
-                onClick={() => setShowPrompt(!showPrompt)}
-                className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
-                  showPrompt
-                    ? "text-blue-400 border-blue-500/50"
-                    : "text-blue-400 hover:text-blue-300 border-zinc-800 hover:border-zinc-600"
-                }`}
-              >
-                [prompt]
-              </button>
-            </>
+            <button
+              onClick={() => setSelectedId("new")}
+              className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
+                selectedId === "new"
+                  ? "text-blue-400 border-blue-500/50"
+                  : "text-blue-400 hover:text-blue-300 border-zinc-800 hover:border-zinc-600"
+              }`}
+            >
+              [new chat]
+            </button>
           )}
           <button
             onClick={onLogout}
@@ -984,11 +1399,8 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
             <div
               className={`${selectedId ? "w-1/3 border-r border-zinc-800" : "w-full"} flex flex-col overflow-hidden shrink-0`}
             >
-              {showPrompt && (
-                <PromptBar onClose={() => setShowPrompt(false)} onPromptResponse={handlePromptResponse} />
-              )}
               <div className="flex-1 overflow-y-auto">
-              {isLoading && agents.length === 0 && (
+              {agentsLoading && agents.length === 0 && (
                 <div className="px-3 py-8 text-center">
                   <p className="text-[10px] text-zinc-600 font-mono animate-pulse">
                     loading agents...
@@ -996,20 +1408,20 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                 </div>
               )}
 
-              {error && (
+              {agentsError && (
                 <div className="px-3 py-8 text-center">
-                  <p className="text-[10px] text-red-400 font-mono">{error.message}</p>
+                  <p className="text-[10px] text-red-400 font-mono">{agentsError.message}</p>
                 </div>
               )}
 
-              {!isLoading && agents.length === 0 && !error && (
-                <div className="px-3 py-8 text-center space-y-2">
-                  <p className="text-[10px] text-zinc-600 font-mono">no agents yet</p>
+              {!agentsLoading && agents.length === 0 && !agentsError && (
+                <div className="px-3 py-16 text-center space-y-3">
+                  <p className="text-[10px] text-zinc-600 font-mono">no conversations yet</p>
                   <button
-                    onClick={() => setShowPrompt(true)}
-                    className="text-[10px] font-mono text-blue-400 hover:text-blue-300"
+                    onClick={() => setSelectedId("new")}
+                    className="text-[10px] font-mono text-blue-400 hover:text-blue-300 border border-zinc-800 hover:border-zinc-600 px-3 py-1.5 transition-colors"
                   >
-                    start one →
+                    start a new chat
                   </button>
                 </div>
               )}
@@ -1023,45 +1435,23 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <StateDot state={agent.state} />
+                    <StatusDot status={agent.status} />
                     <span className="text-[11px] text-zinc-200 font-mono truncate flex-1">
-                      {agent.topic || agent.id.slice(0, 12)}
+                      {agent.preview || agent.id.slice(0, 16)}
                     </span>
                     <span className="text-[10px] text-zinc-600 font-mono shrink-0">
-                      {timeAgo(agent.created_at)}
+                      {timeAgo(agent.updated_at)}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 ml-4">
                     <span className="text-[10px] text-zinc-600 font-mono">
-                      {AGENT_LABELS[agent.agent_type]}
+                      {agent.source}
                     </span>
-                    {agent.repositories[0] && (
-                      <>
-                        <span className="text-[10px] text-zinc-700 font-mono">·</span>
-                        <span className="text-[10px] text-zinc-600 font-mono truncate">
-                          {agent.repositories[0]}
-                        </span>
-                      </>
-                    )}
-                    {agent.launch_mode && (
-                      <>
-                        <span className="text-[10px] text-zinc-700 font-mono">·</span>
-                        <span className="text-[10px] text-zinc-700 font-mono">
-                          {agent.launch_mode === "interactive" ? "interactive" : "non-interactive"}
-                        </span>
-                      </>
-                    )}
+                    <span className="text-[10px] text-zinc-700 font-mono">·</span>
+                    <span className="text-[10px] text-zinc-700 font-mono">
+                      {agent.message_count} msg{agent.message_count !== 1 ? "s" : ""}
+                    </span>
                   </div>
-                  {agent.summary && (
-                    <p className="text-[10px] text-zinc-500 font-mono mt-1 ml-4 line-clamp-2">
-                      {agent.summary}
-                    </p>
-                  )}
-                  {agent.last_error && (
-                    <p className="text-[10px] text-red-400/60 font-mono mt-1 ml-4 truncate">
-                      {agent.last_error}
-                    </p>
-                  )}
                 </button>
               ))}
               </div>
@@ -1070,12 +1460,21 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
             {/* Detail panel */}
             {selectedId && (
               <div className="flex-1 min-h-0 min-w-0">
-                <AgentDetailPanel
-                  key={selectedId}
-                  agentId={selectedId}
-                  onClose={() => setSelectedId(null)}
-                  onArchive={handleArchive}
-                />
+                {selectedId === "new" ? (
+                  <NewChatPanel
+                    key="new"
+                    onClose={() => setSelectedId(null)}
+                    onAgentCreated={(agentId) => {
+                      setSelectedId(agentId);
+                    }}
+                  />
+                ) : (
+                  <AgentConversationPanel
+                    key={selectedId}
+                    agentId={selectedId}
+                    onClose={() => setSelectedId(null)}
+                  />
+                )}
               </div>
             )}
           </>

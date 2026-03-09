@@ -13,10 +13,10 @@ import type {
   PrStatusResponse,
   RepositoriesResponse,
   ReviewRequestsResponse,
-  HypeshipAgentListResponse,
-  HypeshipAgentResponse,
-  HypeshipCreateAgentRequest,
-  HypeshipUpdateStateRequest,
+  HypeshipWorkerListResponse,
+  HypeshipWorkerResponse,
+  HypeshipCreateWorkerRequest,
+  HypeshipUpdateWorkerStateRequest,
   HypeshipConversationResponse,
   HypeshipSendMessageResponse,
   HypeshipHealthResponse,
@@ -27,6 +27,8 @@ import type {
   HypeshipUserResponse,
   HypeshipIdentityListResponse,
   HypeshipAuthConfig,
+  HypeshipAgentListResponse,
+  HypeshipAgentDetailResponse,
 } from "./types";
 import {
   getApiKey,
@@ -342,18 +344,34 @@ export async function testHypeshipConnection(): Promise<HypeshipHealthResponse> 
   return res.json();
 }
 
-export function useHypeshipAgents(includeArchived = false) {
+export function useHypeshipAgents() {
   return useSWR<HypeshipAgentListResponse>(
-    `/api/hypeship/agents?include_archived=${includeArchived}`,
+    "/api/hypeship/agents",
     hypeshipFetcher<HypeshipAgentListResponse>,
     { refreshInterval: 10_000 },
   );
 }
 
 export function useHypeshipAgent(id: string | null) {
-  return useSWR<HypeshipAgentResponse>(
+  return useSWR<HypeshipAgentDetailResponse>(
     id ? `/api/hypeship/agents/${id}` : null,
-    hypeshipFetcher<HypeshipAgentResponse>,
+    hypeshipFetcher<HypeshipAgentDetailResponse>,
+    { refreshInterval: 3_000 },
+  );
+}
+
+export function useHypeshipWorkers(includeArchived = false) {
+  return useSWR<HypeshipWorkerListResponse>(
+    `/api/hypeship/agents?include_archived=${includeArchived}`,
+    hypeshipFetcher<HypeshipWorkerListResponse>,
+    { refreshInterval: 10_000 },
+  );
+}
+
+export function useHypeshipWorker(id: string | null) {
+  return useSWR<HypeshipWorkerResponse>(
+    id ? `/api/hypeship/agents/${id}` : null,
+    hypeshipFetcher<HypeshipWorkerResponse>,
     {
       refreshInterval: (data) => {
         if (!data) return 3_000;
@@ -372,9 +390,9 @@ export function useHypeshipConversation(id: string | null, active = true) {
   );
 }
 
-export async function createHypeshipAgent(
-  body: HypeshipCreateAgentRequest,
-): Promise<HypeshipAgentResponse> {
+export async function createHypeshipWorker(
+  body: HypeshipCreateWorkerRequest,
+): Promise<HypeshipWorkerResponse> {
   const res = await fetch("/api/hypeship/agents", {
     method: "POST",
     headers: hypeshipHeaders(),
@@ -406,10 +424,10 @@ export async function sendHypeshipMessage(
   return data;
 }
 
-export async function updateHypeshipAgentState(
+export async function updateHypeshipWorkerState(
   id: string,
-  body: HypeshipUpdateStateRequest,
-): Promise<HypeshipAgentResponse> {
+  body: HypeshipUpdateWorkerStateRequest,
+): Promise<HypeshipWorkerResponse> {
   const res = await fetch(`/api/hypeship/agents/${id}/state`, {
     method: "PATCH",
     headers: hypeshipHeaders(),
@@ -430,7 +448,7 @@ export async function updateHypeshipAgentState(
 export async function sendHypeshipPrompt(
   body: HypeshipPromptRequest,
 ): Promise<HypeshipPromptResponse> {
-  const res = await fetch("/api/hypeship/prompt", {
+  const res = await fetch("/api/hypeship/agents", {
     method: "POST",
     headers: hypeshipHeaders(),
     body: JSON.stringify(body),
@@ -447,13 +465,49 @@ export async function sendHypeshipPrompt(
 }
 
 export async function sendHypeshipFollowUp(
-  threadId: string,
+  agentId: string,
   message: string,
 ): Promise<HypeshipPromptResponse> {
-  const res = await fetch(`/api/hypeship/prompt/${threadId}`, {
+  const res = await fetch(`/api/hypeship/agents/${agentId}/follow-up`, {
     method: "POST",
     headers: hypeshipHeaders(),
     body: JSON.stringify({ message }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function stopHypeshipAgent(agentId: string): Promise<{ id: string }> {
+  const res = await fetch(`/api/hypeship/agents/${agentId}/stop`, {
+    method: "POST",
+    headers: hypeshipHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  mutate(
+    (key: string) =>
+      typeof key === "string" && key.startsWith("/api/hypeship/agents"),
+    undefined,
+    { revalidate: true },
+  );
+  return data;
+}
+
+export async function resetHypeshipOrchestrator(): Promise<{ status: string }> {
+  const res = await fetch("/api/hypeship/orchestrators/reset", {
+    method: "POST",
+    headers: hypeshipHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Hypeship Settings ──
+
+export async function getHypeshipSettingsLink(): Promise<{ url: string; expires_in: number }> {
+  const res = await fetch("/api/hypeship/settings/link", {
+    method: "POST",
+    headers: hypeshipHeaders(),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();

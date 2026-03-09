@@ -161,21 +161,23 @@ export interface ArtifactDownloadResponse {
 // ── Hypeship types ──
 export type HypeshipAgentType = "codex_cli" | "claude_code_cli";
 
-export type HypeshipAgentState =
+export type HypeshipWorkerState =
   | "launching"
   | "working"
   | "archived"
   | "gone";
 
+export type HypeshipAgentStatus = "pending" | "running" | "finished" | "stopped" | "error";
+
 export type HypeshipLaunchMode = "interactive" | "non_interactive";
 export type HypeshipApprovalMode = "auto_approve" | "human_in_loop";
 
-export interface HypeshipAgent {
+export interface HypeshipWorker {
   id: string;
   topic: string;
   summary: string;
-  repositories: string[];
   branch_name?: string;
+  orchestrator_id?: string;
   initial_prompt: string;
   start_command: string;
   agent_type: HypeshipAgentType;
@@ -184,7 +186,7 @@ export interface HypeshipAgent {
   launch_image: string;
   hypeman_name: string;
   hypeman_instance_id?: string;
-  state: HypeshipAgentState;
+  state: HypeshipWorkerState;
   last_error?: string;
   shell_ws_url?: string;
   desktop_url?: string;
@@ -196,16 +198,15 @@ export interface HypeshipAgent {
   last_heartbeat_at?: string;
 }
 
-export interface HypeshipAgentListResponse {
-  agents: HypeshipAgent[];
+export interface HypeshipWorkerListResponse {
+  agents: HypeshipWorker[];
 }
 
-export interface HypeshipAgentResponse {
-  agent: HypeshipAgent;
+export interface HypeshipWorkerResponse {
+  agent: HypeshipWorker;
 }
 
-export interface HypeshipCreateAgentRequest {
-  repositories: string[];
+export interface HypeshipCreateWorkerRequest {
   agent_type: HypeshipAgentType;
   initial_prompt: string;
   branch_name?: string;
@@ -216,14 +217,42 @@ export interface HypeshipCreateAgentRequest {
   mode?: "read" | "write";
 }
 
-export interface HypeshipUpdateStateRequest {
+export interface HypeshipUpdateWorkerStateRequest {
   state: "working" | "archived" | "gone";
   summary?: string;
+}
+
+export interface HypeshipAgentSummary {
+  id: string;
+  source: string;
+  preview: string;
+  message_count: number;
+  status: HypeshipAgentStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HypeshipAgentListResponse {
+  agents: HypeshipAgentSummary[];
+}
+
+export interface HypeshipAgentDetail {
+  id: string;
+  source: string;
+  messages: HypeshipConversationTurn[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HypeshipAgentDetailResponse {
+  agent: HypeshipAgentDetail;
 }
 
 export interface HypeshipConversationTurn {
   role: string;
   content: string;
+  source?: string;
+  worker_id?: string;
   timestamp: string;
 }
 
@@ -257,13 +286,7 @@ export interface HypeshipPromptRequest {
 }
 
 export interface HypeshipPromptResponse {
-  thread_id: string;
-  agent?: {
-    id: string;
-    status: string;
-    repositories?: string[];
-    mode?: string;
-  };
+  agent_id: string;
   message: string;
 }
 

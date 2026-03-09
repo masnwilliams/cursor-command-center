@@ -209,7 +209,11 @@ export function setSoundEnabled(enabled: boolean): void {
 
 export function getHypeshipApiUrl(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(KEYS.hypeshipApiUrl) || null;
+  return (
+    localStorage.getItem(KEYS.hypeshipApiUrl) ||
+    process.env.NEXT_PUBLIC_HYPESHIP_API_URL ||
+    null
+  );
 }
 
 export function setHypeshipApiUrl(url: string): void {
@@ -218,7 +222,11 @@ export function setHypeshipApiUrl(url: string): void {
 
 export function getHypeshipJwt(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(KEYS.hypeshipJwt) || null;
+  return (
+    localStorage.getItem(KEYS.hypeshipJwt) ||
+    process.env.NEXT_PUBLIC_HYPESHIP_JWT ||
+    null
+  );
 }
 
 export function setHypeshipJwt(jwt: string): void {

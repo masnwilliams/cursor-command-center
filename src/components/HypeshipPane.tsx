@@ -2,21 +2,21 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  useHypeshipAgent,
+  useHypeshipWorker,
   useHypeshipConversation,
   sendHypeshipMessage,
 } from "@/lib/api";
-import type { HypeshipAgentState } from "@/lib/types";
+import type { HypeshipWorkerState } from "@/lib/types";
 
-const STATE_COLORS: Record<HypeshipAgentState, string> = {
+const WORKER_STATE_COLORS: Record<HypeshipWorkerState, string> = {
   launching: "bg-amber-400",
   working: "bg-blue-400",
   archived: "bg-zinc-400",
   gone: "bg-red-400",
 };
 
-function StateDot({ state }: { state: HypeshipAgentState }) {
-  const color = STATE_COLORS[state] ?? "bg-zinc-400";
+function WorkerStateDot({ state }: { state: HypeshipWorkerState }) {
+  const color = WORKER_STATE_COLORS[state] ?? "bg-zinc-400";
   const pulse = state === "launching" || state === "working";
   return (
     <span className="relative flex h-2 w-2 shrink-0">
@@ -53,7 +53,7 @@ export default function HypeshipPane({
   focused: boolean;
   onFocus: () => void;
 }) {
-  const { data: agentData } = useHypeshipAgent(agentId);
+  const { data: agentData } = useHypeshipWorker(agentId);
   const agent = agentData?.agent;
   const isActive =
     agent?.state === "launching" || agent?.state === "working";
@@ -105,7 +105,6 @@ export default function HypeshipPane({
   );
 
   const topic = agent?.topic || agentId.slice(0, 12);
-  const repos = agent?.repositories?.join(", ") ?? "";
 
   return (
     <div
@@ -115,15 +114,10 @@ export default function HypeshipPane({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-2 py-1 bg-zinc-900/60 shrink-0">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          {agent && <StateDot state={agent.state} />}
+          {agent && <WorkerStateDot state={agent.state} />}
           <span className="text-[10px] text-zinc-300 font-mono truncate">
             {topic}
           </span>
-          {repos && (
-            <span className="text-[10px] text-zinc-600 font-mono truncate hidden sm:inline">
-              {repos}
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {/* Tab buttons */}
