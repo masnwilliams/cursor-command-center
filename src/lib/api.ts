@@ -477,6 +477,22 @@ export async function sendHypeshipFollowUp(
   return res.json();
 }
 
+export async function stopHypeshipAgent(agentId: string): Promise<{ id: string }> {
+  const res = await fetch(`/api/hypeship/agents/${agentId}/stop`, {
+    method: "POST",
+    headers: hypeshipHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  mutate(
+    (key: string) =>
+      typeof key === "string" && key.startsWith("/api/hypeship/agents"),
+    undefined,
+    { revalidate: true },
+  );
+  return data;
+}
+
 // ── Hypeship Secrets ──
 
 export function useHypeshipSecrets(scope?: string, userId?: string) {

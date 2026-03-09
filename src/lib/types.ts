@@ -252,6 +252,7 @@ export interface HypeshipConversationTurn {
   role: string;
   content: string;
   source?: string;
+  worker_id?: string;
   timestamp: string;
 }
 

@@ -28,6 +28,7 @@ import {
   useHypeshipIdentities,
   unlinkHypeshipIdentity,
   getHypeshipAuthConfig,
+  stopHypeshipAgent,
 } from "@/lib/api";
 import type {
   HypeshipWorker,
@@ -387,6 +388,65 @@ function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
   );
 }
 
+// ── Worker Group (collapsible sub-agent) ──
+
+interface TurnGroup {
+  type: "message" | "worker";
+  workerId?: string;
+  turns: HypeshipConversationTurn[];
+}
+
+function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup[] {
+  const groups: TurnGroup[] = [];
+  for (const turn of turns) {
+    const wid = turn.worker_id;
+    if (wid) {
+      const last = groups[groups.length - 1];
+      if (last && last.type === "worker" && last.workerId === wid) {
+        last.turns.push(turn);
+      } else {
+        groups.push({ type: "worker", workerId: wid, turns: [turn] });
+      }
+    } else {
+      groups.push({ type: "message", turns: [turn] });
+    }
+  }
+  return groups;
+}
+
+function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipConversationTurn[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const lastTurn = turns[turns.length - 1];
+  const isFinished = lastTurn?.role === "system" && lastTurn?.content?.includes("finished");
+  const shortId = workerId.slice(0, 12);
+
+  return (
+    <div className="border-l-2 border-amber-400/30 ml-3">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-900/30 transition-colors"
+      >
+        <span className="relative flex h-2 w-2 shrink-0">
+          {!isFinished && (
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+          )}
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${isFinished ? "bg-emerald-400" : "bg-amber-400"}`} />
+        </span>
+        <span className="text-[10px] text-amber-400 font-mono">worker {shortId}</span>
+        <span className="text-[10px] text-zinc-600 font-mono">{turns.length} msg{turns.length !== 1 ? "s" : ""}</span>
+        <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
+      </button>
+      {expanded && (
+        <div className="divide-y divide-zinc-800/20">
+          {turns.map((turn, i) => (
+            <ConversationBubble key={i} turn={turn} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Agent Detail Panel ──
 
 function AgentConversationPanel({
@@ -423,7 +483,7 @@ function AgentConversationPanel({
         if (ev.type === "chunk" && ev.text) {
           setStreamChunks((prev) => [...prev, ev.text]);
         }
-        if (ev.type === "done") {
+        if (ev.type === "done" || ev.type === "stopped") {
           setStreamChunks([]);
         }
       } catch {}
@@ -456,12 +516,20 @@ function AgentConversationPanel({
             {data?.agent?.source}
           </span>
         </div>
-        <button
-          onClick={onClose}
-          className="text-[10px] text-zinc-600 hover:text-zinc-400 font-mono px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors"
-        >
-          [close]
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={async () => { try { await stopHypeshipAgent(agentId); } catch {} }}
+            className="text-[10px] text-zinc-600 hover:text-red-400 font-mono px-2 py-0.5 border border-zinc-800 hover:border-red-900/50 transition-colors"
+          >
+            [stop]
+          </button>
+          <button
+            onClick={onClose}
+            className="text-[10px] text-zinc-600 hover:text-zinc-400 font-mono px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors"
+          >
+            [close]
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
@@ -478,9 +546,15 @@ function AgentConversationPanel({
           </div>
         )}
         <div className="divide-y divide-zinc-800/30">
-          {turns.map((turn, i) => (
-            <ConversationBubble key={i} turn={turn} />
-          ))}
+          {groupTurnsByWorker(turns).map((group, gi) =>
+            group.type === "worker" && group.workerId ? (
+              <WorkerGroup key={`w-${group.workerId}-${gi}`} workerId={group.workerId} turns={group.turns} />
+            ) : (
+              group.turns.map((turn, ti) => (
+                <ConversationBubble key={`m-${gi}-${ti}`} turn={turn} />
+              ))
+            )
+          )}
         </div>
         {streamingText && (
           <div className="px-3 py-2">
