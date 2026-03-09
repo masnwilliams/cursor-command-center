@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -9,7 +9,17 @@ import {
   setHypeshipApiUrl,
   setHypeshipJwt,
   clearHypeshipAuth,
+  getHypeshipView,
+  setHypeshipView,
+  getHypeshipGrid,
+  addToHypeshipGrid,
+  removeFromHypeshipGrid,
 } from "@/lib/storage";
+import type { HypeshipView } from "@/lib/storage";
+import HypeshipAgentPane from "@/components/HypeshipAgentPane";
+import { HypeshipAddAgentModal } from "@/components/HypeshipAddAgentModal";
+import { HypeshipNewChatModal } from "@/components/HypeshipNewChatModal";
+import { CommandPalette, type Command } from "@/components/CommandPalette";
 import {
   testHypeshipConnection,
   useHypeshipWorkers,
@@ -1324,7 +1334,21 @@ function ResetSection() {
 
 type DashboardTab = "agents" | "secrets" | "settings";
 
-function DashboardView({ onLogout }: { onLogout: () => void }) {
+function gridCols(count: number): string {
+  if (count <= 1) return "grid-cols-1";
+  if (count <= 2) return "grid-cols-1 sm:grid-cols-2";
+  if (count <= 4) return "grid-cols-1 sm:grid-cols-2";
+  if (count <= 6) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+  return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+}
+
+function DashboardListView({
+  onLogout,
+  onSwitchView,
+}: {
+  onLogout: () => void;
+  onSwitchView: (v: HypeshipView) => void;
+}) {
   const [tab, setTab] = useState<DashboardTab>("agents");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -1349,7 +1373,22 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
       <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 bg-zinc-900/60 shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-xs text-zinc-300 font-mono">hypeship</span>
-          <div className="flex items-center gap-0.5 ml-2">
+          <div className="flex items-center gap-0.5 ml-1">
+            {(["dashboard", "panes"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => onSwitchView(v)}
+                className={`px-2 py-0.5 text-[10px] font-mono transition-colors ${
+                  v === "dashboard"
+                    ? "text-zinc-200 bg-zinc-800"
+                    : "text-zinc-600 hover:text-zinc-400"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-0.5 ml-1 border-l border-zinc-800 pl-2">
             {(["agents", "secrets", "settings"] as const).map((t) => (
               <button
                 key={t}
@@ -1495,6 +1534,239 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
 
     </div>
   );
+}
+
+// ── Panes View ──
+
+function PanesView({
+  onLogout,
+  onSwitchView,
+}: {
+  onLogout: () => void;
+  onSwitchView: (v: HypeshipView) => void;
+}) {
+  const [grid, setGrid] = useState(getHypeshipGrid);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [showPalette, setShowPalette] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showNewChat, setShowNewChat] = useState(false);
+
+  const { data: agentsData } = useHypeshipAgents();
+  const agents = agentsData?.agents ?? [];
+  const agentMap = useMemo(() => {
+    const m = new Map<string, HypeshipAgentSummary>();
+    for (const a of agents) m.set(a.id, a);
+    return m;
+  }, [agents]);
+
+  const refreshGrid = useCallback(() => setGrid(getHypeshipGrid()), []);
+  const sorted = useMemo(() => [...grid].sort((a, b) => a.order - b.order), [grid]);
+  const paneCount = sorted.length;
+  const gridAgentIds = useMemo(() => new Set(grid.map((g) => g.agentId)), [grid]);
+
+  function handleAdd(agentId: string) {
+    addToHypeshipGrid(agentId);
+    refreshGrid();
+    setShowAddModal(false);
+    setFocusedId(agentId);
+  }
+
+  function handleRemove(agentId: string) {
+    removeFromHypeshipGrid(agentId);
+    if (focusedId === agentId) setFocusedId(null);
+    refreshGrid();
+  }
+
+  function handleNewChatCreated(agentId: string) {
+    addToHypeshipGrid(agentId);
+    refreshGrid();
+    setShowNewChat(false);
+    setFocusedId(agentId);
+  }
+
+  const focusedAgent = focusedId ? agentMap.get(focusedId) : null;
+
+  const commands = useMemo(() => {
+    const cmds: Command[] = [];
+
+    cmds.push({
+      id: "new-chat",
+      label: "new chat",
+      section: "agents",
+      action: () => setShowNewChat(true),
+    });
+    cmds.push({
+      id: "add-agent",
+      label: "add agent to grid",
+      section: "agents",
+      action: () => setShowAddModal(true),
+    });
+
+    if (focusedAgent) {
+      const isActive = focusedAgent.status === "pending" || focusedAgent.status === "running";
+      if (isActive) {
+        cmds.push({
+          id: "stop",
+          label: `stop ${focusedAgent.preview?.slice(0, 30) || focusedAgent.id.slice(0, 12)}`,
+          section: "focused pane",
+          action: () => stopHypeshipAgent(focusedAgent.id),
+        });
+      }
+      cmds.push({
+        id: "close",
+        label: "close pane",
+        section: "focused pane",
+        action: () => handleRemove(focusedAgent.id),
+      });
+    }
+
+    sorted.forEach((item) => {
+      const a = agentMap.get(item.agentId);
+      if (!a || a.id === focusedId) return;
+      cmds.push({
+        id: `focus-${a.id}`,
+        label: `focus ${a.preview?.slice(0, 40) || a.id.slice(0, 12)}`,
+        section: "panes",
+        action: () => setFocusedId(a.id),
+      });
+    });
+
+    cmds.push({
+      id: "switch-dashboard",
+      label: "switch to dashboard",
+      section: "app",
+      action: () => onSwitchView("dashboard"),
+    });
+    cmds.push({
+      id: "disconnect",
+      label: "disconnect",
+      section: "app",
+      action: onLogout,
+    });
+
+    return cmds;
+  }, [focusedAgent, focusedId, sorted, agentMap, onSwitchView, onLogout]);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey;
+      if (e.key === "k" && mod) {
+        e.preventDefault();
+        setShowPalette((v) => !v);
+        setShowAddModal(false);
+        setShowNewChat(false);
+        return;
+      }
+      if (e.key === "Escape") {
+        if (showPalette) { setShowPalette(false); return; }
+        if (showAddModal || showNewChat) return;
+        setFocusedId(null);
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [showPalette, showAddModal, showNewChat]);
+
+  return (
+    <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
+      {/* Top bar */}
+      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-0.5 bg-zinc-900/60 shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-zinc-500 font-mono">
+            hypeship — {paneCount} pane{paneCount !== 1 ? "s" : ""}
+          </span>
+          <div className="flex items-center gap-0.5 ml-1">
+            {(["dashboard", "panes"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => onSwitchView(v)}
+                className={`px-2 py-0.5 text-[10px] font-mono transition-colors ${
+                  v === "panes"
+                    ? "text-zinc-200 bg-zinc-800"
+                    : "text-zinc-600 hover:text-zinc-400"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button
+          onClick={() => setShowPalette(true)}
+          className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
+        >
+          [⌘K]
+        </button>
+      </div>
+
+      {/* Pane grid */}
+      {paneCount === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-3">
+            <p className="text-xs text-zinc-600 font-mono">no panes</p>
+            <button
+              onClick={() => setShowPalette(true)}
+              className="text-xs text-zinc-500 hover:text-zinc-200 font-mono border border-zinc-800 px-4 py-2 hover:border-zinc-600 transition-colors"
+            >
+              ⌘K open command palette
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className={`flex-1 grid ${gridCols(paneCount)} auto-rows-fr min-h-0 overflow-hidden`}>
+          {sorted.map((item) => (
+            <HypeshipAgentPane
+              key={item.agentId}
+              agentId={item.agentId}
+              focused={focusedId === item.agentId}
+              onFocus={() => setFocusedId(item.agentId)}
+              onClose={() => handleRemove(item.agentId)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Modals */}
+      {showPalette && (
+        <CommandPalette commands={commands} onClose={() => setShowPalette(false)} />
+      )}
+      {showAddModal && (
+        <HypeshipAddAgentModal
+          gridAgentIds={gridAgentIds}
+          onAdd={handleAdd}
+          onNewChat={() => { setShowAddModal(false); setShowNewChat(true); }}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
+      {showNewChat && (
+        <HypeshipNewChatModal
+          onCreated={handleNewChatCreated}
+          onClose={() => setShowNewChat(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── View Router ──
+
+function DashboardView({ onLogout }: { onLogout: () => void }) {
+  const [view, setView] = useState<HypeshipView>("dashboard");
+
+  useEffect(() => {
+    setView(getHypeshipView());
+  }, []);
+
+  function handleSwitchView(v: HypeshipView) {
+    setHypeshipView(v);
+    setView(v);
+  }
+
+  if (view === "panes") {
+    return <PanesView onLogout={onLogout} onSwitchView={handleSwitchView} />;
+  }
+
+  return <DashboardListView onLogout={onLogout} onSwitchView={handleSwitchView} />;
 }
 
 // ── Root ──

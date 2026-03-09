@@ -12,6 +12,8 @@ const KEYS = {
   soundEnabled: "cursor-agents-sound-enabled",
   hypeshipApiUrl: "hypeship-api-url",
   hypeshipJwt: "hypeship-jwt",
+  hypeshipView: "hypeship-view",
+  hypeshipGrid: "hypeship-grid",
 } as const;
 
 export function getApiKey(): string | null {
@@ -236,4 +238,46 @@ export function setHypeshipJwt(jwt: string): void {
 export function clearHypeshipAuth(): void {
   localStorage.removeItem(KEYS.hypeshipApiUrl);
   localStorage.removeItem(KEYS.hypeshipJwt);
+}
+
+export type HypeshipView = "dashboard" | "panes";
+
+export function getHypeshipView(): HypeshipView {
+  if (typeof window === "undefined") return "dashboard";
+  const val = localStorage.getItem(KEYS.hypeshipView);
+  return val === "panes" ? "panes" : "dashboard";
+}
+
+export function setHypeshipView(view: HypeshipView): void {
+  localStorage.setItem(KEYS.hypeshipView, view);
+}
+
+export function getHypeshipGrid(): GridItem[] {
+  if (typeof window === "undefined") return [];
+  const raw = localStorage.getItem(KEYS.hypeshipGrid);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+function setHypeshipGrid(items: GridItem[]): void {
+  localStorage.setItem(KEYS.hypeshipGrid, JSON.stringify(items));
+}
+
+export function addToHypeshipGrid(agentId: string): GridItem[] {
+  const grid = getHypeshipGrid();
+  if (grid.some((g) => g.agentId === agentId)) return grid;
+  const maxOrder = grid.reduce((max, g) => Math.max(max, g.order), -1);
+  const updated = [...grid, { agentId, order: maxOrder + 1 }];
+  setHypeshipGrid(updated);
+  return updated;
+}
+
+export function removeFromHypeshipGrid(agentId: string): GridItem[] {
+  const updated = getHypeshipGrid().filter((g) => g.agentId !== agentId);
+  setHypeshipGrid(updated);
+  return updated;
 }
