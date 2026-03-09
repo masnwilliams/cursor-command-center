@@ -16,7 +16,7 @@ export async function GET(
   }
 
   const base = url.replace(/\/$/, "");
-  const upstream = `${base}/v1/threads/${encodeURIComponent(id)}/stream`;
+  const upstream = `${base}/v1/agents/${encodeURIComponent(id)}/stream`;
 
   try {
     const res = await fetch(upstream, {

@@ -12,15 +12,15 @@ import {
 } from "@/lib/storage";
 import {
   testHypeshipConnection,
+  useHypeshipWorkers,
+  useHypeshipWorker,
+  useHypeshipConversation,
   useHypeshipAgents,
   useHypeshipAgent,
-  useHypeshipConversation,
-  useHypeshipThreads,
-  useHypeshipThread,
   sendHypeshipPrompt,
   sendHypeshipFollowUp,
   sendHypeshipMessage,
-  updateHypeshipAgentState,
+  updateHypeshipWorkerState,
   useHypeshipSecrets,
   createHypeshipSecret,
   deleteHypeshipSecret,
@@ -30,25 +30,42 @@ import {
   getHypeshipAuthConfig,
 } from "@/lib/api";
 import type {
-  HypeshipAgent,
-  HypeshipAgentState,
+  HypeshipWorker,
+  HypeshipWorkerState,
+  HypeshipAgentStatus,
   HypeshipAgentType,
   HypeshipConversationTurn,
   HypeshipPromptResponse,
   HypeshipAuthConfig,
-  HypeshipThreadSummary,
+  HypeshipAgentSummary,
 } from "@/lib/types";
 
 type SetupState = "idle" | "testing" | "success" | "error";
 
-const STATE_COLORS: Record<HypeshipAgentState, string> = {
+const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
+  creating: "bg-amber-400",
+  running: "bg-blue-400",
+  finished: "bg-emerald-400",
+  stopped: "bg-zinc-400",
+  error: "bg-red-400",
+};
+
+const STATUS_PULSE: Record<HypeshipAgentStatus, boolean> = {
+  creating: true,
+  running: true,
+  finished: false,
+  stopped: false,
+  error: false,
+};
+
+const WORKER_STATE_COLORS: Record<HypeshipWorkerState, string> = {
   launching: "bg-amber-400",
   working: "bg-blue-400",
   archived: "bg-zinc-400",
   gone: "bg-red-400",
 };
 
-const STATE_PULSE: Record<HypeshipAgentState, boolean> = {
+const WORKER_STATE_PULSE: Record<HypeshipWorkerState, boolean> = {
   launching: true,
   working: true,
   archived: false,
@@ -60,9 +77,24 @@ const AGENT_LABELS: Record<HypeshipAgentType, string> = {
   claude_code_cli: "claude code cli",
 };
 
-function StateDot({ state }: { state: HypeshipAgentState }) {
-  const color = STATE_COLORS[state] ?? "bg-zinc-400";
-  const pulse = STATE_PULSE[state] ?? false;
+function StatusDot({ status }: { status: HypeshipAgentStatus }) {
+  const color = STATUS_COLORS[status] ?? "bg-zinc-400";
+  const pulse = STATUS_PULSE[status] ?? false;
+  return (
+    <span className="relative flex h-2 w-2 shrink-0">
+      {pulse && (
+        <span
+          className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${color}`}
+        />
+      )}
+      <span className={`relative inline-flex h-2 w-2 rounded-full ${color}`} />
+    </span>
+  );
+}
+
+function WorkerStateDot({ state }: { state: HypeshipWorkerState }) {
+  const color = WORKER_STATE_COLORS[state] ?? "bg-zinc-400";
+  const pulse = WORKER_STATE_PULSE[state] ?? false;
   return (
     <span className="relative flex h-2 w-2 shrink-0">
       {pulse && (
@@ -216,14 +248,14 @@ function SetupView({ onConnected }: { onConnected: () => void }) {
 // ── Conversation Thread ──
 
 function ConversationThread({
-  agentId,
-  agentState,
+  workerId,
+  workerState,
 }: {
-  agentId: string;
-  agentState: HypeshipAgentState;
+  workerId: string;
+  workerState: HypeshipWorkerState;
 }) {
-  const isActive = agentState === "launching" || agentState === "working";
-  const { data, error } = useHypeshipConversation(agentId, isActive);
+  const isActive = workerState === "launching" || workerState === "working";
+  const { data, error } = useHypeshipConversation(workerId, isActive);
   const turns = data?.conversation ?? [];
   const bottomRef = useRef<HTMLDivElement>(null);
   const [msgInput, setMsgInput] = useState("");
@@ -239,14 +271,14 @@ function ConversationThread({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView();
-  }, [agentId]);
+  }, [workerId]);
 
   async function handleSend() {
     const text = msgInput.trim();
     if (!text || sending) return;
     setSending(true);
     try {
-      await sendHypeshipMessage(agentId, text);
+      await sendHypeshipMessage(workerId, text);
       setMsgInput("");
     } catch {
       // keep input for retry
@@ -355,17 +387,17 @@ function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
   );
 }
 
-// ── Thread Detail Panel ──
+// ── Agent Detail Panel ──
 
-function ThreadDetailPanel({
-  threadId,
+function AgentConversationPanel({
+  agentId,
   onClose,
 }: {
-  threadId: string;
+  agentId: string;
   onClose: () => void;
 }) {
-  const { data, error } = useHypeshipThread(threadId);
-  const turns = data?.thread?.messages ?? [];
+  const { data, error } = useHypeshipAgent(agentId);
+  const turns = data?.agent?.messages ?? [];
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [streamChunks, setStreamChunks] = useState<string[]>([]);
@@ -382,7 +414,7 @@ function ThreadDetailPanel({
     if (!apiUrl || !jwt) return;
 
     const evtSource = new EventSource(
-      `/api/hypeship/threads/${threadId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
+      `/api/hypeship/threads/${agentId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
     );
 
     evtSource.addEventListener("message", (e) => {
@@ -398,7 +430,7 @@ function ThreadDetailPanel({
     });
 
     return () => evtSource.close();
-  }, [threadId]);
+  }, [agentId]);
 
   const streamingText = streamChunks.join("");
 
@@ -407,7 +439,7 @@ function ThreadDetailPanel({
     if (!text || sending) return;
     setSending(true);
     try {
-      await sendHypeshipFollowUp(threadId, text);
+      await sendHypeshipFollowUp(agentId, text);
       setInput("");
     } catch {}
     setSending(false);
@@ -418,10 +450,10 @@ function ThreadDetailPanel({
       <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-zinc-300 font-mono truncate">
-            {turns.length > 0 ? (turns.find((t) => t.role === "user")?.content?.slice(0, 60) || threadId) : threadId}
+            {turns.length > 0 ? (turns.find((t) => t.role === "user")?.content?.slice(0, 60) || agentId) : agentId}
           </span>
           <span className="text-[10px] text-zinc-600 font-mono">
-            {data?.thread?.source}
+            {data?.agent?.source}
           </span>
         </div>
         <button
@@ -501,16 +533,16 @@ interface LocalMessage {
 
 function NewChatPanel({
   onClose,
-  onThreadCreated,
+  onAgentCreated,
 }: {
   onClose: () => void;
-  onThreadCreated: (threadId: string) => void;
+  onAgentCreated: (agentId: string) => void;
 }) {
   const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [threadId, setThreadId] = useState<string | null>(null);
+  const [agentId, setAgentId] = useState<string | null>(null);
   const [streamChunks, setStreamChunks] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -523,15 +555,15 @@ function NewChatPanel({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, streamChunks.length]);
 
-  // SSE streaming: connect when we have a threadId
+  // SSE streaming: connect when we have an agentId
   useEffect(() => {
-    if (!threadId) return;
+    if (!agentId) return;
     const apiUrl = getHypeshipApiUrl();
     const jwt = getHypeshipJwt();
     if (!apiUrl || !jwt) return;
 
     const evtSource = new EventSource(
-      `/api/hypeship/threads/${threadId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
+      `/api/hypeship/threads/${agentId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`
     );
 
     evtSource.addEventListener("message", (e) => {
@@ -553,7 +585,7 @@ function NewChatPanel({
     });
 
     return () => evtSource.close();
-  }, [threadId]);
+  }, [agentId]);
 
   async function handleSend() {
     const text = input.trim();
@@ -577,9 +609,9 @@ function NewChatPanel({
         { role: "assistant", content: resp.message, timestamp: new Date().toISOString() },
       ]);
 
-      if (resp.thread_id) {
-        setThreadId(resp.thread_id);
-        onThreadCreated(resp.thread_id);
+      if (resp.agent_id) {
+        setAgentId(resp.agent_id);
+        onAgentCreated(resp.agent_id);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "failed to send");
@@ -682,18 +714,18 @@ function NewChatPanel({
   );
 }
 
-// ── Agent Detail (info + conversation tabs) ──
+// ── Worker Detail (info + conversation tabs) ──
 
-function AgentDetailPanel({
-  agentId,
+function WorkerDetailPanel({
+  workerId,
   onClose,
   onArchive,
 }: {
-  agentId: string;
+  workerId: string;
   onClose: () => void;
   onArchive: (id: string) => void;
 }) {
-  const { data, error } = useHypeshipAgent(agentId);
+  const { data, error } = useHypeshipWorker(workerId);
   const agent = data?.agent;
   const [tab, setTab] = useState<"chat" | "info">("chat");
 
@@ -720,7 +752,7 @@ function AgentDetailPanel({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 bg-zinc-900/60 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <StateDot state={agent.state} />
+          <WorkerStateDot state={agent.state} />
           <span className="text-[10px] text-zinc-300 font-mono truncate">
             {agent.topic || agent.id.slice(0, 8)}
           </span>
@@ -766,68 +798,68 @@ function AgentDetailPanel({
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "chat" ? (
-          <ConversationThread agentId={agent.id} agentState={agent.state} />
+          <ConversationThread workerId={agent.id} workerState={agent.state} />
         ) : (
-          <AgentInfoTab agent={agent} />
+          <WorkerInfoTab worker={agent} />
         )}
       </div>
     </div>
   );
 }
 
-function AgentInfoTab({ agent }: { agent: HypeshipAgent }) {
+function WorkerInfoTab({ worker }: { worker: HypeshipWorker }) {
   return (
     <div className="overflow-y-auto h-full px-3 py-2 space-y-3 text-[11px] font-mono">
       <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
         <span className="text-zinc-600">id</span>
-        <span className="text-zinc-400 truncate">{agent.id}</span>
+        <span className="text-zinc-400 truncate">{worker.id}</span>
 
         <span className="text-zinc-600">state</span>
-        <span className="text-zinc-300">{agent.state}</span>
+        <span className="text-zinc-300">{worker.state}</span>
 
         <span className="text-zinc-600">agent</span>
-        <span className="text-zinc-300">{AGENT_LABELS[agent.agent_type]}</span>
+        <span className="text-zinc-300">{AGENT_LABELS[worker.agent_type]}</span>
 
         <span className="text-zinc-600">mode</span>
-        <span className="text-zinc-300">{agent.launch_mode?.replace("_", " ") ?? "—"}</span>
+        <span className="text-zinc-300">{worker.launch_mode?.replace("_", " ") ?? "—"}</span>
 
         <span className="text-zinc-600">approval</span>
-        <span className="text-zinc-300">{agent.approval_mode?.replace("_", " ") ?? "—"}</span>
+        <span className="text-zinc-300">{worker.approval_mode?.replace("_", " ") ?? "—"}</span>
 
-        {agent.branch_name && (
+        {worker.branch_name && (
           <>
             <span className="text-zinc-600">branch</span>
-            <span className="text-zinc-300">{agent.branch_name}</span>
+            <span className="text-zinc-300">{worker.branch_name}</span>
           </>
         )}
 
         <span className="text-zinc-600">image</span>
-        <span className="text-zinc-300 truncate">{agent.launch_image}</span>
+        <span className="text-zinc-300 truncate">{worker.launch_image}</span>
 
         <span className="text-zinc-600">hypeman</span>
-        <span className="text-zinc-300 truncate">{agent.hypeman_name}</span>
+        <span className="text-zinc-300 truncate">{worker.hypeman_name}</span>
 
         <span className="text-zinc-600">created</span>
-        <span className="text-zinc-300">{timeAgo(agent.created_at)}</span>
+        <span className="text-zinc-300">{timeAgo(worker.created_at)}</span>
 
-        {agent.started_at && (
+        {worker.started_at && (
           <>
             <span className="text-zinc-600">started</span>
-            <span className="text-zinc-300">{timeAgo(agent.started_at)}</span>
+            <span className="text-zinc-300">{timeAgo(worker.started_at)}</span>
           </>
         )}
 
-        {agent.finished_at && (
+        {worker.finished_at && (
           <>
             <span className="text-zinc-600">finished</span>
-            <span className="text-zinc-300">{timeAgo(agent.finished_at)}</span>
+            <span className="text-zinc-300">{timeAgo(worker.finished_at)}</span>
           </>
         )}
 
-        {agent.last_heartbeat_at && (
+        {worker.last_heartbeat_at && (
           <>
             <span className="text-zinc-600">heartbeat</span>
-            <span className="text-zinc-300">{timeAgo(agent.last_heartbeat_at)}</span>
+            <span className="text-zinc-300">{timeAgo(worker.last_heartbeat_at)}</span>
           </>
         )}
       </div>
@@ -835,56 +867,56 @@ function AgentInfoTab({ agent }: { agent: HypeshipAgent }) {
       <div className="space-y-1">
         <span className="text-zinc-600">prompt</span>
         <div className="text-zinc-300 bg-zinc-900/60 border border-zinc-800 p-2 whitespace-pre-wrap text-[10px]">
-          {agent.initial_prompt}
+          {worker.initial_prompt}
         </div>
       </div>
 
-      {agent.summary && (
+      {worker.summary && (
         <div className="space-y-1">
           <span className="text-zinc-600">summary</span>
           <div className="text-zinc-300 bg-zinc-900/60 border border-zinc-800 p-2 whitespace-pre-wrap text-[10px]">
-            {agent.summary}
+            {worker.summary}
           </div>
         </div>
       )}
 
-      {agent.last_error && (
+      {worker.last_error && (
         <div className="space-y-1">
           <span className="text-red-400">error</span>
           <div className="text-red-300 bg-red-900/10 border border-red-900/30 p-2 whitespace-pre-wrap text-[10px]">
-            {agent.last_error}
+            {worker.last_error}
           </div>
         </div>
       )}
 
-      {(agent.shell_connect_command || agent.desktop_url || agent.shell_ws_url) && (
+      {(worker.shell_connect_command || worker.desktop_url || worker.shell_ws_url) && (
         <div className="space-y-1.5">
           <span className="text-zinc-600">connections</span>
-          {agent.shell_connect_command && (
+          {worker.shell_connect_command && (
             <div className="space-y-0.5">
               <span className="text-[10px] text-zinc-600">shell command</span>
               <div className="text-zinc-300 bg-zinc-900/60 border border-zinc-800 p-2 text-[10px] break-all select-all">
-                {agent.shell_connect_command}
+                {worker.shell_connect_command}
               </div>
             </div>
           )}
-          {agent.desktop_url && (
+          {worker.desktop_url && (
             <div className="space-y-0.5">
               <span className="text-[10px] text-zinc-600">desktop</span>
               <a
-                href={agent.desktop_url}
+                href={worker.desktop_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block text-blue-400 hover:text-blue-300 text-[10px] underline truncate"
               >
-                {agent.desktop_url}
+                {worker.desktop_url}
               </a>
             </div>
           )}
-          {agent.shell_ws_url && (
+          {worker.shell_ws_url && (
             <div className="space-y-0.5">
               <span className="text-[10px] text-zinc-600">shell ws</span>
-              <p className="text-zinc-400 text-[10px] break-all select-all">{agent.shell_ws_url}</p>
+              <p className="text-zinc-400 text-[10px] break-all select-all">{worker.shell_ws_url}</p>
             </div>
           )}
         </div>
@@ -1144,8 +1176,8 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<DashboardTab>("agents");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data: threadsData, error: threadsError, isLoading: threadsLoading } = useHypeshipThreads();
-  const threads = threadsData?.threads ?? [];
+  const { data: agentsData, error: agentsError, isLoading: agentsLoading } = useHypeshipAgents();
+  const agents = agentsData?.agents ?? [];
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -1157,7 +1189,7 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
     return () => window.removeEventListener("keydown", handleKey);
   }, [selectedId]);
 
-  const threadCount = threads.length;
+  const agentCount = agents.length;
 
   return (
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
@@ -1182,7 +1214,7 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
           </div>
           {tab === "agents" && (
             <span className="text-[10px] text-zinc-600 font-mono">
-              {threadCount} thread{threadCount !== 1 ? "s" : ""}
+              {agentCount} agent{agentCount !== 1 ? "s" : ""}
             </span>
           )}
         </div>
@@ -1211,26 +1243,26 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
       <div className="flex-1 flex min-h-0">
         {tab === "agents" && (
           <>
-            {/* Thread list */}
+            {/* Agent list */}
             <div
               className={`${selectedId ? "w-1/3 border-r border-zinc-800" : "w-full"} flex flex-col overflow-hidden shrink-0`}
             >
               <div className="flex-1 overflow-y-auto">
-              {threadsLoading && threads.length === 0 && (
+              {agentsLoading && agents.length === 0 && (
                 <div className="px-3 py-8 text-center">
                   <p className="text-[10px] text-zinc-600 font-mono animate-pulse">
-                    loading threads...
+                    loading agents...
                   </p>
                 </div>
               )}
 
-              {threadsError && (
+              {agentsError && (
                 <div className="px-3 py-8 text-center">
-                  <p className="text-[10px] text-red-400 font-mono">{threadsError.message}</p>
+                  <p className="text-[10px] text-red-400 font-mono">{agentsError.message}</p>
                 </div>
               )}
 
-              {!threadsLoading && threads.length === 0 && !threadsError && (
+              {!agentsLoading && agents.length === 0 && !agentsError && (
                 <div className="px-3 py-16 text-center space-y-3">
                   <p className="text-[10px] text-zinc-600 font-mono">no conversations yet</p>
                   <button
@@ -1242,29 +1274,30 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                 </div>
               )}
 
-              {threads.map((thread) => (
+              {agents.map((agent) => (
                 <button
-                  key={thread.id}
-                  onClick={() => setSelectedId(thread.id)}
+                  key={agent.id}
+                  onClick={() => setSelectedId(agent.id)}
                   className={`w-full text-left border-b border-zinc-800/50 px-3 py-2 hover:bg-zinc-900/40 transition-colors ${
-                    selectedId === thread.id ? "bg-zinc-900/60" : ""
+                    selectedId === agent.id ? "bg-zinc-900/60" : ""
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
+                    <StatusDot status={agent.status} />
                     <span className="text-[11px] text-zinc-200 font-mono truncate flex-1">
-                      {thread.preview || thread.id.slice(0, 16)}
+                      {agent.preview || agent.id.slice(0, 16)}
                     </span>
                     <span className="text-[10px] text-zinc-600 font-mono shrink-0">
-                      {timeAgo(thread.updated_at)}
+                      {timeAgo(agent.updated_at)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 ml-0">
+                  <div className="flex items-center gap-2 ml-4">
                     <span className="text-[10px] text-zinc-600 font-mono">
-                      {thread.source}
+                      {agent.source}
                     </span>
                     <span className="text-[10px] text-zinc-700 font-mono">·</span>
                     <span className="text-[10px] text-zinc-700 font-mono">
-                      {thread.message_count} msg{thread.message_count !== 1 ? "s" : ""}
+                      {agent.message_count} msg{agent.message_count !== 1 ? "s" : ""}
                     </span>
                   </div>
                 </button>
@@ -1279,14 +1312,14 @@ function DashboardView({ onLogout }: { onLogout: () => void }) {
                   <NewChatPanel
                     key="new"
                     onClose={() => setSelectedId(null)}
-                    onThreadCreated={(threadId) => {
-                      setSelectedId(threadId);
+                    onAgentCreated={(agentId) => {
+                      setSelectedId(agentId);
                     }}
                   />
                 ) : (
-                  <ThreadDetailPanel
+                  <AgentConversationPanel
                     key={selectedId}
-                    threadId={selectedId}
+                    agentId={selectedId}
                     onClose={() => setSelectedId(null)}
                   />
                 )}
