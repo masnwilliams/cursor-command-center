@@ -448,7 +448,7 @@ export async function updateHypeshipWorkerState(
 export async function sendHypeshipPrompt(
   body: HypeshipPromptRequest,
 ): Promise<HypeshipPromptResponse> {
-  const res = await fetch("/api/hypeship/prompt", {
+  const res = await fetch("/api/hypeship/agents", {
     method: "POST",
     headers: hypeshipHeaders(),
     body: JSON.stringify(body),
@@ -468,7 +468,7 @@ export async function sendHypeshipFollowUp(
   agentId: string,
   message: string,
 ): Promise<HypeshipPromptResponse> {
-  const res = await fetch(`/api/hypeship/prompt/${agentId}`, {
+  const res = await fetch(`/api/hypeship/agents/${agentId}/follow-up`, {
     method: "POST",
     headers: hypeshipHeaders(),
     body: JSON.stringify({ message }),

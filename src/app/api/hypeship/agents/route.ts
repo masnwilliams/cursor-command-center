@@ -4,3 +4,7 @@ import { proxyToHypeship } from "@/lib/hypeship-proxy";
 export async function GET(req: NextRequest) {
   return proxyToHypeship(req, "/v1/agents");
 }
+
+export async function POST(req: NextRequest) {
+  return proxyToHypeship(req, "/v1/agents");
+}
