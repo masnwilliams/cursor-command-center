@@ -54,7 +54,7 @@ export default function HypeshipPane({
   onFocus: () => void;
 }) {
   const { data: agentData } = useHypeshipWorker(agentId);
-  const agent = agentData?.agent;
+  const agent = agentData?.worker;
   const isActive =
     agent?.state === "launching" || agent?.state === "working";
 
