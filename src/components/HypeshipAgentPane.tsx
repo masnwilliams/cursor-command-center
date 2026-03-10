@@ -80,10 +80,12 @@ function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
       ? "done"
       : "working...";
 
+  const hasExpandableContent = turn.detail && turn.detail.length > 0;
+
   return (
     <div className="px-3 py-1">
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => hasExpandableContent && setExpanded(!expanded)}
         className="w-full text-left flex items-center gap-2 hover:bg-zinc-900/30 transition-colors rounded px-1 py-0.5 -mx-1"
       >
         <span className="relative flex h-2 w-2 shrink-0">
@@ -93,20 +95,20 @@ function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
         <span className="text-[10px] text-zinc-500 font-mono">{label}</span>
-        {isComplete && turn.detail && (
+        {hasExpandableContent && (
           <span className="text-[10px] text-zinc-700 font-mono ml-auto">
             {expanded ? "▼" : "▶"}
           </span>
         )}
       </button>
       {expanded && turn.detail && (
-        <div className="ml-4 mt-1 border-l border-zinc-800 pl-3">
+        <div className="ml-4 mt-1 border-l border-zinc-800 pl-3 max-h-[200px] overflow-y-auto">
           {turn.detail.map((d, i) => (
             <div key={i} className="py-1">
               <span className="text-[10px] text-zinc-600 font-mono">
-                {d.role === "user" ? "> " : "$ "}
+                {d.role === "tool_use" ? "⚡ " : d.role === "user" ? "> " : "$ "}
               </span>
-              <span className="text-[10px] text-zinc-500 font-mono whitespace-pre-wrap">
+              <span className={`text-[10px] font-mono whitespace-pre-wrap ${d.role === "tool_use" ? "text-amber-400/70" : "text-zinc-500"}`}>
                 {d.content}
               </span>
             </div>
@@ -117,10 +119,34 @@ function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
   );
 }
 
+function OrchestratorToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
+  const isRunning = turn.status === "running";
+  const isComplete = turn.status === "complete";
+  const dotColor = isComplete ? "bg-emerald-400" : "bg-amber-400";
+
+  return (
+    <div className="px-3 py-1 flex items-center gap-2">
+      <span className="relative flex h-2 w-2 shrink-0">
+        {isRunning && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+        )}
+        <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
+      </span>
+      <span className="text-[10px] text-emerald-400 font-mono">⚡ {turn.content}</span>
+      <span className="text-[10px] text-zinc-600 font-mono">{isComplete ? "done" : "working..."}</span>
+    </div>
+  );
+}
+
 function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
   const source = turn.source || "";
   const isUser = turn.role === "user";
   const isSystem = source === "system";
+  const isTool = source === "orchestrator:tool";
+
+  if (isTool) {
+    return <OrchestratorToolIndicator turn={turn} />;
+  }
 
   if (isWorkerTurn(turn)) {
     return <ToolIndicator turn={turn} />;
