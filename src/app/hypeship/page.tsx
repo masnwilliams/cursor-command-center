@@ -133,28 +133,41 @@ function timeAgo(dateStr: string): string {
 
 // ── Setup ──
 
+const HYPESHIP_ENVS = {
+  production: "https://hypeship-production.up.railway.app",
+  staging: "https://hypeship-staging.up.railway.app",
+} as const;
+type HypeshipEnv = keyof typeof HYPESHIP_ENVS;
+
+function envFromUrl(url: string | null): HypeshipEnv {
+  if (url?.includes("staging")) return "staging";
+  return "production";
+}
+
 function SetupView({ onConnected }: { onConnected: () => void }) {
-  const [apiUrl, setApiUrl] = useState("");
+  const [env, setEnv] = useState<HypeshipEnv>("production");
   const [jwt, setJwt] = useState("");
   const [state, setState] = useState<SetupState>("idle");
   const [msg, setMsg] = useState("");
 
+  const apiUrl = HYPESHIP_ENVS[env];
+
   useEffect(() => {
     const existingUrl = getHypeshipApiUrl();
     const existingJwt = getHypeshipJwt();
-    if (existingUrl) setApiUrl(existingUrl);
+    if (existingUrl) setEnv(envFromUrl(existingUrl));
     if (existingJwt) setJwt(existingJwt);
   }, []);
 
   useEffect(() => {
-    if (!apiUrl.trim() || !jwt.trim()) {
+    if (!jwt.trim()) {
       setState("idle");
       setMsg("");
       return;
     }
     setState("testing");
     const timer = setTimeout(async () => {
-      setHypeshipApiUrl(apiUrl.trim());
+      setHypeshipApiUrl(apiUrl);
       setHypeshipJwt(jwt.trim());
       try {
         const health = await testHypeshipConnection();
@@ -175,7 +188,7 @@ function SetupView({ onConnected }: { onConnected: () => void }) {
 
   function handleContinue() {
     if (state !== "success") return;
-    setHypeshipApiUrl(apiUrl.trim());
+    setHypeshipApiUrl(apiUrl);
     setHypeshipJwt(jwt.trim());
     onConnected();
   }
@@ -212,15 +225,23 @@ function SetupView({ onConnected }: { onConnected: () => void }) {
         </div>
         <div className="px-3 py-3 space-y-4">
           <div className="space-y-1.5">
-            <p className="text-[10px] text-zinc-500 font-mono">hypeship api url</p>
-            <input
-              type="text"
-              value={apiUrl}
-              onChange={(e) => setApiUrl(e.target.value)}
-              placeholder="http://localhost:8081"
-              autoFocus
-              className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
-            />
+            <p className="text-[10px] text-zinc-500 font-mono">environment</p>
+            <div className="flex border border-zinc-800">
+              {(Object.keys(HYPESHIP_ENVS) as HypeshipEnv[]).map((e) => (
+                <button
+                  key={e}
+                  onClick={() => setEnv(e)}
+                  className={`flex-1 px-3 py-1.5 text-xs font-mono transition-colors ${
+                    env === e
+                      ? "bg-zinc-700 text-zinc-100"
+                      : "bg-zinc-900 text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-zinc-600 font-mono">{apiUrl}</p>
           </div>
           <div className="space-y-1.5">
             <p className="text-[10px] text-zinc-500 font-mono">
