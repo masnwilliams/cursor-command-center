@@ -203,7 +203,7 @@ export interface HypeshipWorkerListResponse {
 }
 
 export interface HypeshipWorkerResponse {
-  agent: HypeshipWorker;
+  worker: HypeshipWorker;
 }
 
 export interface HypeshipCreateWorkerRequest {

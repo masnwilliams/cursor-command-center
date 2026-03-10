@@ -370,12 +370,12 @@ export function useHypeshipWorkers(includeArchived = false) {
 
 export function useHypeshipWorker(id: string | null) {
   return useSWR<HypeshipWorkerResponse>(
-    id ? `/api/hypeship/agents/${id}` : null,
+    id ? `/api/hypeship/workers/${id}` : null,
     hypeshipFetcher<HypeshipWorkerResponse>,
     {
       refreshInterval: (data) => {
         if (!data) return 3_000;
-        const state = data.agent.state;
+        const state = data.worker.state;
         return state === "launching" || state === "working" ? 5_000 : 0;
       },
     },

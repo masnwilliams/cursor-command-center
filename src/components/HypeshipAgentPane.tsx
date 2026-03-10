@@ -324,7 +324,7 @@ export default function HypeshipAgentPane({
   }, [turns]);
 
   const { data: workerData } = useHypeshipWorker(activeWorkerId ?? null);
-  const worker = workerData?.agent;
+  const worker = workerData?.worker;
 
   const hasShell = !!worker?.shell_ws_url;
   const hasDesktop = !!worker?.desktop_url;
