@@ -517,7 +517,9 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
         </span>
         <span className="text-[10px] text-amber-400 font-mono">worker {shortId}</span>
         <span className="text-[10px] text-zinc-600 font-mono">
-          {detailCount > 0 ? `${detailCount} steps` : isFinished ? "done" : "working..."}
+          {detailCount > 0
+            ? `${detailCount} steps${isFinished ? "" : "..."}`
+            : isFinished ? "done" : "working..."}
         </span>
         {placeholderTurn?.timestamp && (
           <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(placeholderTurn.timestamp)}</span>
