@@ -232,6 +232,7 @@ function TerminalView({ wsUrl }: { wsUrl: string }) {
 
       ws.onopen = () => {
         terminal.writeln("\x1b[32m● Connected to shell\x1b[0m\r\n");
+        ws.send("cd /home/agent 2>/dev/null; clear\n");
       };
 
       ws.onmessage = (event) => {
