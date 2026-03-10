@@ -59,36 +59,98 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-interface TurnGroup {
-  type: "message" | "worker";
-  workerId?: string;
-  turns: HypeshipConversationTurn[];
+function isWorkerTurn(turn: HypeshipConversationTurn): boolean {
+  return !!turn.source?.startsWith("worker:");
 }
 
-function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup[] {
-  const groups: TurnGroup[] = [];
-  for (const turn of turns) {
-    const wid = turn.worker_id;
-    if (wid) {
-      const last = groups[groups.length - 1];
-      if (last && last.type === "worker" && last.workerId === wid) {
-        last.turns.push(turn);
-      } else {
-        groups.push({ type: "worker", workerId: wid, turns: [turn] });
-      }
-    } else {
-      groups.push({ type: "message", turns: [turn] });
-    }
-  }
-  return groups;
+function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
+  const [expanded, setExpanded] = useState(false);
+  const isRunning = turn.status === "running";
+  const isError = turn.status === "error";
+  const isComplete = turn.status === "complete";
+
+  const dotColor = isError
+    ? "bg-red-400"
+    : isComplete
+      ? "bg-emerald-400"
+      : "bg-amber-400";
+  const label = isError
+    ? "error"
+    : isComplete
+      ? "done"
+      : "working...";
+
+  const hasExpandableContent = turn.detail && turn.detail.length > 0;
+
+  return (
+    <div className="px-3 py-1">
+      <button
+        onClick={() => hasExpandableContent && setExpanded(!expanded)}
+        className="w-full text-left flex items-center gap-2 hover:bg-zinc-900/30 transition-colors rounded px-1 py-0.5 -mx-1"
+      >
+        <span className="relative flex h-2 w-2 shrink-0">
+          {isRunning && (
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+          )}
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
+        </span>
+        <span className="text-[10px] text-zinc-500 font-mono">{label}</span>
+        {hasExpandableContent && (
+          <span className="text-[10px] text-zinc-700 font-mono ml-auto">
+            {expanded ? "▼" : "▶"}
+          </span>
+        )}
+      </button>
+      {expanded && turn.detail && (
+        <div className="ml-4 mt-1 border-l border-zinc-800 pl-3 max-h-[200px] overflow-y-auto">
+          {turn.detail.map((d, i) => (
+            <div key={i} className="py-1">
+              <span className="text-[10px] text-zinc-600 font-mono">
+                {d.role === "tool_use" ? "⚡ " : d.role === "user" ? "> " : "$ "}
+              </span>
+              <span className={`text-[10px] font-mono whitespace-pre-wrap ${d.role === "tool_use" ? "text-amber-400/70" : "text-zinc-500"}`}>
+                {d.content}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrchestratorToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
+  const isRunning = turn.status === "running";
+  const isComplete = turn.status === "complete";
+  const dotColor = isComplete ? "bg-emerald-400" : "bg-amber-400";
+
+  return (
+    <div className="px-3 py-1 flex items-center gap-2">
+      <span className="relative flex h-2 w-2 shrink-0">
+        {isRunning && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+        )}
+        <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
+      </span>
+      <span className="text-[10px] text-emerald-400 font-mono">⚡ {turn.content}</span>
+      <span className="text-[10px] text-zinc-600 font-mono">{isComplete ? "done" : "working..."}</span>
+    </div>
+  );
 }
 
 function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
   const source = turn.source || "";
   const isUser = turn.role === "user";
   const isSystem = source === "system";
-  const isWorker = source.startsWith("worker:");
-  const workerID = isWorker ? source.slice(7) : "";
+  const isTool = source === "orchestrator:tool";
+
+  if (isTool) {
+    return <OrchestratorToolIndicator turn={turn} />;
+  }
+
+  if (isWorkerTurn(turn)) {
+    return <ToolIndicator turn={turn} />;
+  }
 
   if (isSystem) {
     return (
@@ -106,80 +168,21 @@ function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
     );
   }
 
-  const prefix = isUser ? ">" : "$";
-  const label = isUser
-    ? "user"
-    : isWorker
-      ? `worker ${workerID.slice(0, 12)}`
-      : "orchestrator";
-  const color = isUser
-    ? "text-blue-400"
-    : isWorker
-      ? "text-amber-400"
-      : "text-emerald-400";
-
   return (
     <div className={`px-3 py-2 ${isUser ? "bg-zinc-900/30" : ""}`}>
-      <div className="flex items-center gap-2 mb-1">
-        <span className={`text-[10px] font-mono ${color}`}>{prefix}</span>
-        <span className="text-[10px] text-zinc-500 font-mono">{label}</span>
-        <span className="text-[10px] text-zinc-700 font-mono ml-auto">
-          {timeAgo(turn.timestamp)}
-        </span>
-      </div>
-      <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none">
+      {isUser && (
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] font-mono text-blue-400">&gt;</span>
+          <span className="text-[10px] text-zinc-700 font-mono ml-auto">
+            {timeAgo(turn.timestamp)}
+          </span>
+        </div>
+      )}
+      <div className={`${isUser ? "ml-4" : ""} text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none`}>
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {turn.content}
         </ReactMarkdown>
       </div>
-    </div>
-  );
-}
-
-function WorkerGroup({
-  workerId,
-  turns,
-}: {
-  workerId: string;
-  turns: HypeshipConversationTurn[];
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const lastTurn = turns[turns.length - 1];
-  const isFinished =
-    lastTurn?.role === "system" && lastTurn?.content?.includes("finished");
-  const shortId = workerId.slice(0, 12);
-
-  return (
-    <div className="border-l-2 border-amber-400/30 ml-3">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-900/30 transition-colors"
-      >
-        <span className="relative flex h-2 w-2 shrink-0">
-          {!isFinished && (
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
-          )}
-          <span
-            className={`relative inline-flex h-2 w-2 rounded-full ${isFinished ? "bg-emerald-400" : "bg-amber-400"}`}
-          />
-        </span>
-        <span className="text-[10px] text-amber-400 font-mono">
-          worker {shortId}
-        </span>
-        <span className="text-[10px] text-zinc-600 font-mono">
-          {turns.length} msg{turns.length !== 1 ? "s" : ""}
-        </span>
-        <span className="text-[10px] text-zinc-700 font-mono ml-auto">
-          {expanded ? "▼" : "▶"}
-        </span>
-      </button>
-      {expanded && (
-        <div className="divide-y divide-zinc-800/20">
-          {turns.map((turn, i) => (
-            <ConversationBubble key={i} turn={turn} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -229,6 +232,7 @@ function TerminalView({ wsUrl }: { wsUrl: string }) {
 
       ws.onopen = () => {
         terminal.writeln("\x1b[32m● Connected to shell\x1b[0m\r\n");
+        ws.send("cd /home/agent 2>/dev/null; clear\n");
       };
 
       ws.onmessage = (event) => {
@@ -347,7 +351,7 @@ export default function HypeshipAgentPane({
   }, [turns]);
 
   const { data: workerData } = useHypeshipWorker(activeWorkerId ?? null);
-  const worker = workerData?.agent;
+  const worker = workerData?.worker;
 
   const hasShell = !!worker?.shell_ws_url;
   const hasDesktop = !!worker?.desktop_url;
@@ -494,35 +498,16 @@ export default function HypeshipAgentPane({
                 </div>
               )}
               <div className="divide-y divide-zinc-800/30">
-                {groupTurnsByWorker(turns).map((group, gi) =>
-                  group.type === "worker" && group.workerId ? (
-                    <WorkerGroup
-                      key={`w-${group.workerId}-${gi}`}
-                      workerId={group.workerId}
-                      turns={group.turns}
-                    />
-                  ) : (
-                    group.turns.map((turn, ti) => (
-                      <ConversationBubble key={`m-${gi}-${ti}`} turn={turn} />
-                    ))
-                  ),
-                )}
+                {turns.map((turn, i) => (
+                  <ConversationBubble key={i} turn={turn} />
+                ))}
               </div>
               {streamingText && (
                 <div className="px-3 py-2">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-mono text-emerald-400">
-                      $
-                    </span>
-                    <span className="text-[10px] text-zinc-500 font-mono">
-                      orchestrator
-                    </span>
-                    <span className="text-[10px] text-zinc-700 font-mono ml-auto animate-pulse">
-                      streaming...
-                    </span>
-                  </div>
-                  <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words">
-                    {streamingText}
+                  <div className="text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {streamingText}
+                    </ReactMarkdown>
                   </div>
                 </div>
               )}

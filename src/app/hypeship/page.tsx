@@ -351,12 +351,57 @@ function AgentConversation({
   );
 }
 
+function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
+  const [expanded, setExpanded] = useState(false);
+  const isRunning = turn.status === "running";
+  const isComplete = turn.status === "complete";
+  const dotColor = isComplete ? "bg-emerald-400" : "bg-amber-400";
+  const statusLabel = isComplete ? "done" : "working...";
+
+  let inputSummary = "";
+  if (turn.detail) {
+    try {
+      const parsed = typeof turn.detail === "string" ? JSON.parse(turn.detail) : turn.detail;
+      if (parsed.repos) inputSummary = `repos: ${Array.isArray(parsed.repos) ? parsed.repos.join(", ") : parsed.repos}`;
+    } catch {}
+  }
+
+  return (
+    <div className="px-3 py-1.5">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left flex items-center gap-2 hover:bg-zinc-900/30 transition-colors rounded px-1 py-0.5 -mx-1"
+      >
+        <span className="relative flex h-2 w-2 shrink-0">
+          {isRunning && (
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+          )}
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
+        </span>
+        <span className="text-[10px] text-emerald-400 font-mono">⚡ {turn.content}</span>
+        <span className="text-[10px] text-zinc-600 font-mono">{statusLabel}</span>
+        {turn.timestamp && (
+          <span className="text-[10px] text-zinc-700 font-mono ml-auto">{timeAgo(turn.timestamp)}</span>
+        )}
+      </button>
+      {expanded && inputSummary && (
+        <div className="ml-5 mt-1 text-[10px] text-zinc-600 font-mono">{inputSummary}</div>
+      )}
+    </div>
+  );
+}
+
 function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
   const source = turn.source || "";
   const isUser = turn.role === "user";
   const isSystem = source === "system";
+  const isTool = source === "orchestrator:tool";
   const isWorker = source.startsWith("worker:");
   const workerID = isWorker ? source.slice(7) : "";
+
+  if (isTool) {
+    return <ToolIndicatorBubble turn={turn} />;
+  }
 
   if (isSystem) {
     return (
@@ -426,11 +471,37 @@ function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup[] {
   return groups;
 }
 
+function WorkerDetailEntry({ entry }: { entry: { role: string; content: string } }) {
+  if (entry.role === "tool_use") {
+    return (
+      <div className="px-3 py-1 flex items-center gap-2">
+        <span className="text-[10px] text-zinc-600 font-mono">⚡</span>
+        <span className="text-[10px] text-amber-400/70 font-mono">{entry.content}</span>
+      </div>
+    );
+  }
+  const prefix = entry.role === "user" ? ">" : "$";
+  const color = entry.role === "user" ? "text-blue-400" : "text-zinc-400";
+  return (
+    <div className="px-3 py-1">
+      <span className={`text-[10px] font-mono ${color}`}>{prefix} </span>
+      <span className="text-[10px] text-zinc-500 font-mono whitespace-pre-wrap">
+        {entry.content}
+      </span>
+    </div>
+  );
+}
+
 function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipConversationTurn[] }) {
   const [expanded, setExpanded] = useState(false);
-  const lastTurn = turns[turns.length - 1];
-  const isFinished = lastTurn?.role === "system" && lastTurn?.content?.includes("finished");
+  const placeholderTurn = turns.find(t => t.source?.startsWith("worker:"));
+  const status = placeholderTurn?.status;
+  const isFinished = status === "complete";
+  const detail = placeholderTurn?.detail;
+  const detailCount = detail?.length ?? 0;
   const shortId = workerId.slice(0, 12);
+
+  const summary = placeholderTurn?.content;
 
   return (
     <div className="border-l-2 border-amber-400/30 ml-3">
@@ -445,14 +516,37 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
           <span className={`relative inline-flex h-2 w-2 rounded-full ${isFinished ? "bg-emerald-400" : "bg-amber-400"}`} />
         </span>
         <span className="text-[10px] text-amber-400 font-mono">worker {shortId}</span>
-        <span className="text-[10px] text-zinc-600 font-mono">{turns.length} msg{turns.length !== 1 ? "s" : ""}</span>
+        <span className="text-[10px] text-zinc-600 font-mono">
+          {detailCount > 0
+            ? `${detailCount} steps${isFinished ? "" : "..."}`
+            : isFinished ? "done" : "working..."}
+        </span>
+        {placeholderTurn?.timestamp && (
+          <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(placeholderTurn.timestamp)}</span>
+        )}
         <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
       </button>
       {expanded && (
-        <div className="divide-y divide-zinc-800/20">
-          {turns.map((turn, i) => (
-            <ConversationBubble key={i} turn={turn} />
-          ))}
+        <div className="border-t border-zinc-800/20">
+          {detail && detail.length > 0 ? (
+            <div className="divide-y divide-zinc-800/10 max-h-[300px] overflow-y-auto">
+              {detail.map((entry, i) => (
+                <WorkerDetailEntry key={i} entry={entry} />
+              ))}
+            </div>
+          ) : (
+            <div className="divide-y divide-zinc-800/20">
+              {turns.map((turn, i) => (
+                <ConversationBubble key={i} turn={turn} />
+              ))}
+            </div>
+          )}
+          {summary && (
+            <div className="border-t border-zinc-800/30 px-3 py-2">
+              <p className="text-[10px] text-zinc-600 font-mono mb-1">summary</p>
+              <p className="text-[10px] text-zinc-400 font-mono whitespace-pre-wrap">{summary}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -506,6 +600,7 @@ function TerminalView({ wsUrl }: { wsUrl: string }) {
 
       ws.onopen = () => {
         terminal.writeln("\x1b[32m● Connected to shell\x1b[0m\r\n");
+        ws.send("cd /home/agent 2>/dev/null; clear\n");
       };
 
       ws.onmessage = (event) => {
@@ -616,7 +711,7 @@ function AgentConversationPanel({
   }, [turns]);
 
   const { data: workerData } = useHypeshipWorker(activeWorkerId ?? null);
-  const worker = workerData?.agent;
+  const worker = workerData?.worker;
   const hasShell = !!worker?.shell_ws_url;
   const hasDesktop = !!worker?.desktop_url;
 
@@ -997,7 +1092,7 @@ function WorkerDetailPanel({
   onArchive: (id: string) => void;
 }) {
   const { data, error } = useHypeshipWorker(workerId);
-  const agent = data?.agent;
+  const agent = data?.worker;
   const [tab, setTab] = useState<WorkerTab>("chat");
 
   const hasShell = !!agent?.shell_ws_url;
