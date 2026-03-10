@@ -997,7 +997,7 @@ function WorkerDetailPanel({
   onArchive: (id: string) => void;
 }) {
   const { data, error } = useHypeshipWorker(workerId);
-  const agent = data?.agent;
+  const agent = data?.worker;
   const [tab, setTab] = useState<WorkerTab>("chat");
 
   const hasShell = !!agent?.shell_ws_url;
