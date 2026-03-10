@@ -253,6 +253,8 @@ export interface HypeshipConversationTurn {
   content: string;
   source?: string;
   worker_id?: string;
+  status?: string;
+  detail?: HypeshipConversationTurn[];
   timestamp: string;
 }
 
