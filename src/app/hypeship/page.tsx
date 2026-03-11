@@ -133,6 +133,23 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+function truncatePreview(value: string, max = 60): string {
+  return value.length > max ? `${value.slice(0, max)}...` : value;
+}
+
+function getCollapsedTurnPreview(turn: HypeshipConversationTurn, max = 60): string | null {
+  const content = turn.content?.trim();
+  if (!content) return null;
+
+  const isTool = turn.source === "orchestrator:tool" || !!turn.tool_use_id;
+  if (!isTool) {
+    return truncatePreview(content, max);
+  }
+
+  const toolDetail = getToolDetailSummary(turn.detail);
+  return truncatePreview(toolDetail ? `${content} ${toolDetail}` : content, max);
+}
+
 // ── Setup ──
 
 const HYPESHIP_ENVS = {
@@ -553,12 +570,13 @@ function isSubAgentToolCall(turn: HypeshipConversationTurn): boolean {
 }
 
 function groupWorkerTurnsBySubAgent(turns: HypeshipConversationTurn[]): SubAgentTurnGroup[] {
-  const groups: SubAgentTurnGroup[] = [];
-
   const agentToolIds = new Set<string>();
+  const childMap = new Map<string, HypeshipConversationTurn[]>();
+
   for (const turn of turns) {
     if (isSubAgentToolCall(turn) && turn.tool_use_id) {
       agentToolIds.add(turn.tool_use_id);
+      childMap.set(turn.tool_use_id, []);
     }
   }
 
@@ -566,65 +584,65 @@ function groupWorkerTurnsBySubAgent(turns: HypeshipConversationTurn[]): SubAgent
     return turns.map((t) => ({ type: "turn" as const, turns: [t] }));
   }
 
-  const hasParentIds = turns.some((t) => t.parent_tool_use_id);
-
-  let subGroup: SubAgentTurnGroup | null = null;
   for (const turn of turns) {
-    const isAgent = isSubAgentToolCall(turn);
-    const belongsToSubAgent = hasParentIds
-      && !!turn.parent_tool_use_id
-      && agentToolIds.has(turn.parent_tool_use_id);
+    if (turn.parent_tool_use_id && childMap.has(turn.parent_tool_use_id)) {
+      childMap.get(turn.parent_tool_use_id)!.push(turn);
+    }
+  }
 
-    if (isAgent || belongsToSubAgent) {
-      if (!subGroup) subGroup = { type: "subagent", turns: [] };
-      subGroup.turns.push(turn);
-    } else if (!hasParentIds && subGroup && turn.tool_use_id) {
-      subGroup.turns.push(turn);
+  const groups: SubAgentTurnGroup[] = [];
+  for (const turn of turns) {
+    if (isSubAgentToolCall(turn) && turn.tool_use_id) {
+      const children = childMap.get(turn.tool_use_id) || [];
+      groups.push({ type: "subagent", turns: [turn, ...children] });
+    } else if (turn.parent_tool_use_id && agentToolIds.has(turn.parent_tool_use_id)) {
+      continue;
     } else {
-      if (subGroup) { groups.push(subGroup); subGroup = null; }
       groups.push({ type: "turn", turns: [turn] });
     }
   }
-  if (subGroup) groups.push(subGroup);
+
   return groups;
 }
 
 function SubAgentGroup({ turns }: { turns: HypeshipConversationTurn[] }) {
   const [expanded, setExpanded] = useState(false);
 
-  const agentCalls = turns.filter(isSubAgentToolCall);
-  const internalTurns = turns.filter((t) => !isSubAgentToolCall(t));
+  const agentCall = turns[0];
+  const childTurns = turns.slice(1);
 
-  const labels = agentCalls.map((t) => {
-    try {
-      const d = typeof t.detail === "string" ? JSON.parse(t.detail) : t.detail;
-      const rec = d as Record<string, unknown>;
-      return {
-        description: (rec?.description as string) || "sub-agent",
-        type: (rec?.subagent_type as string) || "Agent",
-        status: t.status || "running",
-      };
-    } catch {
-      return { description: "sub-agent", type: "Agent", status: t.status || "running" };
-    }
-  });
+  let description = "sub-agent";
+  let subagentType = "Agent";
+  try {
+    const d = typeof agentCall.detail === "string" ? JSON.parse(agentCall.detail) : agentCall.detail;
+    const rec = d as Record<string, unknown>;
+    description = (rec?.description as string) || "sub-agent";
+    subagentType = (rec?.subagent_type as string) || "Agent";
+  } catch {}
 
-  const anyRunning = labels.some((l) => l.status === "running");
-  const allComplete = labels.every((l) => l.status === "complete");
-  const anyError = labels.some((l) => l.status === "error");
+  const status = agentCall.status || "running";
+  const isRunning = status === "running";
+  const isComplete = status === "complete";
+  const isError = status === "error";
 
-  const stepCount = internalTurns.length;
-  const dotColor = allComplete ? "bg-emerald-400" : anyError ? "bg-red-400" : "bg-violet-400";
-  const labelColor = allComplete ? "text-emerald-400" : anyError ? "text-red-400" : "text-violet-400";
-  const borderColor = allComplete ? "border-emerald-400/20" : anyError ? "border-red-400/20" : "border-violet-400/20";
-
-  const summaryText = labels.map((l) => l.description).join(" · ");
+  const stepCount = childTurns.length;
+  const dotColor = isComplete ? "bg-emerald-400" : isError ? "bg-red-400" : "bg-violet-400";
+  const labelColor = isComplete ? "text-emerald-400" : isError ? "text-red-400" : "text-violet-400";
+  const borderColor = isComplete ? "border-emerald-400/20" : isError ? "border-red-400/20" : "border-violet-400/20";
 
   const lastActivity = (() => {
-    const last = [...internalTurns].reverse().find((t) => t.content?.trim());
+    const last = [...childTurns].reverse().find((t) => t.content?.trim());
     if (!last) return null;
-    return last.content.slice(0, 60) + (last.content.length > 60 ? "..." : "");
+    return getCollapsedTurnPreview(last);
   })();
+
+  const statusLabel = isComplete
+    ? "done"
+    : isError
+      ? "error"
+      : stepCount > 0
+        ? `${stepCount} step${stepCount !== 1 ? "s" : ""}...`
+        : "working...";
 
   return (
     <div className={`border-l-2 ${borderColor} ml-3`}>
@@ -633,34 +651,32 @@ function SubAgentGroup({ turns }: { turns: HypeshipConversationTurn[] }) {
         className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-900/30 transition-colors"
       >
         <span className="relative flex h-2 w-2 shrink-0">
-          {anyRunning && (
+          {isRunning && (
             <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotColor}`} />
           )}
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
-        <span className={`text-[10px] ${labelColor} font-mono`}>
-          ⚡ {agentCalls.length} sub-agent{agentCalls.length !== 1 ? "s" : ""}
-        </span>
-        <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[300px]">
-          {summaryText}
-        </span>
+        <span className={`text-[10px] ${labelColor} font-mono`}>⚡ {subagentType}</span>
+        <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[300px]">{description}</span>
         <span className="text-[10px] text-zinc-600 font-mono">
-          {stepCount > 0 ? `${stepCount} step${stepCount !== 1 ? "s" : ""}` : ""}
-          {anyRunning && !allComplete ? "..." : ""}
+          {stepCount > 0 && isComplete ? `${stepCount} step${stepCount !== 1 ? "s" : ""}` : statusLabel}
         </span>
+        {agentCall.timestamp && (
+          <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(agentCall.timestamp)}</span>
+        )}
         <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
       </button>
-      {!expanded && anyRunning && lastActivity && (
+      {!expanded && isRunning && lastActivity && (
         <div className="px-3 pb-1.5 -mt-0.5">
           <p className="text-[10px] text-zinc-500 font-mono truncate ml-4 animate-pulse">
             {lastActivity}
           </p>
         </div>
       )}
-      {expanded && (
+      {expanded && childTurns.length > 0 && (
         <div className="border-t border-zinc-800/20">
           <div className="divide-y divide-zinc-800/20 max-h-[400px] overflow-y-auto">
-            {turns.map((turn, i) => (
+            {childTurns.map((turn, i) => (
               <ConversationBubble key={i} turn={turn} />
             ))}
           </div>
@@ -689,9 +705,7 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
   const lastTurn = [...turns]
     .reverse()
     .find((turn) => turn !== statusTurn && !!turn.content?.trim());
-  const lastActivity = lastTurn
-    ? lastTurn.content.slice(0, 60) + (lastTurn.content.length > 60 ? "..." : "")
-    : null;
+  const lastActivity = lastTurn ? getCollapsedTurnPreview(lastTurn) : null;
 
   return (
     <div className={`border-l-2 ${borderColor} ml-3`}>
