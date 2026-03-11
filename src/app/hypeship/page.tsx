@@ -374,7 +374,7 @@ function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
   const [expanded, setExpanded] = useState(false);
   const isRunning = turn.status === "running";
   const isComplete = turn.status === "complete";
-  const dotColor = isComplete ? "bg-emerald-400" : "bg-amber-400";
+  const dotColor = isComplete ? "bg-emerald-400" : "bg-blue-400";
   const statusLabel = isComplete ? "done" : "working...";
 
   let inputSummary = "";
@@ -393,7 +393,7 @@ function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
       >
         <span className="relative flex h-2 w-2 shrink-0">
           {isRunning && (
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotColor}`} />
           )}
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
@@ -522,23 +522,28 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
 
   const summary = placeholderTurn?.content;
 
+  const isError = status === "error";
+  const dotColor = isFinished ? "bg-emerald-400" : isError ? "bg-red-400" : "bg-blue-400";
+  const labelColor = isFinished ? "text-emerald-400" : isError ? "text-red-400" : "text-blue-400";
+  const borderColor = isFinished ? "border-emerald-400/30" : isError ? "border-red-400/30" : "border-blue-400/30";
+
   return (
-    <div className="border-l-2 border-amber-400/30 ml-3">
+    <div className={`border-l-2 ${borderColor} ml-3`}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-900/30 transition-colors"
       >
         <span className="relative flex h-2 w-2 shrink-0">
-          {!isFinished && (
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+          {!isFinished && !isError && (
+            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotColor}`} />
           )}
-          <span className={`relative inline-flex h-2 w-2 rounded-full ${isFinished ? "bg-emerald-400" : "bg-amber-400"}`} />
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
-        <span className="text-[10px] text-amber-400 font-mono">worker {shortId}</span>
+        <span className={`text-[10px] ${labelColor} font-mono`}>worker {shortId}</span>
         <span className="text-[10px] text-zinc-600 font-mono">
           {detailCount > 0
-            ? `${detailCount} steps${isFinished ? "" : "..."}`
-            : isFinished ? "done" : "working..."}
+            ? `${detailCount} steps${isFinished || isError ? "" : "..."}`
+            : isFinished ? "done" : isError ? "error" : "working..."}
         </span>
         {placeholderTurn?.timestamp && (
           <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(placeholderTurn.timestamp)}</span>
