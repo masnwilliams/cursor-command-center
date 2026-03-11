@@ -56,33 +56,31 @@ import type {
 type SetupState = "idle" | "testing" | "success" | "error";
 
 const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
-  pending: "bg-amber-400",
+  creating: "bg-amber-400",
   running: "bg-blue-400",
   finished: "bg-emerald-400",
-  stopped: "bg-zinc-400",
   error: "bg-red-400",
 };
 
 const STATUS_PULSE: Record<HypeshipAgentStatus, boolean> = {
-  pending: false,
+  creating: true,
   running: true,
   finished: false,
-  stopped: false,
   error: false,
 };
 
 const WORKER_STATE_COLORS: Record<HypeshipWorkerState, string> = {
-  launching: "bg-amber-400",
-  working: "bg-blue-400",
-  archived: "bg-zinc-400",
-  gone: "bg-red-400",
+  creating: "bg-amber-400",
+  running: "bg-blue-400",
+  finished: "bg-emerald-400",
+  error: "bg-red-400",
 };
 
 const WORKER_STATE_PULSE: Record<HypeshipWorkerState, boolean> = {
-  launching: true,
-  working: true,
-  archived: false,
-  gone: false,
+  creating: true,
+  running: true,
+  finished: false,
+  error: false,
 };
 
 const AGENT_LABELS: Record<HypeshipAgentType, string> = {
@@ -288,7 +286,7 @@ function AgentConversation({
   workerId: string;
   workerState: HypeshipWorkerState;
 }) {
-  const isActive = workerState === "launching" || workerState === "working";
+  const isActive = workerState === "creating" || workerState === "running";
   const { data, error } = useHypeshipConversation(workerId, isActive);
   const turns = data?.conversation ?? [];
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -1140,7 +1138,7 @@ function WorkerDetailPanel({
     );
   }
 
-  const isActive = agent.state === "launching" || agent.state === "working";
+  const isActive = agent.state === "creating" || agent.state === "running";
 
   const tabs: WorkerTab[] = ["chat"];
   if (hasShell) tabs.push("shell");
@@ -1924,7 +1922,7 @@ function PanesView({
     });
 
     if (focusedAgent) {
-      const isActive = focusedAgent.status === "pending" || focusedAgent.status === "running";
+      const isActive = focusedAgent.status === "creating" || focusedAgent.status === "running";
       if (isActive) {
         cmds.push({
           id: "stop",

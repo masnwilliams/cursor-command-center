@@ -18,18 +18,16 @@ import type {
 type PaneTab = "chat" | "shell" | "desktop";
 
 const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
-  pending: "bg-amber-400",
+  creating: "bg-amber-400",
   running: "bg-blue-400",
   finished: "bg-emerald-400",
-  stopped: "bg-zinc-400",
   error: "bg-red-400",
 };
 
 const STATUS_PULSE: Record<HypeshipAgentStatus, boolean> = {
-  pending: true,
+  creating: true,
   running: true,
   finished: false,
-  stopped: false,
   error: false,
 };
 
@@ -334,7 +332,7 @@ export default function HypeshipAgentPane({
   const agent = data?.agent;
   const turns = agent?.messages ?? [];
   const status: HypeshipAgentStatus =
-    (agent as any)?.status ?? "pending";
+    (agent as any)?.status ?? "creating";
 
   const [tab, setTab] = useState<PaneTab>("chat");
   const [input, setInput] = useState("");
@@ -409,7 +407,7 @@ export default function HypeshipAgentPane({
     setSending(false);
   }
 
-  const isActive = status === "pending" || status === "running";
+  const isActive = status === "creating" || status === "running";
   const preview =
     turns.find((t) => t.role === "user")?.content?.slice(0, 60) ||
     agentId.slice(0, 12);

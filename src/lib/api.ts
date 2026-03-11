@@ -376,7 +376,7 @@ export function useHypeshipWorker(id: string | null) {
       refreshInterval: (data) => {
         if (!data) return 3_000;
         const state = data.worker.state;
-        return state === "launching" || state === "working" ? 5_000 : 0;
+        return state === "creating" || state === "running" ? 5_000 : 0;
       },
     },
   );
