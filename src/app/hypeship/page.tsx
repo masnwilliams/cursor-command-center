@@ -460,7 +460,7 @@ function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
   const source = turn.source || "";
   const isUser = turn.role === "user";
   const isSystem = source === "system";
-  const isTool = source === "orchestrator:tool";
+  const isTool = source === "orchestrator:tool" || !!turn.tool_use_id;
   const isThinking = source.endsWith(":thinking");
   const isWorker = source.startsWith("worker:") && !isThinking;
   const workerID = isWorker ? source.slice(7) : "";
@@ -541,48 +541,27 @@ function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup[] {
   return groups;
 }
 
-function WorkerDetailEntry({ entry }: { entry: { role: string; content: string } }) {
-  if (entry.role === "tool_use") {
-    return (
-      <div className="px-3 py-1 flex items-center gap-2">
-        <span className="text-[10px] text-zinc-600 font-mono">⚡</span>
-        <span className="text-[10px] text-amber-400/70 font-mono">{entry.content}</span>
-      </div>
-    );
-  }
-  const prefix = entry.role === "user" ? ">" : "$";
-  const color = entry.role === "user" ? "text-blue-400" : "text-zinc-400";
-  return (
-    <div className="px-3 py-1">
-      <span className={`text-[10px] font-mono ${color}`}>{prefix} </span>
-      <span className="text-[10px] text-zinc-500 font-mono whitespace-pre-wrap">
-        {entry.content}
-      </span>
-    </div>
-  );
-}
-
 function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipConversationTurn[] }) {
   const [expanded, setExpanded] = useState(false);
-  const placeholderTurn = turns.find(t => t.source?.startsWith("worker:"));
-  const status = placeholderTurn?.status;
+  const statusTurn = turns.find((turn) => turn.status);
+  const placeholderTurn = statusTurn ?? turns.find((turn) => turn.source?.startsWith("worker:"));
+  const status = statusTurn?.status;
   const isFinished = status === "complete";
-  const detail = placeholderTurn?.detail;
-  const detailCount = detail?.length ?? 0;
   const shortId = workerId.slice(0, 12);
-
-  const summary = placeholderTurn?.content;
+  const stepCount = turns.length;
+  const summary = statusTurn?.content;
+  const visibleTurns = turns.filter((turn) => turn !== statusTurn || !!turn.content?.trim());
 
   const isError = status === "error";
   const dotColor = isFinished ? "bg-emerald-400" : isError ? "bg-red-400" : "bg-blue-400";
   const labelColor = isFinished ? "text-emerald-400" : isError ? "text-red-400" : "text-blue-400";
   const borderColor = isFinished ? "border-emerald-400/30" : isError ? "border-red-400/30" : "border-blue-400/30";
 
-  const lastEntry = detail && detail.length > 0 ? detail[detail.length - 1] : null;
-  const lastActivity = lastEntry
-    ? lastEntry.role === "tool_use"
-      ? `${lastEntry.content}...`
-      : lastEntry.content?.slice(0, 60) + (lastEntry.content && lastEntry.content.length > 60 ? "..." : "")
+  const lastTurn = [...turns]
+    .reverse()
+    .find((turn) => turn !== statusTurn && !!turn.content?.trim());
+  const lastActivity = lastTurn
+    ? lastTurn.content.slice(0, 60) + (lastTurn.content.length > 60 ? "..." : "")
     : null;
 
   return (
@@ -599,9 +578,13 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
         </span>
         <span className={`text-[10px] ${labelColor} font-mono`}>worker {shortId}</span>
         <span className="text-[10px] text-zinc-600 font-mono">
-          {detailCount > 0
-            ? `${detailCount} steps${isFinished || isError ? "" : "..."}`
-            : isFinished ? "done" : isError ? "error" : "working..."}
+          {stepCount > 0
+            ? `${stepCount} steps${isFinished || isError ? "" : "..."}`
+            : isFinished
+              ? "done"
+              : isError
+                ? "error"
+                : "working..."}
         </span>
         {placeholderTurn?.timestamp && (
           <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(placeholderTurn.timestamp)}</span>
@@ -617,19 +600,11 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
       )}
       {expanded && (
         <div className="border-t border-zinc-800/20">
-          {detail && detail.length > 0 ? (
-            <div className="divide-y divide-zinc-800/10 max-h-[500px] overflow-y-auto">
-              {detail.map((entry, i) => (
-                <WorkerDetailEntry key={i} entry={entry} />
-              ))}
-            </div>
-          ) : (
-            <div className="divide-y divide-zinc-800/20">
-              {turns.map((turn, i) => (
-                <ConversationBubble key={i} turn={turn} />
-              ))}
-            </div>
-          )}
+          <div className="divide-y divide-zinc-800/20 max-h-[500px] overflow-y-auto">
+            {visibleTurns.map((turn, i) => (
+              <ConversationBubble key={i} turn={turn} />
+            ))}
+          </div>
           {summary && (
             <div className="border-t border-zinc-800/30 px-3 py-2">
               <p className="text-[10px] text-zinc-600 font-mono mb-1">summary</p>

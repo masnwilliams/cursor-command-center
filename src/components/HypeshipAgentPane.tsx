@@ -172,7 +172,8 @@ function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
   const source = turn.source || "";
   const isUser = turn.role === "user";
   const isSystem = source === "system";
-  const isTool = source === "orchestrator:tool";
+  const isTool = source === "orchestrator:tool" || !!turn.tool_use_id;
+  const isWorkerStatusOnly = isWorkerTurn(turn) && !!turn.status && !turn.content?.trim();
 
   if (isThinkingTurn(turn)) {
     return <ThinkingBubble turn={turn} />;
@@ -182,7 +183,7 @@ function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
     return <OrchestratorToolIndicator turn={turn} />;
   }
 
-  if (isWorkerTurn(turn)) {
+  if (isWorkerStatusOnly) {
     return <ToolIndicator turn={turn} />;
   }
 

@@ -255,7 +255,8 @@ export interface HypeshipConversationTurn {
   source?: string;
   worker_id?: string;
   status?: string;
-  detail?: HypeshipConversationTurn[];
+  tool_use_id?: string;
+  detail?: unknown;
   timestamp: string;
 }
 
