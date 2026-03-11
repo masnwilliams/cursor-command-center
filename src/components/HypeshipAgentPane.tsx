@@ -70,6 +70,7 @@ function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
   const isRunning = turn.status === "running";
   const isError = turn.status === "error";
   const isComplete = turn.status === "complete";
+  const detailEntries = Array.isArray(turn.detail) ? turn.detail : [];
 
   const dotColor = isError
     ? "bg-red-400"
@@ -82,7 +83,7 @@ function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
       ? "done"
       : "working...";
 
-  const hasExpandableContent = turn.detail && turn.detail.length > 0;
+  const hasExpandableContent = detailEntries.length > 0;
 
   return (
     <div className="px-3 py-1">
@@ -103,15 +104,15 @@ function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
           </span>
         )}
       </button>
-      {expanded && turn.detail && (
+      {expanded && hasExpandableContent && (
         <div className="ml-4 mt-1 border-l border-zinc-800 pl-3 max-h-[200px] overflow-y-auto">
-          {turn.detail.map((d, i) => (
+          {detailEntries.map((d, i) => (
             <div key={i} className="py-1">
               <span className="text-[10px] text-zinc-600 font-mono">
-                {d.role === "tool_use" ? "⚡ " : d.role === "user" ? "> " : "$ "}
+                {(d as { role?: string }).role === "tool_use" ? "⚡ " : (d as { role?: string }).role === "user" ? "> " : "$ "}
               </span>
-              <span className={`text-[10px] font-mono whitespace-pre-wrap ${d.role === "tool_use" ? "text-amber-400/70" : "text-zinc-500"}`}>
-                {d.content}
+              <span className={`text-[10px] font-mono whitespace-pre-wrap ${(d as { role?: string }).role === "tool_use" ? "text-amber-400/70" : "text-zinc-500"}`}>
+                {(d as { content?: string }).content}
               </span>
             </div>
           ))}
