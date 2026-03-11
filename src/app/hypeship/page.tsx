@@ -385,6 +385,23 @@ function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
     } catch {}
   }
 
+  let toolDetail = "";
+  if (turn.detail) {
+    try {
+      const parsed = typeof turn.detail === "string" ? JSON.parse(turn.detail) : turn.detail;
+      if (parsed.path) toolDetail = parsed.path;
+      else if (parsed.command) toolDetail = parsed.command;
+      else if (parsed.pattern) toolDetail = parsed.pattern;
+      else if (parsed.glob_pattern) toolDetail = parsed.glob_pattern;
+      else if (parsed.query) toolDetail = parsed.query;
+      else if (parsed.search_term) toolDetail = parsed.search_term;
+      else if (parsed.prompt) toolDetail = parsed.prompt.slice(0, 60);
+      else if (parsed.repos) toolDetail = Array.isArray(parsed.repos) ? parsed.repos.join(", ") : parsed.repos;
+      else if (parsed.url) toolDetail = parsed.url;
+      if (toolDetail.length > 80) toolDetail = toolDetail.slice(0, 77) + "...";
+    } catch {}
+  }
+
   return (
     <div className="px-3 py-1.5">
       <button
@@ -398,6 +415,7 @@ function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
         <span className="text-[10px] text-emerald-400 font-mono">⚡ {turn.content}</span>
+        {toolDetail && <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[300px]">{toolDetail}</span>}
         <span className="text-[10px] text-zinc-600 font-mono">{statusLabel}</span>
         {turn.timestamp && (
           <span className="text-[10px] text-zinc-700 font-mono ml-auto">{timeAgo(turn.timestamp)}</span>
@@ -527,6 +545,13 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
   const labelColor = isFinished ? "text-emerald-400" : isError ? "text-red-400" : "text-blue-400";
   const borderColor = isFinished ? "border-emerald-400/30" : isError ? "border-red-400/30" : "border-blue-400/30";
 
+  const lastEntry = detail && detail.length > 0 ? detail[detail.length - 1] : null;
+  const lastActivity = lastEntry
+    ? lastEntry.role === "tool_use"
+      ? `${lastEntry.content}...`
+      : lastEntry.content?.slice(0, 60) + (lastEntry.content && lastEntry.content.length > 60 ? "..." : "")
+    : null;
+
   return (
     <div className={`border-l-2 ${borderColor} ml-3`}>
       <button
@@ -550,10 +575,17 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
         )}
         <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
       </button>
+      {!expanded && lastActivity && !isFinished && (
+        <div className="px-3 pb-1.5 -mt-0.5">
+          <p className={`text-[10px] text-zinc-500 font-mono truncate ml-4 ${!isFinished && !isError ? "animate-pulse" : ""}`}>
+            {lastActivity}
+          </p>
+        </div>
+      )}
       {expanded && (
         <div className="border-t border-zinc-800/20">
           {detail && detail.length > 0 ? (
-            <div className="divide-y divide-zinc-800/10 max-h-[300px] overflow-y-auto">
+            <div className="divide-y divide-zinc-800/10 max-h-[500px] overflow-y-auto">
               {detail.map((entry, i) => (
                 <WorkerDetailEntry key={i} entry={entry} />
               ))}
@@ -765,8 +797,7 @@ function AgentConversationPanel({
         const ev = JSON.parse(e.data);
         if (ev.type === "chunk" && ev.text) {
           setStreamChunks((prev) => [...prev, ev.text]);
-        }
-        if (ev.type === "done" || ev.type === "stopped") {
+        } else if (ev.type === "done" || ev.type === "stopped") {
           setStreamChunks([]);
         }
       } catch {}
