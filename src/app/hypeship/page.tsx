@@ -42,6 +42,10 @@ import {
   resetHypeshipOrchestrator,
   getHypeshipSettingsLink,
 } from "@/lib/api";
+import {
+  getToolDetailBody,
+  getToolDetailSummary,
+} from "@/lib/hypeshipMessageDetails";
 import type {
   HypeshipWorker,
   HypeshipWorkerState,
@@ -374,38 +378,21 @@ function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
   const [expanded, setExpanded] = useState(false);
   const isRunning = turn.status === "running";
   const isComplete = turn.status === "complete";
-  const dotColor = isComplete ? "bg-emerald-400" : "bg-blue-400";
-  const statusLabel = isComplete ? "done" : "working...";
-
-  let inputSummary = "";
-  if (turn.detail) {
-    try {
-      const parsed = typeof turn.detail === "string" ? JSON.parse(turn.detail) : turn.detail;
-      if (parsed.repos) inputSummary = `repos: ${Array.isArray(parsed.repos) ? parsed.repos.join(", ") : parsed.repos}`;
-    } catch {}
-  }
-
-  let toolDetail = "";
-  if (turn.detail) {
-    try {
-      const parsed = typeof turn.detail === "string" ? JSON.parse(turn.detail) : turn.detail;
-      if (parsed.path) toolDetail = parsed.path;
-      else if (parsed.command) toolDetail = parsed.command;
-      else if (parsed.pattern) toolDetail = parsed.pattern;
-      else if (parsed.glob_pattern) toolDetail = parsed.glob_pattern;
-      else if (parsed.query) toolDetail = parsed.query;
-      else if (parsed.search_term) toolDetail = parsed.search_term;
-      else if (parsed.prompt) toolDetail = parsed.prompt.slice(0, 60);
-      else if (parsed.repos) toolDetail = Array.isArray(parsed.repos) ? parsed.repos.join(", ") : parsed.repos;
-      else if (parsed.url) toolDetail = parsed.url;
-      if (toolDetail.length > 80) toolDetail = toolDetail.slice(0, 77) + "...";
-    } catch {}
-  }
+  const isError = turn.status === "error";
+  const dotColor = isError
+    ? "bg-red-400"
+    : isComplete
+      ? "bg-emerald-400"
+      : "bg-blue-400";
+  const statusLabel = isError ? "error" : isComplete ? "done" : "working...";
+  const toolDetail = getToolDetailSummary(turn.detail);
+  const detailBody = getToolDetailBody(turn.detail);
+  const hasDetailBody = detailBody.trim().length > 0;
 
   return (
     <div className="px-3 py-1.5">
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => hasDetailBody && setExpanded(!expanded)}
         className="w-full text-left flex items-center gap-2 hover:bg-zinc-900/30 transition-colors rounded px-1 py-0.5 -mx-1"
       >
         <span className="relative flex h-2 w-2 shrink-0">
@@ -420,9 +407,16 @@ function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
         {turn.timestamp && (
           <span className="text-[10px] text-zinc-700 font-mono ml-auto">{timeAgo(turn.timestamp)}</span>
         )}
+        {hasDetailBody && (
+          <span className="text-[10px] text-zinc-700 font-mono">{expanded ? "▼" : "▶"}</span>
+        )}
       </button>
-      {expanded && inputSummary && (
-        <div className="ml-5 mt-1 text-[10px] text-zinc-600 font-mono">{inputSummary}</div>
+      {expanded && hasDetailBody && (
+        <div className="ml-5 mt-1 border-l border-zinc-800/60 pl-3 max-h-[260px] overflow-y-auto">
+          <pre className="text-[10px] text-zinc-500 font-mono whitespace-pre-wrap break-words">
+            {detailBody}
+          </pre>
+        </div>
       )}
     </div>
   );
@@ -541,6 +535,141 @@ function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup[] {
   return groups;
 }
 
+// ── Sub-agent grouping within a worker ──
+
+interface SubAgentTurnGroup {
+  type: "turn" | "subagent";
+  turns: HypeshipConversationTurn[];
+}
+
+function isSubAgentToolCall(turn: HypeshipConversationTurn): boolean {
+  if (!turn.tool_use_id || turn.content !== "Agent") return false;
+  try {
+    const d = typeof turn.detail === "string" ? JSON.parse(turn.detail) : turn.detail;
+    return !!(d as Record<string, unknown>)?.subagent_type;
+  } catch {
+    return false;
+  }
+}
+
+function groupWorkerTurnsBySubAgent(turns: HypeshipConversationTurn[]): SubAgentTurnGroup[] {
+  const groups: SubAgentTurnGroup[] = [];
+
+  const agentToolIds = new Set<string>();
+  for (const turn of turns) {
+    if (isSubAgentToolCall(turn) && turn.tool_use_id) {
+      agentToolIds.add(turn.tool_use_id);
+    }
+  }
+
+  if (agentToolIds.size === 0) {
+    return turns.map((t) => ({ type: "turn" as const, turns: [t] }));
+  }
+
+  const hasParentIds = turns.some((t) => t.parent_tool_use_id);
+
+  let subGroup: SubAgentTurnGroup | null = null;
+  for (const turn of turns) {
+    const isAgent = isSubAgentToolCall(turn);
+    const belongsToSubAgent = hasParentIds
+      && !!turn.parent_tool_use_id
+      && agentToolIds.has(turn.parent_tool_use_id);
+
+    if (isAgent || belongsToSubAgent) {
+      if (!subGroup) subGroup = { type: "subagent", turns: [] };
+      subGroup.turns.push(turn);
+    } else if (!hasParentIds && subGroup && turn.tool_use_id) {
+      subGroup.turns.push(turn);
+    } else {
+      if (subGroup) { groups.push(subGroup); subGroup = null; }
+      groups.push({ type: "turn", turns: [turn] });
+    }
+  }
+  if (subGroup) groups.push(subGroup);
+  return groups;
+}
+
+function SubAgentGroup({ turns }: { turns: HypeshipConversationTurn[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const agentCalls = turns.filter(isSubAgentToolCall);
+  const internalTurns = turns.filter((t) => !isSubAgentToolCall(t));
+
+  const labels = agentCalls.map((t) => {
+    try {
+      const d = typeof t.detail === "string" ? JSON.parse(t.detail) : t.detail;
+      const rec = d as Record<string, unknown>;
+      return {
+        description: (rec?.description as string) || "sub-agent",
+        type: (rec?.subagent_type as string) || "Agent",
+        status: t.status || "running",
+      };
+    } catch {
+      return { description: "sub-agent", type: "Agent", status: t.status || "running" };
+    }
+  });
+
+  const anyRunning = labels.some((l) => l.status === "running");
+  const allComplete = labels.every((l) => l.status === "complete");
+  const anyError = labels.some((l) => l.status === "error");
+
+  const stepCount = internalTurns.length;
+  const dotColor = allComplete ? "bg-emerald-400" : anyError ? "bg-red-400" : "bg-violet-400";
+  const labelColor = allComplete ? "text-emerald-400" : anyError ? "text-red-400" : "text-violet-400";
+  const borderColor = allComplete ? "border-emerald-400/20" : anyError ? "border-red-400/20" : "border-violet-400/20";
+
+  const summaryText = labels.map((l) => l.description).join(" · ");
+
+  const lastActivity = (() => {
+    const last = [...internalTurns].reverse().find((t) => t.content?.trim());
+    if (!last) return null;
+    return last.content.slice(0, 60) + (last.content.length > 60 ? "..." : "");
+  })();
+
+  return (
+    <div className={`border-l-2 ${borderColor} ml-3`}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-900/30 transition-colors"
+      >
+        <span className="relative flex h-2 w-2 shrink-0">
+          {anyRunning && (
+            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotColor}`} />
+          )}
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
+        </span>
+        <span className={`text-[10px] ${labelColor} font-mono`}>
+          ⚡ {agentCalls.length} sub-agent{agentCalls.length !== 1 ? "s" : ""}
+        </span>
+        <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[300px]">
+          {summaryText}
+        </span>
+        <span className="text-[10px] text-zinc-600 font-mono">
+          {stepCount > 0 ? `${stepCount} step${stepCount !== 1 ? "s" : ""}` : ""}
+          {anyRunning && !allComplete ? "..." : ""}
+        </span>
+        <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
+      </button>
+      {!expanded && anyRunning && lastActivity && (
+        <div className="px-3 pb-1.5 -mt-0.5">
+          <p className="text-[10px] text-zinc-500 font-mono truncate ml-4 animate-pulse">
+            {lastActivity}
+          </p>
+        </div>
+      )}
+      {expanded && (
+        <div className="border-t border-zinc-800/20">
+          <div className="divide-y divide-zinc-800/20 max-h-[400px] overflow-y-auto">
+            {turns.map((turn, i) => (
+              <ConversationBubble key={i} turn={turn} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipConversationTurn[] }) {
   const [expanded, setExpanded] = useState(false);
   const statusTurn = turns.find((turn) => turn.status);
@@ -601,9 +730,15 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
       {expanded && (
         <div className="border-t border-zinc-800/20">
           <div className="divide-y divide-zinc-800/20 max-h-[500px] overflow-y-auto">
-            {visibleTurns.map((turn, i) => (
-              <ConversationBubble key={i} turn={turn} />
-            ))}
+            {groupWorkerTurnsBySubAgent(visibleTurns).map((group, gi) =>
+              group.type === "subagent" ? (
+                <SubAgentGroup key={`sa-${gi}`} turns={group.turns} />
+              ) : (
+                group.turns.map((turn, ti) => (
+                  <ConversationBubble key={`t-${gi}-${ti}`} turn={turn} />
+                ))
+              )
+            )}
           </div>
           {summary && (
             <div className="border-t border-zinc-800/30 px-3 py-2">

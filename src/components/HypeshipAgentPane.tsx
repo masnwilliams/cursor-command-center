@@ -9,6 +9,10 @@ import {
   sendHypeshipFollowUp,
   stopHypeshipAgent,
 } from "@/lib/api";
+import {
+  getToolDetailBody,
+  getToolDetailSummary,
+} from "@/lib/hypeshipMessageDetails";
 import { getHypeshipApiUrl, getHypeshipJwt } from "@/lib/storage";
 import type {
   HypeshipAgentStatus,
@@ -70,7 +74,8 @@ function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
   const isRunning = turn.status === "running";
   const isError = turn.status === "error";
   const isComplete = turn.status === "complete";
-  const detailEntries = Array.isArray(turn.detail) ? turn.detail : [];
+  const detailBody = getToolDetailBody(turn.detail);
+  const toolDetail = getToolDetailSummary(turn.detail);
 
   const dotColor = isError
     ? "bg-red-400"
@@ -83,7 +88,7 @@ function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
       ? "done"
       : "working...";
 
-  const hasExpandableContent = detailEntries.length > 0;
+  const hasExpandableContent = detailBody.trim().length > 0;
 
   return (
     <div className="px-3 py-1">
@@ -98,6 +103,11 @@ function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
         <span className="text-[10px] text-zinc-500 font-mono">{label}</span>
+        {toolDetail && (
+          <span className="text-[10px] text-zinc-600 font-mono truncate max-w-[220px]">
+            {toolDetail}
+          </span>
+        )}
         {hasExpandableContent && (
           <span className="text-[10px] text-zinc-700 font-mono ml-auto">
             {expanded ? "▼" : "▶"}
@@ -106,16 +116,9 @@ function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
       </button>
       {expanded && hasExpandableContent && (
         <div className="ml-4 mt-1 border-l border-zinc-800 pl-3 max-h-[200px] overflow-y-auto">
-          {detailEntries.map((d, i) => (
-            <div key={i} className="py-1">
-              <span className="text-[10px] text-zinc-600 font-mono">
-                {(d as { role?: string }).role === "tool_use" ? "⚡ " : (d as { role?: string }).role === "user" ? "> " : "$ "}
-              </span>
-              <span className={`text-[10px] font-mono whitespace-pre-wrap ${(d as { role?: string }).role === "tool_use" ? "text-amber-400/70" : "text-zinc-500"}`}>
-                {(d as { content?: string }).content}
-              </span>
-            </div>
-          ))}
+          <pre className="text-[10px] text-zinc-500 font-mono whitespace-pre-wrap break-words">
+            {detailBody}
+          </pre>
         </div>
       )}
     </div>
@@ -123,20 +126,52 @@ function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
 }
 
 function OrchestratorToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
+  const [expanded, setExpanded] = useState(false);
   const isRunning = turn.status === "running";
+  const isError = turn.status === "error";
   const isComplete = turn.status === "complete";
-  const dotColor = isComplete ? "bg-emerald-400" : "bg-amber-400";
+  const dotColor = isError
+    ? "bg-red-400"
+    : isComplete
+      ? "bg-emerald-400"
+      : "bg-amber-400";
+  const label = isError ? "error" : isComplete ? "done" : "working...";
+  const toolDetail = getToolDetailSummary(turn.detail);
+  const detailBody = getToolDetailBody(turn.detail);
+  const hasExpandableContent = detailBody.trim().length > 0;
 
   return (
-    <div className="px-3 py-1 flex items-center gap-2">
-      <span className="relative flex h-2 w-2 shrink-0">
-        {isRunning && (
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+    <div className="px-3 py-1">
+      <button
+        onClick={() => hasExpandableContent && setExpanded(!expanded)}
+        className="w-full text-left flex items-center gap-2 hover:bg-zinc-900/30 transition-colors rounded px-1 py-0.5 -mx-1"
+      >
+        <span className="relative flex h-2 w-2 shrink-0">
+          {isRunning && (
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+          )}
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
+        </span>
+        <span className="text-[10px] text-emerald-400 font-mono">⚡ {turn.content}</span>
+        {toolDetail && (
+          <span className="text-[10px] text-zinc-600 font-mono truncate max-w-[220px]">
+            {toolDetail}
+          </span>
         )}
-        <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
-      </span>
-      <span className="text-[10px] text-emerald-400 font-mono">⚡ {turn.content}</span>
-      <span className="text-[10px] text-zinc-600 font-mono">{isComplete ? "done" : "working..."}</span>
+        <span className="text-[10px] text-zinc-600 font-mono">{label}</span>
+        {hasExpandableContent && (
+          <span className="text-[10px] text-zinc-700 font-mono ml-auto">
+            {expanded ? "▼" : "▶"}
+          </span>
+        )}
+      </button>
+      {expanded && hasExpandableContent && (
+        <div className="ml-4 mt-1 border-l border-zinc-800 pl-3 max-h-[200px] overflow-y-auto">
+          <pre className="text-[10px] text-zinc-500 font-mono whitespace-pre-wrap break-words">
+            {detailBody}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }

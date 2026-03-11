@@ -256,6 +256,7 @@ export interface HypeshipConversationTurn {
   worker_id?: string;
   status?: string;
   tool_use_id?: string;
+  parent_tool_use_id?: string;
   detail?: unknown;
   timestamp: string;
 }
