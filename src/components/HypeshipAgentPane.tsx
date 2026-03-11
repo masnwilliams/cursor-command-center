@@ -57,8 +57,12 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+function isThinkingTurn(turn: HypeshipConversationTurn): boolean {
+  return !!turn.source?.endsWith(":thinking");
+}
+
 function isWorkerTurn(turn: HypeshipConversationTurn): boolean {
-  return !!turn.source?.startsWith("worker:");
+  return !!turn.source?.startsWith("worker:") && !isThinkingTurn(turn);
 }
 
 function ToolIndicator({ turn }: { turn: HypeshipConversationTurn }) {
@@ -136,11 +140,43 @@ function OrchestratorToolIndicator({ turn }: { turn: HypeshipConversationTurn })
   );
 }
 
+function ThinkingBubble({ turn }: { turn: HypeshipConversationTurn }) {
+  const [expanded, setExpanded] = useState(false);
+  const preview = turn.content?.slice(0, 80) || "thinking...";
+  return (
+    <div className="px-3 py-1">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left flex items-center gap-2 hover:bg-zinc-900/30 transition-colors rounded px-1 py-0.5 -mx-1"
+      >
+        <span className="text-[10px] text-violet-400/60 font-mono">~</span>
+        <span className="text-[10px] text-zinc-600 font-mono italic truncate">
+          {expanded ? "thinking" : preview}
+        </span>
+        <span className="text-[10px] text-zinc-700 font-mono ml-auto">
+          {expanded ? "▼" : "▶"}
+        </span>
+      </button>
+      {expanded && (
+        <div className="ml-4 mt-1 border-l border-violet-900/30 pl-3 max-h-[300px] overflow-y-auto">
+          <div className="text-[10px] text-zinc-600 font-mono whitespace-pre-wrap italic">
+            {turn.content}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
   const source = turn.source || "";
   const isUser = turn.role === "user";
   const isSystem = source === "system";
   const isTool = source === "orchestrator:tool";
+
+  if (isThinkingTurn(turn)) {
+    return <ThinkingBubble turn={turn} />;
+  }
 
   if (isTool) {
     return <OrchestratorToolIndicator turn={turn} />;
