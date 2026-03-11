@@ -987,7 +987,7 @@ function AgentConversationPanel({
             {data?.agent?.source}
           </span>
           <span className="text-[10px] text-zinc-700 font-mono">·</span>
-          <span className="text-[10px] text-zinc-600 font-mono truncate">
+          <span className="text-[10px] text-zinc-600 font-mono whitespace-nowrap">
             {agentId}
           </span>
         </div>
