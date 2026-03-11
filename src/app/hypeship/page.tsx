@@ -986,6 +986,10 @@ function AgentConversationPanel({
           <span className="text-[10px] text-zinc-600 font-mono">
             {data?.agent?.source}
           </span>
+          <span className="text-[10px] text-zinc-700 font-mono">·</span>
+          <span className="text-[10px] text-zinc-600 font-mono truncate">
+            {agentId}
+          </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {(["chat", "shell", "desktop"] as const).map((t) => {
@@ -1863,6 +1867,29 @@ function DashboardListView({
 }) {
   const [tab, setTab] = useState<DashboardTab>("agents");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [listWidth, setListWidth] = useState(320);
+  const isDragging = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!isDragging.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const newWidth = Math.max(200, Math.min(e.clientX - rect.left, rect.width - 300));
+      setListWidth(newWidth);
+    }
+    function onMouseUp() {
+      isDragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
 
   const { data: agentsData, error: agentsError, isLoading: agentsLoading } = useHypeshipAgents();
   const agents = agentsData?.agents ?? [];
@@ -1943,12 +1970,13 @@ function DashboardListView({
         </div>
       </div>
 
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0" ref={containerRef}>
         {tab === "agents" && (
           <>
             {/* Agent list */}
             <div
-              className={`${selectedId ? "w-1/3 border-r border-zinc-800" : "w-full"} flex flex-col overflow-hidden shrink-0`}
+              className="flex flex-col overflow-hidden shrink-0"
+              style={{ width: selectedId ? listWidth : "100%" }}
             >
               <div className="flex-1 overflow-y-auto">
               {agentsLoading && agents.length === 0 && (
@@ -2007,6 +2035,21 @@ function DashboardListView({
               ))}
               </div>
             </div>
+
+            {/* Resize handle */}
+            {selectedId && (
+              <div
+                className="w-px bg-zinc-800 hover:bg-zinc-600 cursor-col-resize shrink-0 relative group"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  isDragging.current = true;
+                  document.body.style.cursor = "col-resize";
+                  document.body.style.userSelect = "none";
+                }}
+              >
+                <div className="absolute inset-y-0 -left-1 -right-1 group-hover:bg-blue-500/20" />
+              </div>
+            )}
 
             {/* Detail panel */}
             {selectedId && (
