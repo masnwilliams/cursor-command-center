@@ -56,33 +56,31 @@ import type {
 type SetupState = "idle" | "testing" | "success" | "error";
 
 const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
-  pending: "bg-amber-400",
+  creating: "bg-amber-400",
   running: "bg-blue-400",
   finished: "bg-emerald-400",
-  stopped: "bg-zinc-400",
   error: "bg-red-400",
 };
 
 const STATUS_PULSE: Record<HypeshipAgentStatus, boolean> = {
-  pending: false,
+  creating: true,
   running: true,
   finished: false,
-  stopped: false,
   error: false,
 };
 
 const WORKER_STATE_COLORS: Record<HypeshipWorkerState, string> = {
-  launching: "bg-amber-400",
-  working: "bg-blue-400",
-  archived: "bg-zinc-400",
-  gone: "bg-red-400",
+  creating: "bg-amber-400",
+  running: "bg-blue-400",
+  finished: "bg-emerald-400",
+  error: "bg-red-400",
 };
 
 const WORKER_STATE_PULSE: Record<HypeshipWorkerState, boolean> = {
-  launching: true,
-  working: true,
-  archived: false,
-  gone: false,
+  creating: true,
+  running: true,
+  finished: false,
+  error: false,
 };
 
 const AGENT_LABELS: Record<HypeshipAgentType, string> = {
@@ -288,7 +286,7 @@ function AgentConversation({
   workerId: string;
   workerState: HypeshipWorkerState;
 }) {
-  const isActive = workerState === "launching" || workerState === "working";
+  const isActive = workerState === "creating" || workerState === "running";
   const { data, error } = useHypeshipConversation(workerId, isActive);
   const turns = data?.conversation ?? [];
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -376,7 +374,7 @@ function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
   const [expanded, setExpanded] = useState(false);
   const isRunning = turn.status === "running";
   const isComplete = turn.status === "complete";
-  const dotColor = isComplete ? "bg-emerald-400" : "bg-amber-400";
+  const dotColor = isComplete ? "bg-emerald-400" : "bg-blue-400";
   const statusLabel = isComplete ? "done" : "working...";
 
   let inputSummary = "";
@@ -384,6 +382,23 @@ function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
     try {
       const parsed = typeof turn.detail === "string" ? JSON.parse(turn.detail) : turn.detail;
       if (parsed.repos) inputSummary = `repos: ${Array.isArray(parsed.repos) ? parsed.repos.join(", ") : parsed.repos}`;
+    } catch {}
+  }
+
+  let toolDetail = "";
+  if (turn.detail) {
+    try {
+      const parsed = typeof turn.detail === "string" ? JSON.parse(turn.detail) : turn.detail;
+      if (parsed.path) toolDetail = parsed.path;
+      else if (parsed.command) toolDetail = parsed.command;
+      else if (parsed.pattern) toolDetail = parsed.pattern;
+      else if (parsed.glob_pattern) toolDetail = parsed.glob_pattern;
+      else if (parsed.query) toolDetail = parsed.query;
+      else if (parsed.search_term) toolDetail = parsed.search_term;
+      else if (parsed.prompt) toolDetail = parsed.prompt.slice(0, 60);
+      else if (parsed.repos) toolDetail = Array.isArray(parsed.repos) ? parsed.repos.join(", ") : parsed.repos;
+      else if (parsed.url) toolDetail = parsed.url;
+      if (toolDetail.length > 80) toolDetail = toolDetail.slice(0, 77) + "...";
     } catch {}
   }
 
@@ -395,11 +410,12 @@ function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
       >
         <span className="relative flex h-2 w-2 shrink-0">
           {isRunning && (
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotColor}`} />
           )}
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
         <span className="text-[10px] text-emerald-400 font-mono">⚡ {turn.content}</span>
+        {toolDetail && <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[300px]">{toolDetail}</span>}
         <span className="text-[10px] text-zinc-600 font-mono">{statusLabel}</span>
         {turn.timestamp && (
           <span className="text-[10px] text-zinc-700 font-mono ml-auto">{timeAgo(turn.timestamp)}</span>
@@ -412,13 +428,46 @@ function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
   );
 }
 
+function ThinkingBubble({ turn }: { turn: HypeshipConversationTurn }) {
+  const [expanded, setExpanded] = useState(false);
+  const preview = turn.content?.slice(0, 80) || "thinking...";
+  return (
+    <div className="px-3 py-1">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left flex items-center gap-2 hover:bg-zinc-900/30 transition-colors rounded px-1 py-0.5 -mx-1"
+      >
+        <span className="text-[10px] text-violet-400/60 font-mono">~</span>
+        <span className="text-[10px] text-zinc-600 font-mono italic truncate">
+          {expanded ? "thinking" : preview}
+        </span>
+        <span className="text-[10px] text-zinc-700 font-mono ml-auto">
+          {expanded ? "▼" : "▶"}
+        </span>
+      </button>
+      {expanded && (
+        <div className="ml-4 mt-1 border-l border-violet-900/30 pl-3 max-h-[300px] overflow-y-auto">
+          <div className="text-[10px] text-zinc-600 font-mono whitespace-pre-wrap italic">
+            {turn.content}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
   const source = turn.source || "";
   const isUser = turn.role === "user";
   const isSystem = source === "system";
   const isTool = source === "orchestrator:tool";
-  const isWorker = source.startsWith("worker:");
+  const isThinking = source.endsWith(":thinking");
+  const isWorker = source.startsWith("worker:") && !isThinking;
   const workerID = isWorker ? source.slice(7) : "";
+
+  if (isThinking) {
+    return <ThinkingBubble turn={turn} />;
+  }
 
   if (isTool) {
     return <ToolIndicatorBubble turn={turn} />;
@@ -524,33 +573,52 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
 
   const summary = placeholderTurn?.content;
 
+  const isError = status === "error";
+  const dotColor = isFinished ? "bg-emerald-400" : isError ? "bg-red-400" : "bg-blue-400";
+  const labelColor = isFinished ? "text-emerald-400" : isError ? "text-red-400" : "text-blue-400";
+  const borderColor = isFinished ? "border-emerald-400/30" : isError ? "border-red-400/30" : "border-blue-400/30";
+
+  const lastEntry = detail && detail.length > 0 ? detail[detail.length - 1] : null;
+  const lastActivity = lastEntry
+    ? lastEntry.role === "tool_use"
+      ? `${lastEntry.content}...`
+      : lastEntry.content?.slice(0, 60) + (lastEntry.content && lastEntry.content.length > 60 ? "..." : "")
+    : null;
+
   return (
-    <div className="border-l-2 border-amber-400/30 ml-3">
+    <div className={`border-l-2 ${borderColor} ml-3`}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-900/30 transition-colors"
       >
         <span className="relative flex h-2 w-2 shrink-0">
-          {!isFinished && (
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-amber-400" />
+          {!isFinished && !isError && (
+            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotColor}`} />
           )}
-          <span className={`relative inline-flex h-2 w-2 rounded-full ${isFinished ? "bg-emerald-400" : "bg-amber-400"}`} />
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
-        <span className="text-[10px] text-amber-400 font-mono">worker {shortId}</span>
+        <span className={`text-[10px] ${labelColor} font-mono`}>worker {shortId}</span>
         <span className="text-[10px] text-zinc-600 font-mono">
           {detailCount > 0
-            ? `${detailCount} steps${isFinished ? "" : "..."}`
-            : isFinished ? "done" : "working..."}
+            ? `${detailCount} steps${isFinished || isError ? "" : "..."}`
+            : isFinished ? "done" : isError ? "error" : "working..."}
         </span>
         {placeholderTurn?.timestamp && (
           <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(placeholderTurn.timestamp)}</span>
         )}
         <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
       </button>
+      {!expanded && lastActivity && !isFinished && (
+        <div className="px-3 pb-1.5 -mt-0.5">
+          <p className={`text-[10px] text-zinc-500 font-mono truncate ml-4 ${!isFinished && !isError ? "animate-pulse" : ""}`}>
+            {lastActivity}
+          </p>
+        </div>
+      )}
       {expanded && (
         <div className="border-t border-zinc-800/20">
           {detail && detail.length > 0 ? (
-            <div className="divide-y divide-zinc-800/10 max-h-[300px] overflow-y-auto">
+            <div className="divide-y divide-zinc-800/10 max-h-[500px] overflow-y-auto">
               {detail.map((entry, i) => (
                 <WorkerDetailEntry key={i} entry={entry} />
               ))}
@@ -762,8 +830,7 @@ function AgentConversationPanel({
         const ev = JSON.parse(e.data);
         if (ev.type === "chunk" && ev.text) {
           setStreamChunks((prev) => [...prev, ev.text]);
-        }
-        if (ev.type === "done" || ev.type === "stopped") {
+        } else if (ev.type === "done" || ev.type === "stopped") {
           setStreamChunks([]);
         }
       } catch {}
@@ -1140,7 +1207,7 @@ function WorkerDetailPanel({
     );
   }
 
-  const isActive = agent.state === "launching" || agent.state === "working";
+  const isActive = agent.state === "creating" || agent.state === "running";
 
   const tabs: WorkerTab[] = ["chat"];
   if (hasShell) tabs.push("shell");
@@ -1924,7 +1991,7 @@ function PanesView({
     });
 
     if (focusedAgent) {
-      const isActive = focusedAgent.status === "pending" || focusedAgent.status === "running";
+      const isActive = focusedAgent.status === "creating" || focusedAgent.status === "running";
       if (isActive) {
         cmds.push({
           id: "stop",

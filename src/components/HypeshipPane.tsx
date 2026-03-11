@@ -9,15 +9,15 @@ import {
 import type { HypeshipWorkerState } from "@/lib/types";
 
 const WORKER_STATE_COLORS: Record<HypeshipWorkerState, string> = {
-  launching: "bg-amber-400",
-  working: "bg-blue-400",
-  archived: "bg-zinc-400",
-  gone: "bg-red-400",
+  creating: "bg-amber-400",
+  running: "bg-blue-400",
+  finished: "bg-emerald-400",
+  error: "bg-red-400",
 };
 
 function WorkerStateDot({ state }: { state: HypeshipWorkerState }) {
   const color = WORKER_STATE_COLORS[state] ?? "bg-zinc-400";
-  const pulse = state === "launching" || state === "working";
+  const pulse = state === "creating" || state === "running";
   return (
     <span className="relative flex h-2 w-2 shrink-0">
       {pulse && (
@@ -56,7 +56,7 @@ export default function HypeshipPane({
   const { data: agentData } = useHypeshipWorker(agentId);
   const agent = agentData?.worker;
   const isActive =
-    agent?.state === "launching" || agent?.state === "working";
+    agent?.state === "creating" || agent?.state === "running";
 
   const { data: convData } = useHypeshipConversation(
     agentId,

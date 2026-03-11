@@ -5,16 +5,15 @@ import { useHypeshipAgents } from "@/lib/api";
 import type { HypeshipAgentStatus } from "@/lib/types";
 
 const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
-  pending: "bg-amber-400",
+  creating: "bg-amber-400",
   running: "bg-blue-400",
   finished: "bg-emerald-400",
-  stopped: "bg-zinc-400",
   error: "bg-red-400",
 };
 
 function StatusDot({ status }: { status: HypeshipAgentStatus }) {
   const color = STATUS_COLORS[status] ?? "bg-zinc-400";
-  const pulse = status === "pending" || status === "running";
+  const pulse = status === "creating" || status === "running";
   return (
     <span className="relative flex h-2 w-2 shrink-0">
       {pulse && (

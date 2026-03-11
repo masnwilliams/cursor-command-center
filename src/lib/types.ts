@@ -162,12 +162,12 @@ export interface ArtifactDownloadResponse {
 export type HypeshipAgentType = "codex_cli" | "claude_code_cli";
 
 export type HypeshipWorkerState =
-  | "launching"
-  | "working"
-  | "archived"
-  | "gone";
+  | "creating"
+  | "running"
+  | "finished"
+  | "error";
 
-export type HypeshipAgentStatus = "pending" | "running" | "finished" | "stopped" | "error";
+export type HypeshipAgentStatus = "creating" | "running" | "finished" | "error";
 
 export type HypeshipLaunchMode = "interactive" | "non_interactive";
 export type HypeshipApprovalMode = "auto_approve" | "human_in_loop";
@@ -218,7 +218,7 @@ export interface HypeshipCreateWorkerRequest {
 }
 
 export interface HypeshipUpdateWorkerStateRequest {
-  state: "working" | "archived" | "gone";
+  state: "running" | "finished" | "error";
   summary?: string;
 }
 
@@ -239,6 +239,7 @@ export interface HypeshipAgentListResponse {
 export interface HypeshipAgentDetail {
   id: string;
   source: string;
+  status?: HypeshipAgentStatus;
   messages: HypeshipConversationTurn[];
   created_at: string;
   updated_at: string;
