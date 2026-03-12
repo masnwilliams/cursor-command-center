@@ -242,12 +242,21 @@ export interface HypeshipQueuedFollowup {
   created_at: string;
 }
 
+export interface HypeshipArtifact {
+  type: "branch" | "pull_request";
+  worker_id: string;
+  repo?: string;
+  branch?: string;
+  pr_url?: string;
+}
+
 export interface HypeshipAgentDetail {
   id: string;
   source: string;
   status?: HypeshipAgentStatus;
   messages: HypeshipConversationTurn[];
   queued_followups?: HypeshipQueuedFollowup[];
+  artifacts?: HypeshipArtifact[];
   created_at: string;
   updated_at: string;
 }
