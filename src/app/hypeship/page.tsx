@@ -1066,7 +1066,19 @@ function AgentConversationPanel({
               <div ref={bottomRef} />
             </div>
 
-            <div className="shrink-0 border-t border-zinc-800 px-2 py-2 flex gap-2 items-end">
+            <div className="shrink-0 border-t border-zinc-800">
+              {(data?.agent?.queued_followups?.length ?? 0) > 0 && (
+                <div className="px-3 py-1.5 border-b border-zinc-800/50">
+                  {data!.agent.queued_followups!.map((q) => (
+                    <div key={q.id} className="flex items-start gap-2 py-0.5 opacity-50">
+                      <span className="text-[10px] font-mono text-blue-400/70">&gt;</span>
+                      <span className="text-[10px] text-zinc-500 font-mono">queued</span>
+                      <span className="text-[10px] text-zinc-500 font-mono truncate">{q.message}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="px-2 py-2 flex gap-2 items-end">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -1087,7 +1099,8 @@ function AgentConversationPanel({
         >
           {sending ? "..." : "↵"}
         </button>
-      </div>
+              </div>
+            </div>
           </div>
         )}
 

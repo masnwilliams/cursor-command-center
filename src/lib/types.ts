@@ -236,11 +236,18 @@ export interface HypeshipAgentListResponse {
   agents: HypeshipAgentSummary[];
 }
 
+export interface HypeshipQueuedFollowup {
+  id: string;
+  message: string;
+  created_at: string;
+}
+
 export interface HypeshipAgentDetail {
   id: string;
   source: string;
   status?: HypeshipAgentStatus;
   messages: HypeshipConversationTurn[];
+  queued_followups?: HypeshipQueuedFollowup[];
   created_at: string;
   updated_at: string;
 }
