@@ -1072,7 +1072,6 @@ function AgentConversationPanel({
                   {data!.agent.queued_followups!.map((q) => (
                     <div key={q.id} className="flex items-start gap-2 py-0.5 opacity-50">
                       <span className="text-[10px] font-mono text-blue-400/70">&gt;</span>
-                      <span className="text-[10px] text-zinc-500 font-mono">queued</span>
                       <span className="text-[10px] text-zinc-500 font-mono truncate">{q.message}</span>
                     </div>
                   ))}
