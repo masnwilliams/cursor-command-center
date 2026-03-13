@@ -1859,8 +1859,8 @@ function ResetSection() {
         orchestrator
       </p>
       <p className="text-[10px] text-zinc-600 font-mono">
-        reset destroys the orchestrator VM and picks up the latest image on next message.
-        existing conversations are preserved but claude session context is lost.
+        reset restarts the orchestrator VM on the latest image.
+        all conversations and session context are preserved.
       </p>
       <button
         onClick={handleReset}
