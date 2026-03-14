@@ -522,13 +522,18 @@ function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup[] {
         groups.push({ type: "worker", workerId: wid, turns: [turn] });
       }
     } else {
-      groups.push({ type: "message", turns: [turn] });
+      const last = groups[groups.length - 1];
+      if (last && last.type === "message") {
+        last.turns.push(turn);
+      } else {
+        groups.push({ type: "message", turns: [turn] });
+      }
     }
   }
   return groups;
 }
 
-// ── Sub-agent grouping within a worker ──
+// ── Sub-agent grouping ──
 
 interface SubAgentTurnGroup {
   type: "turn" | "subagent";
@@ -545,7 +550,7 @@ function isSubAgentToolCall(turn: HypeshipConversationTurn): boolean {
   }
 }
 
-function groupWorkerTurnsBySubAgent(turns: HypeshipConversationTurn[]): SubAgentTurnGroup[] {
+function groupTurnsBySubAgent(turns: HypeshipConversationTurn[]): SubAgentTurnGroup[] {
   const agentToolIds = new Set<string>();
   const childMap = new Map<string, HypeshipConversationTurn[]>();
 
@@ -581,25 +586,22 @@ function groupWorkerTurnsBySubAgent(turns: HypeshipConversationTurn[]): SubAgent
   return groups;
 }
 
-function CollapsibleAgentGroup({
-  label,
-  description,
-  status,
-  childTurns,
-  timestamp,
-  summary,
-  renderChildren,
-}: {
-  label: string;
-  description: string;
-  status: string;
-  childTurns: HypeshipConversationTurn[];
-  timestamp?: string;
-  summary?: string;
-  renderChildren?: (turns: HypeshipConversationTurn[]) => React.ReactNode;
-}) {
+function SubAgentGroup({ turns }: { turns: HypeshipConversationTurn[] }) {
   const [expanded, setExpanded] = useState(false);
 
+  const agentCall = turns[0];
+  const childTurns = turns.slice(1);
+
+  let description = "sub-agent";
+  let subagentType = "Agent";
+  try {
+    const d = typeof agentCall.detail === "string" ? JSON.parse(agentCall.detail) : agentCall.detail;
+    const rec = d as Record<string, unknown>;
+    description = (rec?.description as string) || "sub-agent";
+    subagentType = (rec?.subagent_type as string) || "Agent";
+  } catch {}
+
+  const status = agentCall.status || "running";
   const isRunning = status === "running";
   const isComplete = status === "complete";
   const isError = status === "error";
@@ -635,13 +637,13 @@ function CollapsibleAgentGroup({
           )}
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
-        <span className={`text-[10px] ${labelColor} font-mono`}>⚡ {label}</span>
+        <span className={`text-[10px] ${labelColor} font-mono`}>⚡ {subagentType}</span>
         <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[300px]">{description}</span>
         <span className="text-[10px] text-zinc-600 font-mono">
           {stepCount > 0 && isComplete ? `${stepCount} step${stepCount !== 1 ? "s" : ""}` : statusLabel}
         </span>
-        {timestamp && (
-          <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(timestamp)}</span>
+        {agentCall.timestamp && (
+          <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(agentCall.timestamp)}</span>
         )}
         <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
       </button>
@@ -652,17 +654,87 @@ function CollapsibleAgentGroup({
           </p>
         </div>
       )}
+      {expanded && childTurns.length > 0 && (
+        <div className="border-t border-zinc-800/20">
+          <div className="divide-y divide-zinc-800/20 max-h-[400px] overflow-y-auto">
+            {childTurns.map((turn, i) => (
+              <ConversationBubble key={i} turn={turn} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipConversationTurn[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const statusTurn = turns.find((turn) => turn.status);
+  const placeholderTurn = statusTurn ?? turns.find((turn) => turn.source?.startsWith("worker:"));
+  const status = statusTurn?.status;
+  const isFinished = status === "complete";
+  const shortId = workerId.slice(0, 12);
+  const stepCount = turns.length;
+  const summary = statusTurn?.content;
+  const visibleTurns = turns.filter((turn) => turn !== statusTurn || !!turn.content?.trim());
+
+  const isError = status === "error";
+  const dotColor = isFinished ? "bg-emerald-400" : isError ? "bg-red-400" : "bg-blue-400";
+  const labelColor = isFinished ? "text-emerald-400" : isError ? "text-red-400" : "text-blue-400";
+  const borderColor = isFinished ? "border-emerald-400/30" : isError ? "border-red-400/30" : "border-blue-400/30";
+
+  const lastTurn = [...turns]
+    .reverse()
+    .find((turn) => turn !== statusTurn && !!turn.content?.trim());
+  const lastActivity = lastTurn ? getCollapsedTurnPreview(lastTurn) : null;
+
+  return (
+    <div className={`border-l-2 ${borderColor} ml-3`}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-900/30 transition-colors"
+      >
+        <span className="relative flex h-2 w-2 shrink-0">
+          {!isFinished && !isError && (
+            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotColor}`} />
+          )}
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
+        </span>
+        <span className={`text-[10px] ${labelColor} font-mono`}>worker {shortId}</span>
+        <span className="text-[10px] text-zinc-600 font-mono">
+          {stepCount > 0
+            ? `${stepCount} steps${isFinished || isError ? "" : "..."}`
+            : isFinished
+              ? "done"
+              : isError
+                ? "error"
+                : "working..."}
+        </span>
+        {placeholderTurn?.timestamp && (
+          <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(placeholderTurn.timestamp)}</span>
+        )}
+        <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
+      </button>
+      {!expanded && lastActivity && !isFinished && (
+        <div className="px-3 pb-1.5 -mt-0.5">
+          <p className={`text-[10px] text-zinc-500 font-mono truncate ml-4 ${!isFinished && !isError ? "animate-pulse" : ""}`}>
+            {lastActivity}
+          </p>
+        </div>
+      )}
       {expanded && (
         <div className="border-t border-zinc-800/20">
-          {childTurns.length > 0 && (
-            <div className="divide-y divide-zinc-800/20 max-h-[400px] overflow-y-auto">
-              {renderChildren
-                ? renderChildren(childTurns)
-                : childTurns.map((turn, i) => (
-                    <ConversationBubble key={i} turn={turn} />
-                  ))}
-            </div>
-          )}
+          <div className="divide-y divide-zinc-800/20 max-h-[500px] overflow-y-auto">
+            {groupTurnsBySubAgent(visibleTurns).map((group, gi) =>
+              group.type === "subagent" ? (
+                <SubAgentGroup key={`sa-${gi}`} turns={group.turns} />
+              ) : (
+                group.turns.map((turn, ti) => (
+                  <ConversationBubble key={`t-${gi}-${ti}`} turn={turn} />
+                ))
+              )
+            )}
+          </div>
           {summary && (
             <div className="border-t border-zinc-800/30 px-3 py-2">
               <p className="text-[10px] text-zinc-600 font-mono mb-1">summary</p>
@@ -672,62 +744,6 @@ function CollapsibleAgentGroup({
         </div>
       )}
     </div>
-  );
-}
-
-function SubAgentGroup({ turns }: { turns: HypeshipConversationTurn[] }) {
-  const agentCall = turns[0];
-  const childTurns = turns.slice(1);
-
-  let taskDescription = "";
-  let subagentType = "";
-  try {
-    const d = typeof agentCall.detail === "string" ? JSON.parse(agentCall.detail) : agentCall.detail;
-    const rec = d as Record<string, unknown>;
-    taskDescription = (rec?.description as string) || "";
-    subagentType = (rec?.subagent_type as string) || "";
-  } catch {}
-
-  const description = [subagentType, taskDescription].filter(Boolean).join(" — ") || "sub-agent";
-
-  return (
-    <CollapsibleAgentGroup
-      label="sub-agent"
-      description={description}
-      status={agentCall.status || "running"}
-      childTurns={childTurns}
-      timestamp={agentCall.timestamp}
-    />
-  );
-}
-
-function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipConversationTurn[] }) {
-  const statusTurn = turns.find((turn) => turn.status);
-  const placeholderTurn = statusTurn ?? turns.find((turn) => turn.source?.startsWith("worker:"));
-  const summary = statusTurn?.content;
-  const visibleTurns = turns.filter((turn) => turn !== statusTurn || !!turn.content?.trim());
-  const shortId = workerId.slice(0, 12);
-
-  return (
-    <CollapsibleAgentGroup
-      label="worker"
-      description={shortId}
-      status={statusTurn?.status || "running"}
-      childTurns={visibleTurns}
-      timestamp={placeholderTurn?.timestamp}
-      summary={summary}
-      renderChildren={(childTurns) =>
-        groupWorkerTurnsBySubAgent(childTurns).map((group, gi) =>
-          group.type === "subagent" ? (
-            <SubAgentGroup key={`sa-${gi}`} turns={group.turns} />
-          ) : (
-            group.turns.map((turn, ti) => (
-              <ConversationBubble key={`t-${gi}-${ti}`} turn={turn} />
-            ))
-          )
-        )
-      }
-    />
   );
 }
 
@@ -1058,9 +1074,15 @@ function AgentConversationPanel({
                   group.type === "worker" && group.workerId ? (
                     <WorkerGroup key={`w-${group.workerId}-${gi}`} workerId={group.workerId} turns={group.turns} />
                   ) : (
-                    group.turns.map((turn, ti) => (
-                      <ConversationBubble key={`m-${gi}-${ti}`} turn={turn} />
-                    ))
+                    groupTurnsBySubAgent(group.turns).map((sg, si) =>
+                      sg.type === "subagent" ? (
+                        <SubAgentGroup key={`sa-${gi}-${si}`} turns={sg.turns} />
+                      ) : (
+                        sg.turns.map((turn, ti) => (
+                          <ConversationBubble key={`m-${gi}-${si}-${ti}`} turn={turn} />
+                        ))
+                      )
+                    )
                   )
                 )}
               </div>
