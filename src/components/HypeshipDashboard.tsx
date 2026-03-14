@@ -652,15 +652,17 @@ function CollapsibleAgentGroup({
           </p>
         </div>
       )}
-      {expanded && childTurns.length > 0 && (
+      {expanded && (
         <div className="border-t border-zinc-800/20">
-          <div className="divide-y divide-zinc-800/20 max-h-[400px] overflow-y-auto">
-            {renderChildren
-              ? renderChildren(childTurns)
-              : childTurns.map((turn, i) => (
-                  <ConversationBubble key={i} turn={turn} />
-                ))}
-          </div>
+          {childTurns.length > 0 && (
+            <div className="divide-y divide-zinc-800/20 max-h-[400px] overflow-y-auto">
+              {renderChildren
+                ? renderChildren(childTurns)
+                : childTurns.map((turn, i) => (
+                    <ConversationBubble key={i} turn={turn} />
+                  ))}
+            </div>
+          )}
           {summary && (
             <div className="border-t border-zinc-800/30 px-3 py-2">
               <p className="text-[10px] text-zinc-600 font-mono mb-1">summary</p>
@@ -677,18 +679,20 @@ function SubAgentGroup({ turns }: { turns: HypeshipConversationTurn[] }) {
   const agentCall = turns[0];
   const childTurns = turns.slice(1);
 
-  let description = "sub-agent";
-  let subagentType = "Agent";
+  let taskDescription = "";
+  let subagentType = "";
   try {
     const d = typeof agentCall.detail === "string" ? JSON.parse(agentCall.detail) : agentCall.detail;
     const rec = d as Record<string, unknown>;
-    description = (rec?.description as string) || "sub-agent";
-    subagentType = (rec?.subagent_type as string) || "Agent";
+    taskDescription = (rec?.description as string) || "";
+    subagentType = (rec?.subagent_type as string) || "";
   } catch {}
+
+  const description = [subagentType, taskDescription].filter(Boolean).join(" — ") || "sub-agent";
 
   return (
     <CollapsibleAgentGroup
-      label={subagentType}
+      label="sub-agent"
       description={description}
       status={agentCall.status || "running"}
       childTurns={childTurns}
