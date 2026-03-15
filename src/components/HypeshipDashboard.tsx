@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -1910,13 +1911,17 @@ function DashboardListView({
   env,
   onLogout,
   onSwitchView,
+  initialAgentId,
 }: {
   env: HypeshipEnv;
   onLogout: () => void;
   onSwitchView: (v: HypeshipView) => void;
+  initialAgentId?: string | null;
 }) {
+  const router = useRouter();
+  const basePath = env === "staging" ? "/staging/hypeship" : "/hypeship";
+  const selectedId = initialAgentId ?? null;
   const [tab, setTab] = useState<DashboardTab>("agents");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [listWidth, setListWidth] = useState(320);
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1947,12 +1952,12 @@ function DashboardListView({
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape" && selectedId) {
-        setSelectedId(null);
+        router.push(basePath);
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [selectedId]);
+  }, [selectedId, router, basePath]);
 
   const agentCount = agents.length;
 
@@ -1984,7 +1989,7 @@ function DashboardListView({
             {(["agents", "secrets", "settings"] as const).map((t) => (
               <button
                 key={t}
-                onClick={() => { setTab(t); setSelectedId(null); }}
+                onClick={() => { setTab(t); if (selectedId) router.push(basePath); }}
                 className={`px-2 py-0.5 text-[10px] font-mono transition-colors ${
                   tab === t
                     ? "text-zinc-200 bg-zinc-800"
@@ -2004,7 +2009,7 @@ function DashboardListView({
         <div className="flex items-center gap-2">
           {tab === "agents" && (
             <button
-              onClick={() => setSelectedId("new")}
+              onClick={() => router.push(`${basePath}/new`)}
               className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
                 selectedId === "new"
                   ? "text-blue-400 border-blue-500/50"
@@ -2050,7 +2055,7 @@ function DashboardListView({
                 <div className="px-3 py-16 text-center space-y-3">
                   <p className="text-[10px] text-zinc-600 font-mono">no conversations yet</p>
                   <button
-                    onClick={() => setSelectedId("new")}
+                    onClick={() => router.push(`${basePath}/new`)}
                     className="text-[10px] font-mono text-blue-400 hover:text-blue-300 border border-zinc-800 hover:border-zinc-600 px-3 py-1.5 transition-colors"
                   >
                     start a new chat
@@ -2061,7 +2066,7 @@ function DashboardListView({
               {agents.map((agent) => (
                 <button
                   key={agent.id}
-                  onClick={() => setSelectedId(agent.id)}
+                  onClick={() => router.push(`${basePath}/${agent.id}`)}
                   className={`w-full text-left border-b border-zinc-800/50 px-3 py-2 hover:bg-zinc-900/40 transition-colors ${
                     selectedId === agent.id ? "bg-zinc-900/60" : ""
                   }`}
@@ -2110,16 +2115,16 @@ function DashboardListView({
                 {selectedId === "new" ? (
                   <NewChatPanel
                     key="new"
-                    onClose={() => setSelectedId(null)}
+                    onClose={() => router.push(basePath)}
                     onAgentCreated={(agentId) => {
-                      setSelectedId(agentId);
+                      router.replace(`${basePath}/${agentId}`);
                     }}
                   />
                 ) : (
                   <AgentConversationPanel
                     key={selectedId}
                     agentId={selectedId}
-                    onClose={() => setSelectedId(null)}
+                    onClose={() => router.push(basePath)}
                   />
                 )}
               </div>
@@ -2363,7 +2368,7 @@ function PanesView({
 
 // ── View Router ──
 
-function DashboardView({ env, onLogout }: { env: HypeshipEnv; onLogout: () => void }) {
+function DashboardView({ env, onLogout, initialAgentId }: { env: HypeshipEnv; onLogout: () => void; initialAgentId?: string | null }) {
   const [view, setView] = useState<HypeshipView>("dashboard");
 
   useEffect(() => {
@@ -2379,12 +2384,12 @@ function DashboardView({ env, onLogout }: { env: HypeshipEnv; onLogout: () => vo
     return <PanesView env={env} onLogout={onLogout} onSwitchView={handleSwitchView} />;
   }
 
-  return <DashboardListView env={env} onLogout={onLogout} onSwitchView={handleSwitchView} />;
+  return <DashboardListView env={env} onLogout={onLogout} onSwitchView={handleSwitchView} initialAgentId={initialAgentId} />;
 }
 
 // ── Root ──
 
-export default function HypeshipDashboard({ env = "production" as HypeshipEnv }: { env?: HypeshipEnv }) {
+export default function HypeshipDashboard({ env = "production" as HypeshipEnv, initialAgentId }: { env?: HypeshipEnv; initialAgentId?: string }) {
   const [connected, setConnected] = useState(false);
   const [checked, setChecked] = useState(false);
 
@@ -2406,6 +2411,7 @@ export default function HypeshipDashboard({ env = "production" as HypeshipEnv }:
   return (
     <DashboardView
       env={env}
+      initialAgentId={initialAgentId}
       onLogout={() => {
         clearHypeshipEnvAuth(env);
         clearHypeshipAuth();
