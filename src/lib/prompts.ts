@@ -1,3 +1,13 @@
+export const SAVE_ARTIFACT_INSTRUCTION = `**IMPORTANT — After opening a PR, you MUST call the \`save_artifact\` MCP tool to record it:**
+\`\`\`
+save_artifact(type="pull_request", repo="<owner>/<repo>", branch="<branch-name>", pr_url="<pr-url>")
+\`\`\`
+Similarly, after pushing a branch (even without a PR), call:
+\`\`\`
+save_artifact(type="branch", repo="<owner>/<repo>", branch="<branch-name>")
+\`\`\`
+This is required so the orchestrator can track artifacts and surface PR links to the user.`;
+
 export const PR_REVIEW_PROMPT = `# Incremental Pull Request Review
 
 You are helping me review a pull request incrementally. We will work through the diff in small logical chunks, building up review comments together before submitting.

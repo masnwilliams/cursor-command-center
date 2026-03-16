@@ -1,4 +1,5 @@
 import useSWR, { mutate } from "swr";
+import { SAVE_ARTIFACT_INSTRUCTION } from "./prompts";
 import type {
   Agent,
   AgentListResponse,
@@ -453,10 +454,14 @@ export async function updateHypeshipWorkerState(
 export async function sendHypeshipPrompt(
   body: HypeshipPromptRequest,
 ): Promise<HypeshipPromptResponse> {
+  const enrichedBody = {
+    ...body,
+    message: `${SAVE_ARTIFACT_INSTRUCTION}\n\n${body.message}`,
+  };
   const res = await fetch("/api/hypeship/agents", {
     method: "POST",
     headers: hypeshipHeaders(),
-    body: JSON.stringify(body),
+    body: JSON.stringify(enrichedBody),
   });
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
