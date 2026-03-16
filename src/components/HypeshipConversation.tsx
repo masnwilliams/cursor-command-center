@@ -62,32 +62,44 @@ function isDelegateTaskCall(turn: HypeshipConversationTurn): boolean {
 }
 
 export function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup[] {
-  const workerTurns = new Map<string, HypeshipConversationTurn[]>();
-
-  for (const turn of turns) {
-    if (turn.worker_id) {
-      if (!workerTurns.has(turn.worker_id)) workerTurns.set(turn.worker_id, []);
-      workerTurns.get(turn.worker_id)!.push(turn);
-    }
-  }
-
-  const emitted = new Set<string>();
   const groups: TurnGroup[] = [];
   let pending: HypeshipConversationTurn[] = [];
+  const activeWorker = new Map<string, HypeshipConversationTurn[]>();
+
+  function flushWorker(workerId: string) {
+    const bucket = activeWorker.get(workerId);
+    if (bucket && bucket.length > 0) {
+      groups.push({ type: "worker", workerId, turns: [...bucket] });
+    }
+    activeWorker.delete(workerId);
+  }
 
   for (const turn of turns) {
     if (turn.worker_id) {
-      if (!emitted.has(turn.worker_id)) {
+      const wid = turn.worker_id;
+      const isResumed = turn.status === "running" && activeWorker.has(wid);
+
+      if (isResumed) {
+        flushWorker(wid);
+      }
+
+      if (!activeWorker.has(wid)) {
         if (pending.length > 0) {
           groups.push({ type: "message", turns: pending });
           pending = [];
         }
-        groups.push({ type: "worker", workerId: turn.worker_id, turns: workerTurns.get(turn.worker_id)! });
-        emitted.add(turn.worker_id);
+        activeWorker.set(wid, []);
       }
+      activeWorker.get(wid)!.push(turn);
     } else {
+      for (const wid of activeWorker.keys()) {
+        flushWorker(wid);
+      }
       pending.push(turn);
     }
+  }
+  for (const wid of activeWorker.keys()) {
+    flushWorker(wid);
   }
   if (pending.length > 0) groups.push({ type: "message", turns: pending });
 
