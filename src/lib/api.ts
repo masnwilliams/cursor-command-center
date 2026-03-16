@@ -493,6 +493,28 @@ export async function stopHypeshipAgent(agentId: string): Promise<{ id: string }
   return data;
 }
 
+export interface HypeshipOrchestratorMe {
+  orchestrator: {
+    id: string;
+    state: string;
+    hypeman_instance_id: string;
+    shell_ws_url?: string;
+    desktop_url?: string;
+    pending_tasks?: number;
+    created_at: string;
+    updated_at: string;
+    last_active_at: string;
+  } | null;
+}
+
+export function useHypeshipOrchestrator() {
+  return useSWR<HypeshipOrchestratorMe>(
+    "/api/hypeship/orchestrators/me",
+    hypeshipFetcher<HypeshipOrchestratorMe>,
+    { refreshInterval: 10_000 },
+  );
+}
+
 export async function resetHypeshipOrchestrator(): Promise<{ status: string }> {
   const res = await fetch("/api/hypeship/orchestrators/reset", {
     method: "POST",

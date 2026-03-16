@@ -45,6 +45,7 @@ import {
   getHypeshipAuthConfig,
   stopHypeshipAgent,
   resetHypeshipOrchestrator,
+  useHypeshipOrchestrator,
   getHypeshipSettingsLink,
 } from "@/lib/api";
 import {
@@ -1842,12 +1843,27 @@ function SettingsView() {
         </div>
       )}
 
-      <ResetSection />
+      <OrchestratorSection />
     </div>
   );
 }
 
-function ResetSection() {
+const ORCH_STATE_COLORS: Record<string, string> = {
+  creating: "bg-amber-400",
+  running: "bg-blue-400",
+  standby: "bg-zinc-400",
+  error: "bg-red-400",
+};
+
+const ORCH_STATE_PULSE: Record<string, boolean> = {
+  creating: true,
+  running: true,
+  standby: false,
+  error: false,
+};
+
+function OrchestratorSection() {
+  const { data: orchData } = useHypeshipOrchestrator();
   const [resetting, setResetting] = useState(false);
   const [result, setResult] = useState<"ok" | "error" | null>(null);
 
@@ -1865,11 +1881,66 @@ function ResetSection() {
     }
   }
 
+  const orch = orchData?.orchestrator;
+
   return (
     <div className="border-t border-zinc-800 pt-3 space-y-2">
       <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide">
         orchestrator
       </p>
+
+      {!orch ? (
+        <p className="text-[10px] text-zinc-600 font-mono">no orchestrator</p>
+      ) : (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              {ORCH_STATE_PULSE[orch.state] && (
+                <span
+                  className={`absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping ${ORCH_STATE_COLORS[orch.state] ?? "bg-zinc-400"}`}
+                />
+              )}
+              <span
+                className={`relative inline-flex rounded-full h-2 w-2 ${ORCH_STATE_COLORS[orch.state] ?? "bg-zinc-400"}`}
+              />
+            </span>
+            <span className="text-[11px] text-zinc-200 font-mono">{orch.state}</span>
+            <span className="text-[10px] text-zinc-600 font-mono truncate">
+              {orch.id.length > 20 ? orch.id.slice(0, 20) + "..." : orch.id}
+            </span>
+          </div>
+
+          {orch.last_active_at && (
+            <p className="text-[10px] text-zinc-600 font-mono">
+              last active: {new Date(orch.last_active_at).toLocaleString()}
+            </p>
+          )}
+
+          {orch.pending_tasks != null && orch.pending_tasks > 0 && (
+            <p className="text-[10px] text-amber-400/70 font-mono">
+              {orch.pending_tasks} pending task{orch.pending_tasks !== 1 ? "s" : ""}
+            </p>
+          )}
+
+          {orch.desktop_url && (
+            <a
+              href={orch.desktop_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-blue-400 hover:text-blue-300 font-mono underline"
+            >
+              open desktop (vnc)
+            </a>
+          )}
+
+          {orch.shell_ws_url && (
+            <p className="text-[10px] text-zinc-600 font-mono truncate">
+              ws: {orch.shell_ws_url}
+            </p>
+          )}
+        </div>
+      )}
+
       <p className="text-[10px] text-zinc-600 font-mono">
         reset restarts the orchestrator VM on the latest image.
         all conversations and session context are preserved.
