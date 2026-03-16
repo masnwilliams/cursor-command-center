@@ -1906,12 +1906,14 @@ function PanesView({
       if (e.key === "Escape") {
         if (showPalette) { setShowPalette(false); return; }
         if (showAddModal || showNewChat) return;
-        setFocusedId(null);
+        if (!isMobile) setFocusedId(null);
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [showPalette, showAddModal, showNewChat]);
+  }, [showPalette, showAddModal, showNewChat, isMobile]);
+
+  if (!mounted) return null;
 
   return (
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">

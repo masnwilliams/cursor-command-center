@@ -308,7 +308,7 @@ export default function HypeshipAgentPane({
 
   return (
     <div
-      className={`flex flex-col h-full border-r border-b border-zinc-800 bg-zinc-950 ${focused ? "ring-1 ring-inset ring-blue-500/60" : ""}`}
+      className={`flex flex-col flex-1 min-w-0 min-h-0 border-r border-b border-zinc-800 bg-zinc-950 ${focused ? "ring-1 ring-inset ring-blue-500/60" : ""}`}
       onClick={onFocus}
     >
       {/* Header */}
