@@ -19,12 +19,16 @@ import {
   clearHypeshipEnvAuth,
   activateHypeshipEnv,
   HYPESHIP_URLS,
+  getGithubToken,
 } from "@/lib/storage";
 import type { HypeshipView, HypeshipEnv } from "@/lib/storage";
 import HypeshipAgentPane from "@/components/HypeshipAgentPane";
 import { HypeshipAddAgentModal } from "@/components/HypeshipAddAgentModal";
 import { HypeshipNewChatModal } from "@/components/HypeshipNewChatModal";
 import { CommandPalette, type Command } from "@/components/CommandPalette";
+import { ConfirmMergeModal } from "@/components/ConfirmMergeModal";
+import { AddReviewerModal } from "@/components/AddReviewerModal";
+import { DiffBar } from "@/components/DiffBar";
 import {
   testHypeshipConnection,
   useHypeshipWorkers,
@@ -47,7 +51,11 @@ import {
   resetHypeshipOrchestrator,
   useHypeshipOrchestrator,
   getHypeshipSettingsLink,
+  useReviewRequests,
+  usePrStatus,
+  markPrReady,
 } from "@/lib/api";
+import { buildHypeshipReviewPrompt } from "@/lib/prompts";
 import {
   GroupedConversation,
   ConversationBubble,
@@ -64,6 +72,7 @@ import type {
   HypeshipAuthConfig,
   HypeshipAgentSummary,
   HypeshipArtifact,
+  ReviewRequestPR,
 } from "@/lib/types";
 
 type SetupState = "idle" | "testing" | "success" | "error";
@@ -1542,6 +1551,161 @@ function gridCols(count: number): string {
   return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
 }
 
+// ── PR Review Input Modal ──
+
+function ReviewInputModal({
+  pendingReviewPrs,
+  onLaunchReview,
+  onClose,
+}: {
+  pendingReviewPrs: ReviewRequestPR[];
+  onLaunchReview: (prUrl: string) => void;
+  onClose: () => void;
+}) {
+  const [reviewPrUrl, setReviewPrUrl] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+
+  const filteredPrs = reviewPrUrl.trim()
+    ? pendingReviewPrs.filter(
+        (pr) =>
+          pr.title.toLowerCase().includes(reviewPrUrl.toLowerCase()) ||
+          pr.repo.toLowerCase().includes(reviewPrUrl.toLowerCase()) ||
+          pr.url.includes(reviewPrUrl),
+      )
+    : pendingReviewPrs;
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((i) => (i < filteredPrs.length - 1 ? i + 1 : i));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((i) => (i > 0 ? i - 1 : -1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (selectedIndex >= 0 && filteredPrs[selectedIndex]) {
+        onLaunchReview(filteredPrs[selectedIndex].url);
+      } else if (reviewPrUrl.trim()) {
+        onLaunchReview(reviewPrUrl.trim());
+      }
+    } else if (e.key === "Escape") {
+      onClose();
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-lg border border-zinc-800 bg-zinc-950 flex flex-col max-h-[80vh] safe-area-bottom"
+      >
+        <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-3 sm:py-2 bg-zinc-900/60 shrink-0">
+          <span className="text-sm sm:text-xs text-zinc-300 font-mono">review pr</span>
+          <span className="text-xs sm:text-[10px] text-zinc-600 font-mono ml-auto">[esc]</span>
+        </div>
+        <div className="px-3 py-3 border-b border-zinc-800 shrink-0">
+          <input
+            type="text"
+            value={reviewPrUrl}
+            onChange={(e) => {
+              setReviewPrUrl(e.target.value);
+              setSelectedIndex(-1);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="paste pr url or filter, hit enter"
+            autoFocus
+            className="w-full bg-transparent text-sm sm:text-xs text-zinc-100 placeholder-zinc-600 outline-none font-mono"
+          />
+        </div>
+        {filteredPrs.length > 0 && (
+          <div className="overflow-y-auto">
+            <div className="px-3 py-1.5">
+              <span className="text-[10px] text-zinc-600 font-mono uppercase tracking-wider">
+                requesting your review
+              </span>
+            </div>
+            {filteredPrs.map((pr, i) => (
+              <div
+                key={pr.url}
+                onMouseEnter={() => setSelectedIndex(i)}
+                className={`w-full flex items-center px-3 py-3 sm:py-2 font-mono gap-2 ${
+                  i === selectedIndex ? "bg-zinc-800" : "hover:bg-zinc-900"
+                }`}
+              >
+                <button
+                  onClick={() => onLaunchReview(pr.url)}
+                  className="flex-1 text-left flex flex-col gap-0.5 min-w-0"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs text-zinc-100 truncate">{pr.title}</span>
+                    <span className="text-[10px] text-zinc-600 shrink-0">#{pr.number}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                    <span>{pr.repo}</span>
+                    <span>·</span>
+                    <span>{pr.author}</span>
+                  </div>
+                </button>
+                <a
+                  href={pr.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[10px] text-zinc-600 hover:text-zinc-300 shrink-0"
+                  title="open in github"
+                >
+                  [open]
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+        {filteredPrs.length === 0 && pendingReviewPrs.length === 0 && (
+          <div className="px-3 py-4 text-center">
+            <span className="text-[10px] text-zinc-600 font-mono">
+              no pending review requests
+            </span>
+          </div>
+        )}
+        {filteredPrs.length === 0 && pendingReviewPrs.length > 0 && (
+          <div className="px-3 py-4 text-center">
+            <span className="text-[10px] text-zinc-600 font-mono">no matches</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Review Badge Button ──
+
+function ReviewBadge({
+  count,
+  onClick,
+}: {
+  count: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="text-xs sm:text-[10px] text-zinc-500 hover:text-zinc-200 font-mono flex items-center gap-1"
+    >
+      {count > 0 ? (
+        <>
+          <span className="text-amber-400">{count}</span>
+          <span>review{count !== 1 ? "s" : ""}</span>
+        </>
+      ) : (
+        <span>0 reviews</span>
+      )}
+    </button>
+  );
+}
+
 function DashboardListView({
   env,
   onLogout,
@@ -1561,6 +1725,13 @@ function DashboardListView({
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [showReviewInput, setShowReviewInput] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState<{ prUrl: string; agentName: string } | null>(null);
+  const [reviewerTarget, setReviewerTarget] = useState<{ prUrl: string; agentName: string } | null>(null);
+
+  const hasGithubToken = typeof window !== "undefined" && !!getGithubToken();
+  const { data: reviewData } = useReviewRequests();
+  const reviewPrs = hasGithubToken ? (reviewData?.prs ?? []) : [];
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");
@@ -1592,6 +1763,18 @@ function DashboardListView({
 
   const { data: agentsData, error: agentsError, isLoading: agentsLoading } = useHypeshipAgents();
   const agents = agentsData?.agents ?? [];
+
+  function launchReview(prUrl: string) {
+    setShowReviewInput(false);
+    const prompt = buildHypeshipReviewPrompt(prUrl);
+    sendHypeshipPrompt({ message: prompt })
+      .then((resp) => {
+        if (resp.agent_id) {
+          router.push(`${basePath}/${resp.agent_id}`);
+        }
+      })
+      .catch(() => {});
+  }
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -1655,6 +1838,9 @@ function DashboardListView({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {hasGithubToken && (
+              <ReviewBadge count={reviewPrs.length} onClick={() => setShowReviewInput(true)} />
+            )}
             {tab === "agents" && (
               <button
                 onClick={() => router.push(`${basePath}/new`)}
@@ -1828,6 +2014,30 @@ function DashboardListView({
           )}
         </div>
       )}
+
+      {/* Review modals */}
+      {showReviewInput && (
+        <ReviewInputModal
+          pendingReviewPrs={reviewPrs}
+          onLaunchReview={launchReview}
+          onClose={() => setShowReviewInput(false)}
+        />
+      )}
+      {mergeTarget && (
+        <ConfirmMergeModal
+          prUrl={mergeTarget.prUrl}
+          agentName={mergeTarget.agentName}
+          onClose={() => setMergeTarget(null)}
+          onMerged={() => setMergeTarget(null)}
+        />
+      )}
+      {reviewerTarget && (
+        <AddReviewerModal
+          prUrl={reviewerTarget.prUrl}
+          agentName={reviewerTarget.agentName}
+          onClose={() => setReviewerTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1848,8 +2058,15 @@ function PanesView({
   const [showPalette, setShowPalette] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [showReviewInput, setShowReviewInput] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState<{ prUrl: string; agentName: string } | null>(null);
+  const [reviewerTarget, setReviewerTarget] = useState<{ prUrl: string; agentName: string } | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  const hasGithubToken = typeof window !== "undefined" && !!getGithubToken();
+  const { data: reviewData } = useReviewRequests();
+  const reviewPrs = hasGithubToken ? (reviewData?.prs ?? []) : [];
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");
@@ -1893,6 +2110,20 @@ function PanesView({
     setFocusedId(agentId);
   }
 
+  function launchReview(prUrl: string) {
+    setShowReviewInput(false);
+    const prompt = buildHypeshipReviewPrompt(prUrl);
+    sendHypeshipPrompt({ message: prompt })
+      .then((resp) => {
+        if (resp.agent_id) {
+          addToHypeshipGrid(resp.agent_id, env);
+          refreshGrid();
+          setFocusedId(resp.agent_id);
+        }
+      })
+      .catch(() => {});
+  }
+
   const focusedAgent = focusedId ? agentMap.get(focusedId) : null;
 
   // Auto-focus first pane on mobile
@@ -1918,6 +2149,14 @@ function PanesView({
       section: "agents",
       action: () => setShowAddModal(true),
     });
+    if (hasGithubToken) {
+      cmds.push({
+        id: "review",
+        label: "review pr",
+        section: "agents",
+        action: () => setShowReviewInput(true),
+      });
+    }
 
     if (focusedAgent) {
       const isActive = focusedAgent.status === "creating" || focusedAgent.status === "running";
@@ -1972,17 +2211,19 @@ function PanesView({
         setShowPalette((v) => !v);
         setShowAddModal(false);
         setShowNewChat(false);
+        setShowReviewInput(false);
         return;
       }
       if (e.key === "Escape") {
         if (showPalette) { setShowPalette(false); return; }
+        if (showReviewInput) { setShowReviewInput(false); return; }
         if (showAddModal || showNewChat) return;
         if (!isMobile) setFocusedId(null);
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [showPalette, showAddModal, showNewChat, isMobile]);
+  }, [showPalette, showAddModal, showNewChat, showReviewInput, isMobile]);
 
   if (!mounted) return null;
 
@@ -2014,6 +2255,9 @@ function PanesView({
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
+          {hasGithubToken && (
+            <ReviewBadge count={reviewPrs.length} onClick={() => setShowReviewInput(true)} />
+          )}
           <button
             onClick={() => setShowPalette(true)}
             className={`text-zinc-500 hover:text-zinc-200 active:text-zinc-100 font-mono ${isMobile ? "text-xs py-1 px-2" : "text-[10px]"}`}
@@ -2127,6 +2371,28 @@ function PanesView({
         <HypeshipNewChatModal
           onCreated={handleNewChatCreated}
           onClose={() => setShowNewChat(false)}
+        />
+      )}
+      {showReviewInput && (
+        <ReviewInputModal
+          pendingReviewPrs={reviewPrs}
+          onLaunchReview={launchReview}
+          onClose={() => setShowReviewInput(false)}
+        />
+      )}
+      {mergeTarget && (
+        <ConfirmMergeModal
+          prUrl={mergeTarget.prUrl}
+          agentName={mergeTarget.agentName}
+          onClose={() => setMergeTarget(null)}
+          onMerged={() => setMergeTarget(null)}
+        />
+      )}
+      {reviewerTarget && (
+        <AddReviewerModal
+          prUrl={reviewerTarget.prUrl}
+          agentName={reviewerTarget.agentName}
+          onClose={() => setReviewerTarget(null)}
         />
       )}
     </div>
