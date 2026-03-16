@@ -73,32 +73,38 @@ No server-side state, no database. Each device stores its own key and grid.
 ## File Structure
 
 ```
+.claude/
+  CLAUDE.md               — Claude Code agent instructions for this repo
 src/
   app/
     page.tsx              — main dashboard (grid of panes)
-    setup/page.tsx        — API key input
+    staging/              — Hypeship staging dashboard
+    cursor/               — Cursor-specific setup/dashboard
     sw.ts                 — service worker (serwist)
     ~offline/page.tsx     — offline fallback
-    api/                  — proxy routes to api.cursor.com
-      agents/             — list, create, get, delete, conversation, followup, stop
+    api/                  — proxy routes
+      agents/             — Cursor Cloud Agent endpoints
+      hypeship/           — Hypeship API proxy (agents, secrets, settings, workers)
       branches/           — GitHub branches for repo (for SearchSelect)
       me/                 — API key info
       models/             — available models
       repositories/       — GitHub repos
   components/
-    Pane.tsx              — single conversation pane (info bar + messages + follow-up)
+    Pane.tsx              — Cursor agent pane (info bar + messages + follow-up)
+    HypeshipPane.tsx      — Hypeship agent pane
+    HypeshipDashboard.tsx — Hypeship dashboard (agents list, chat, PR reviews)
+    HypeshipConversation.tsx — conversation renderer with worker grouping
     CommandPalette.tsx    — Cmd+K command palette (search, arrow nav, enter to select)
-    AddAgentModal.tsx     — pick existing agent to pin to grid
     LaunchModal.tsx       — launch new agent (repo, branch, prompt, model)
-    FollowUpInput.tsx     — textarea for sending follow-ups
     SearchSelect.tsx      — custom searchable dropdown (replaces <select>)
     StatusBadge.tsx       — status dot with label (pulsing for active)
   lib/
-    api.ts                — SWR hooks + mutation helpers
+    api.ts                — SWR hooks + mutation helpers (Cursor + Hypeship)
     proxy.ts              — shared proxy-to-cursor helper
+    hypeship-proxy.ts     — proxy-to-hypeship helper
     storage.ts            — localStorage helpers
-    types.ts              — TypeScript types for Cursor API
-    prompts.ts            — pre-built prompts (PR review)
+    types.ts              — TypeScript types for Cursor + Hypeship APIs
+    prompts.ts            — pre-built prompt templates (PR review)
 ```
 
 ## Key Patterns
@@ -140,6 +146,33 @@ bun run build        # production build
 bun run format       # prettier
 bun run start        # production server
 ```
+
+## Hypeship Integration
+
+The dashboard also manages Hypeship agents via a separate proxy layer (`src/lib/hypeship-proxy.ts`).
+
+### Prompt flow
+
+User messages flow through: Dashboard UI -> `sendHypeshipPrompt()` in `api.ts` -> `/api/hypeship/agents` route -> `proxyToHypeship()` -> Hypeship backend `/v1/agents`.
+
+The Hypeship backend (not in this repo) spins up VMs with Claude Code agents, injects system instructions via CLAUDE.md in the VM image, and provides MCP tools (`save_artifact`, `list_artifacts`, `delegate_task`).
+
+### Prompt templates
+
+Reusable prompt templates live in `src/lib/prompts.ts`. Current templates:
+- `PR_REVIEW_PROMPT` — incremental PR review workflow
+- `buildHypeshipPrReviewPrompt()` — constructs PR review prompts with file details
+
+When adding new templates:
+1. Export a constant or builder function from `prompts.ts`
+2. Import and use it from the component that triggers the agent task
+3. Do NOT prepend system-level agent instructions (like "always call save_artifact") to user prompts — those belong in the VM-level CLAUDE.md managed by the Hypeship platform
+
+### Artifact tracking
+
+Hypeship agents track branches and PRs via `save_artifact` / `list_artifacts` MCP tools. These tools are provided by the Hypeship backend, not defined in this repo. The `HypeshipArtifact` type in `types.ts` describes the artifact shape returned by the API.
+
+Agent instructions for when/how to call these tools belong in the Hypeship VM image's CLAUDE.md, not in this frontend codebase. The dashboard only displays artifacts — it doesn't instruct agents on when to save them.
 
 ## Cursor API
 
