@@ -47,7 +47,15 @@ import {
   resetHypeshipOrchestrator,
   useHypeshipOrchestrator,
   getHypeshipSettingsLink,
+  useReviewRequests,
+  usePrStatus,
+  usePrFiles,
+  markPrReady,
 } from "@/lib/api";
+import { DiffBar } from "@/components/DiffBar";
+import { ConfirmMergeModal } from "@/components/ConfirmMergeModal";
+import { AddReviewerModal } from "@/components/AddReviewerModal";
+import { buildHypeshipPrReviewPrompt } from "@/lib/prompts";
 import {
   GroupedConversation,
   ConversationBubble,
@@ -64,6 +72,7 @@ import type {
   HypeshipAuthConfig,
   HypeshipAgentSummary,
   HypeshipArtifact,
+  ReviewRequestPR,
 } from "@/lib/types";
 
 type SetupState = "idle" | "testing" | "success" | "error";
@@ -1532,7 +1541,7 @@ function OrchestratorSection() {
 
 // ── Dashboard ──
 
-type DashboardTab = "agents" | "secrets" | "settings";
+type DashboardTab = "agents" | "reviews" | "secrets" | "settings";
 
 function gridCols(count: number): string {
   if (count <= 1) return "grid-cols-1";
@@ -1540,6 +1549,206 @@ function gridCols(count: number): string {
   if (count <= 4) return "grid-cols-1 sm:grid-cols-2";
   if (count <= 6) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
   return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+}
+
+function ReviewPrRow({
+  pr,
+  expanded,
+  onToggle,
+  launching,
+  onLaunchReview,
+  onMerge,
+  onAddReviewer,
+}: {
+  pr: ReviewRequestPR;
+  expanded: boolean;
+  onToggle: () => void;
+  launching: boolean;
+  onLaunchReview: () => void;
+  onMerge: () => void;
+  onAddReviewer: () => void;
+}) {
+  const { data: filesData } = usePrFiles(expanded ? pr.url : null);
+  const files = filesData?.files;
+  const [openFiles, setOpenFiles] = useState<Set<string>>(new Set());
+
+  return (
+    <div className="border-b border-zinc-800/50">
+      <button
+        onClick={onToggle}
+        className={`w-full text-left px-3 py-3 sm:py-2 hover:bg-zinc-900/40 transition-colors ${
+          expanded ? "bg-zinc-900/60" : ""
+        }`}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] text-zinc-600 font-mono shrink-0">
+            {expanded ? "▾" : "▸"}
+          </span>
+          <span className="text-xs sm:text-[11px] text-zinc-200 font-mono truncate flex-1">
+            {pr.title}
+          </span>
+          <span className="text-[10px] text-zinc-600 font-mono shrink-0">
+            #{pr.number}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 ml-5">
+          <span className="text-[10px] text-zinc-600 font-mono">{pr.repo}</span>
+          <span className="text-[10px] text-zinc-700 font-mono">·</span>
+          <span className="text-[10px] text-zinc-600 font-mono">{pr.author}</span>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-zinc-800/40 bg-zinc-900/30">
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800/40">
+            <button
+              onClick={onLaunchReview}
+              disabled={launching}
+              className="text-[10px] font-mono px-2 py-0.5 border border-blue-500/50 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 transition-colors disabled:opacity-40"
+            >
+              {launching ? "launching..." : "review with hypeship"}
+            </button>
+            <button
+              onClick={onMerge}
+              className="text-[10px] font-mono px-2 py-0.5 border border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 transition-colors"
+            >
+              merge
+            </button>
+            <button
+              onClick={onAddReviewer}
+              className="text-[10px] font-mono px-2 py-0.5 border border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 transition-colors"
+            >
+              add reviewer
+            </button>
+            <a
+              href={pr.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] font-mono text-zinc-600 hover:text-zinc-300 ml-auto"
+            >
+              [open in github]
+            </a>
+          </div>
+
+          {/* File list / diff */}
+          <div className="max-h-[50vh] overflow-y-auto">
+            {!files && (
+              <p className="text-[10px] text-zinc-600 font-mono px-3 py-2 animate-pulse">
+                loading files...
+              </p>
+            )}
+            {files && files.length === 0 && (
+              <p className="text-[10px] text-zinc-600 font-mono px-3 py-2">
+                no file changes
+              </p>
+            )}
+            {files && files.map((file) => {
+              const isOpen = openFiles.has(file.filename);
+              return (
+                <div key={file.filename}>
+                  <button
+                    onClick={() => {
+                      setOpenFiles((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(file.filename)) next.delete(file.filename);
+                        else next.add(file.filename);
+                        return next;
+                      });
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-0.5 text-left min-w-0 hover:bg-zinc-800/40"
+                  >
+                    <span className="text-[10px] text-zinc-600 font-mono shrink-0">
+                      {isOpen ? "▾" : "▸"}
+                    </span>
+                    <span className={`text-[10px] font-mono w-3 shrink-0 ${
+                      file.status === "added" ? "text-green-400" :
+                      file.status === "removed" ? "text-red-400" :
+                      file.status === "renamed" ? "text-blue-400" :
+                      "text-amber-400"
+                    }`}>
+                      {file.status === "added" ? "A" : file.status === "removed" ? "D" : file.status === "renamed" ? "R" : "M"}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 font-mono truncate min-w-0">
+                      {file.filename}
+                    </span>
+                    <span className="ml-auto flex items-center gap-1.5 shrink-0">
+                      {file.additions > 0 && (
+                        <span className="text-[10px] text-green-500/80 font-mono">+{file.additions}</span>
+                      )}
+                      {file.deletions > 0 && (
+                        <span className="text-[10px] text-red-500/80 font-mono">-{file.deletions}</span>
+                      )}
+                    </span>
+                  </button>
+                  {isOpen && file.patch && (
+                    <div className="border-t border-zinc-800/40 overflow-x-auto">
+                      <pre className="text-[10px] font-mono text-zinc-400 px-3 py-1 whitespace-pre">
+                        {file.patch}
+                      </pre>
+                    </div>
+                  )}
+                  {isOpen && !file.patch && (
+                    <div className="px-6 py-2 text-[10px] text-zinc-600 font-mono border-t border-zinc-800/40">
+                      binary file or no diff available
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReviewsPanel({
+  prs,
+  expandedPr,
+  onToggleExpand,
+  launchingReview,
+  onLaunchReview,
+  onMerge,
+  onAddReviewer,
+}: {
+  prs: ReviewRequestPR[];
+  expandedPr: string | null;
+  onToggleExpand: (url: string) => void;
+  launchingReview: string | null;
+  onLaunchReview: (pr: ReviewRequestPR) => void;
+  onMerge: (pr: ReviewRequestPR) => void;
+  onAddReviewer: (pr: ReviewRequestPR) => void;
+}) {
+  if (prs.length === 0) {
+    return (
+      <div className="px-3 py-16 text-center">
+        <p className="text-[10px] text-zinc-600 font-mono">no pending review requests</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="px-3 py-2 border-b border-zinc-800">
+        <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">
+          prs requesting your review ({prs.length})
+        </span>
+      </div>
+      {prs.map((pr) => (
+        <ReviewPrRow
+          key={pr.url}
+          pr={pr}
+          expanded={expandedPr === pr.url}
+          onToggle={() => onToggleExpand(pr.url)}
+          launching={launchingReview === pr.url}
+          onLaunchReview={() => onLaunchReview(pr)}
+          onMerge={() => onMerge(pr)}
+          onAddReviewer={() => onAddReviewer(pr)}
+        />
+      ))}
+    </div>
+  );
 }
 
 function DashboardListView({
@@ -1592,6 +1801,12 @@ function DashboardListView({
 
   const { data: agentsData, error: agentsError, isLoading: agentsLoading } = useHypeshipAgents();
   const agents = agentsData?.agents ?? [];
+  const { data: reviewData } = useReviewRequests();
+  const reviewPrs = reviewData?.prs ?? [];
+  const [expandedPr, setExpandedPr] = useState<string | null>(null);
+  const [mergeTarget, setMergeTarget] = useState<{ prUrl: string; agentName: string } | null>(null);
+  const [reviewerTarget, setReviewerTarget] = useState<{ prUrl: string; agentName: string } | null>(null);
+  const [launchingReview, setLaunchingReview] = useState<string | null>(null);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -1634,7 +1849,7 @@ function DashboardListView({
               ))}
             </div>
             <div className="flex items-center gap-0.5 ml-1 border-l border-zinc-800 pl-2">
-              {(["agents", "secrets", "settings"] as const).map((t) => (
+              {(["agents", "reviews", "secrets", "settings"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => { setTab(t); if (selectedId) router.push(basePath); }}
@@ -1645,6 +1860,9 @@ function DashboardListView({
                   }`}
                 >
                   {t}
+                  {t === "reviews" && reviewPrs.length > 0 && (
+                    <span className="ml-1 text-amber-400">{reviewPrs.length}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -1815,6 +2033,35 @@ function DashboardListView({
             </>
           )}
 
+          {tab === "reviews" && (
+            <div className="w-full overflow-y-auto">
+              <ReviewsPanel
+                prs={reviewPrs}
+                expandedPr={expandedPr}
+                onToggleExpand={(url) => setExpandedPr(expandedPr === url ? null : url)}
+                launchingReview={launchingReview}
+                onLaunchReview={async (pr) => {
+                  setLaunchingReview(pr.url);
+                  try {
+                    const prompt = buildHypeshipPrReviewPrompt({
+                      prUrl: pr.url,
+                      repo: pr.repo,
+                    });
+                    const resp = await sendHypeshipPrompt({ message: prompt });
+                    router.push(`${basePath}/${resp.agent_id}`);
+                    setTab("agents");
+                  } catch {
+                    // silently fail — user can retry
+                  } finally {
+                    setLaunchingReview(null);
+                  }
+                }}
+                onMerge={(pr) => setMergeTarget({ prUrl: pr.url, agentName: pr.title })}
+                onAddReviewer={(pr) => setReviewerTarget({ prUrl: pr.url, agentName: pr.title })}
+              />
+            </div>
+          )}
+
           {tab === "secrets" && (
             <div className="w-full">
               <SecretsView />
@@ -1827,6 +2074,22 @@ function DashboardListView({
             </div>
           )}
         </div>
+      )}
+
+      {mergeTarget && (
+        <ConfirmMergeModal
+          prUrl={mergeTarget.prUrl}
+          agentName={mergeTarget.agentName}
+          onClose={() => setMergeTarget(null)}
+          onMerged={() => setMergeTarget(null)}
+        />
+      )}
+      {reviewerTarget && (
+        <AddReviewerModal
+          prUrl={reviewerTarget.prUrl}
+          agentName={reviewerTarget.agentName}
+          onClose={() => setReviewerTarget(null)}
+        />
       )}
     </div>
   );
