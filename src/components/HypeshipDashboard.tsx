@@ -52,7 +52,10 @@ import {
   usePrStatus,
   usePrFiles,
   markPrReady,
+  useRepositories,
 } from "@/lib/api";
+import { useMentionAutocomplete } from "@/hooks/useMentionAutocomplete";
+import { MentionPopover } from "@/components/MentionPopover";
 import { DiffBar } from "@/components/DiffBar";
 import { ConfirmMergeModal } from "@/components/ConfirmMergeModal";
 import { AddReviewerModal } from "@/components/AddReviewerModal";
@@ -504,6 +507,13 @@ function AgentConversationPanel({
   const [streamChunks, setStreamChunks] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { data: repoData } = useRepositories();
+  const mention = useMentionAutocomplete({
+    textareaRef: inputRef,
+    value: input,
+    onChange: setInput,
+    repos: repoData?.repositories ?? [],
+  });
 
   // Extract the most recent worker ID from conversation turns
   const activeWorkerId = useMemo(() => {
@@ -703,20 +713,32 @@ function AgentConversationPanel({
                 </div>
               )}
               <div className={`flex gap-2 items-end ${isMobile ? "px-3 py-2" : "px-2 py-2"}`}>
+              <div className="relative flex-1">
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={mention.handleChange}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
+                  mention.handleKeyDown(e);
+                  if (!e.defaultPrevented && e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     handleSend();
                   }
                 }}
                 placeholder="send a follow-up..."
                 rows={1}
-                className={`flex-1 border border-zinc-800 bg-zinc-900 text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none ${isMobile ? "px-3 py-2 text-sm" : "px-2 py-1.5 text-xs"}`}
+                className={`w-full border border-zinc-800 bg-zinc-900 text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none ${isMobile ? "px-3 py-2 text-sm" : "px-2 py-1.5 text-xs"}`}
               />
+              {mention.mentionActive && (
+                <MentionPopover
+                  items={mention.filtered}
+                  highlightIdx={mention.highlightIdx}
+                  query={mention.query}
+                  onSelect={mention.selectItem}
+                  onDismiss={mention.dismiss}
+                />
+              )}
+              </div>
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || sending}
@@ -766,6 +788,13 @@ function NewChatPanel({
   const [streamChunks, setStreamChunks] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { data: repoData } = useRepositories();
+  const mention = useMentionAutocomplete({
+    textareaRef: inputRef,
+    value: input,
+    onChange: setInput,
+    repos: repoData?.repositories ?? [],
+  });
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -920,20 +949,32 @@ function NewChatPanel({
 
       {/* Input */}
       <div className={`shrink-0 border-t border-zinc-800 flex gap-2 items-end ${isMobile ? "px-3 py-2" : "px-2 py-2"}`}>
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-          placeholder="send a message..."
-          rows={1}
-          className={`flex-1 border border-zinc-800 bg-zinc-900 text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none ${isMobile ? "px-3 py-2 text-sm" : "px-2 py-1.5 text-xs"}`}
-        />
+        <div className="relative flex-1">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={mention.handleChange}
+            onKeyDown={(e) => {
+              mention.handleKeyDown(e);
+              if (!e.defaultPrevented && e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="send a message..."
+            rows={1}
+            className={`w-full border border-zinc-800 bg-zinc-900 text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none ${isMobile ? "px-3 py-2 text-sm" : "px-2 py-1.5 text-xs"}`}
+          />
+          {mention.mentionActive && (
+            <MentionPopover
+              items={mention.filtered}
+              highlightIdx={mention.highlightIdx}
+              query={mention.query}
+              onSelect={mention.selectItem}
+              onDismiss={mention.dismiss}
+            />
+          )}
+        </div>
         <button
           onClick={handleSend}
           disabled={!input.trim() || sending}

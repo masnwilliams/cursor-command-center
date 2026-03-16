@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { sendHypeshipPrompt } from "@/lib/api";
+import { sendHypeshipPrompt, useRepositories } from "@/lib/api";
+import { useMentionAutocomplete } from "@/hooks/useMentionAutocomplete";
+import { MentionPopover } from "@/components/MentionPopover";
 
 interface HypeshipNewChatModalProps {
   onCreated: (agentId: string) => void;
@@ -16,6 +18,13 @@ export function HypeshipNewChatModal({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { data: repoData } = useRepositories();
+  const mention = useMentionAutocomplete({
+    textareaRef: inputRef,
+    value: input,
+    onChange: setInput,
+    repos: repoData?.repositories ?? [],
+  });
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -65,20 +74,32 @@ export function HypeshipNewChatModal({
         </div>
 
         <div className="px-3 py-3 space-y-3">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="what do you want to build?"
-            rows={4}
-            className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
-          />
+          <div className="relative">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={mention.handleChange}
+              onKeyDown={(e) => {
+                mention.handleKeyDown(e);
+                if (!e.defaultPrevented && e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="what do you want to build?"
+              rows={4}
+              className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
+            />
+            {mention.mentionActive && (
+              <MentionPopover
+                items={mention.filtered}
+                highlightIdx={mention.highlightIdx}
+                query={mention.query}
+                onSelect={mention.selectItem}
+                onDismiss={mention.dismiss}
+              />
+            )}
+          </div>
           {error && (
             <p className="text-[10px] text-red-400/70 font-mono">{error}</p>
           )}

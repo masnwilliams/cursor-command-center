@@ -8,7 +8,10 @@ import {
   useHypeshipWorker,
   sendHypeshipFollowUp,
   stopHypeshipAgent,
+  useRepositories,
 } from "@/lib/api";
+import { useMentionAutocomplete } from "@/hooks/useMentionAutocomplete";
+import { MentionPopover } from "@/components/MentionPopover";
 import { getHypeshipApiUrl, getHypeshipJwt } from "@/lib/storage";
 import {
   GroupedConversation,
@@ -208,6 +211,13 @@ export default function HypeshipAgentPane({
   const [streamChunks, setStreamChunks] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { data: repoData } = useRepositories();
+  const mention = useMentionAutocomplete({
+    textareaRef: inputRef,
+    value: input,
+    onChange: setInput,
+    repos: repoData?.repositories ?? [],
+  });
 
   // Auto-focus input when focused pane receives keyboard input (desktop only — on mobile this would pop up the keyboard)
   useEffect(() => {
@@ -475,22 +485,34 @@ export default function HypeshipAgentPane({
               <ArtifactsBar artifacts={agent?.artifacts} />
             </div>
             <div className={`shrink-0 border-t border-zinc-800 flex gap-1.5 items-end ${isMobile ? "px-3 py-2" : "px-2 py-1.5"}`}>
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
+              <div className="relative flex-1">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={mention.handleChange}
+                  onKeyDown={(e) => {
+                    mention.handleKeyDown(e);
+                    if (!e.defaultPrevented && e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder={
+                    isActive ? "send a follow-up..." : "send a message..."
                   }
-                }}
-                placeholder={
-                  isActive ? "send a follow-up..." : "send a message..."
-                }
-                rows={1}
-                className={`flex-1 bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none ${isMobile ? "px-3 py-2 text-sm" : "px-2 py-1 text-[11px]"}`}
-              />
+                  rows={1}
+                  className={`w-full bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none ${isMobile ? "px-3 py-2 text-sm" : "px-2 py-1 text-[11px]"}`}
+                />
+                {mention.mentionActive && (
+                  <MentionPopover
+                    items={mention.filtered}
+                    highlightIdx={mention.highlightIdx}
+                    query={mention.query}
+                    onSelect={mention.selectItem}
+                    onDismiss={mention.dismiss}
+                  />
+                )}
+              </div>
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || sending}
