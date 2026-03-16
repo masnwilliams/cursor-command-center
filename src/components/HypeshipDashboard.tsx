@@ -1082,9 +1082,12 @@ function AgentConversationPanel({
     if (detailTab === "desktop" && !hasDesktop) setDetailTab("chat");
   }, [detailTab, hasShell, hasDesktop]);
 
+  const initialScrollDone = useRef(false);
   useEffect(() => {
     if (detailTab === "chat") {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      const behavior = initialScrollDone.current ? "smooth" : "instant";
+      bottomRef.current?.scrollIntoView({ behavior });
+      initialScrollDone.current = true;
     }
   }, [turns.length, streamChunks.length, detailTab]);
 
