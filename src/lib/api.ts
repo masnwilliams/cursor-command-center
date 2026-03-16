@@ -182,6 +182,11 @@ export function usePrStatus(prUrl: string | undefined) {
   );
 }
 
+// PR files (imperative fetch for use outside React components)
+export async function fetchPrFiles(prUrl: string): Promise<PrFilesResponse> {
+  return fetcher<PrFilesResponse>(`/api/pr-files?url=${encodeURIComponent(prUrl)}`);
+}
+
 // PR files (from GitHub API, fetched once when expanded)
 export function usePrFiles(prUrl: string | undefined | null) {
   return useSWR<PrFilesResponse>(

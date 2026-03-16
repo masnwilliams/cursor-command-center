@@ -33,6 +33,7 @@ import {
   useHypeshipAgents,
   useHypeshipAgent,
   sendHypeshipPrompt,
+  fetchPrFiles,
   sendHypeshipFollowUp,
   sendHypeshipMessage,
   updateHypeshipWorkerState,
@@ -2043,9 +2044,17 @@ function DashboardListView({
                 onLaunchReview={async (pr) => {
                   setLaunchingReview(pr.url);
                   try {
+                    let files;
+                    try {
+                      const resp = await fetchPrFiles(pr.url);
+                      files = resp.files;
+                    } catch {
+                      // proceed without files — prompt will show "unknown"
+                    }
                     const prompt = buildHypeshipPrReviewPrompt({
                       prUrl: pr.url,
                       repo: pr.repo,
+                      files,
                     });
                     const resp = await sendHypeshipPrompt({ message: prompt });
                     router.push(`${basePath}/${resp.agent_id}`);
