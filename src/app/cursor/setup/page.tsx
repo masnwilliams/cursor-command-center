@@ -90,7 +90,7 @@ export default function SetupPage() {
     if (!canContinue) return;
     setApiKey(key.trim());
     setGithubToken(ghToken.trim());
-    router.push("/");
+    router.push("/cursor");
   }
 
   useEffect(() => {
@@ -100,7 +100,7 @@ export default function SetupPage() {
         handleContinue();
       }
       if (e.key === "Escape" && hasExisting) {
-        router.push("/");
+        router.push("/cursor");
       }
     }
     window.addEventListener("keydown", handleKey);
@@ -139,7 +139,7 @@ export default function SetupPage() {
           <span className="text-xs text-zinc-300 font-mono">setup</span>
           {hasExisting && (
             <button
-              onClick={() => router.push("/")}
+              onClick={() => router.push("/cursor")}
               className="text-zinc-600 hover:text-zinc-300 text-xs font-mono"
             >
               [esc]
