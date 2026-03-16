@@ -1088,6 +1088,15 @@ function AgentConversationPanel({
     }
   }, [turns.length, streamChunks.length, detailTab]);
 
+  const agentStatus = data?.agent?.status;
+
+  // Clear streaming buffer when the agent reaches a terminal state.
+  useEffect(() => {
+    if (agentStatus === "finished" || agentStatus === "error") {
+      setStreamChunks([]);
+    }
+  }, [agentStatus]);
+
   // SSE streaming for real-time updates
   useEffect(() => {
     const apiUrl = getHypeshipApiUrl();
@@ -1109,10 +1118,17 @@ function AgentConversationPanel({
       } catch {}
     });
 
-    return () => evtSource.close();
+    evtSource.onerror = () => {
+      setStreamChunks([]);
+    };
+
+    return () => {
+      evtSource.close();
+      setStreamChunks([]);
+    };
   }, [agentId]);
 
-  const streamingText = streamChunks.join("");
+  const streamingText = agentStatus === "finished" || agentStatus === "error" ? "" : streamChunks.join("");
 
   async function handleSend() {
     const text = input.trim();
@@ -1321,12 +1337,22 @@ function NewChatPanel({
           ]);
           setStreamChunks([]);
         }
+        if (data.type === "stopped") {
+          setStreamChunks([]);
+        }
       } catch {
         // ignore parse errors
       }
     });
 
-    return () => evtSource.close();
+    evtSource.onerror = () => {
+      setStreamChunks([]);
+    };
+
+    return () => {
+      evtSource.close();
+      setStreamChunks([]);
+    };
   }, [agentId]);
 
   async function handleSend() {
