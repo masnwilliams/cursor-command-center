@@ -472,11 +472,16 @@ export async function sendHypeshipPrompt(
 export async function sendHypeshipFollowUp(
   agentId: string,
   message: string,
+  images?: { data: string; dimension: { width: number; height: number } }[],
 ): Promise<HypeshipPromptResponse> {
+  const body: Record<string, unknown> = { message };
+  if (images && images.length > 0) {
+    body.images = images;
+  }
   const res = await fetch(`/api/hypeship/agents/${agentId}/follow-up`, {
     method: "POST",
     headers: hypeshipHeaders(),
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();

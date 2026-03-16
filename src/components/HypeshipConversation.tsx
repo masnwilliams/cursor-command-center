@@ -7,6 +7,7 @@ import {
   getToolDetailBody,
   getToolDetailSummary,
 } from "@/lib/hypeshipMessageDetails";
+import { InlineImageThumbnails } from "@/components/ImageAttachments";
 import type { HypeshipConversationTurn, HypeshipArtifact } from "@/lib/types";
 
 // ── Helpers ──
@@ -309,6 +310,17 @@ export function ConversationBubble({ turn }: { turn: HypeshipConversationTurn })
       ? "text-amber-400"
       : "text-emerald-400";
 
+  // Extract images from turn detail if present
+  const turnImages = (() => {
+    if (!isUser || !turn.detail) return null;
+    try {
+      const d = typeof turn.detail === "string" ? JSON.parse(turn.detail) : turn.detail;
+      const imgs = (d as Record<string, unknown>)?.images;
+      if (Array.isArray(imgs) && imgs.length > 0) return imgs as { data: string; dimension: { width: number; height: number } }[];
+    } catch {}
+    return null;
+  })();
+
   return (
     <div className={`px-3 py-2 ${isUser ? "bg-zinc-900/30" : ""}`}>
       <div className="flex items-center gap-2 mb-1">
@@ -321,6 +333,11 @@ export function ConversationBubble({ turn }: { turn: HypeshipConversationTurn })
       <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.content}</ReactMarkdown>
       </div>
+      {turnImages && (
+        <div className="ml-4">
+          <InlineImageThumbnails images={turnImages} />
+        </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { ImageAttachment } from "@/lib/images";
 
+const MAX_IMAGES = 5;
+
 interface ImageAttachmentsProps {
   images: ImageAttachment[];
   onRemove: (id: string) => void;
@@ -15,9 +17,12 @@ export function ImageAttachments({ images, onRemove }: ImageAttachmentsProps) {
 
   return (
     <>
-      <div className="flex gap-1 overflow-x-auto py-1 scrollbar-none">
+      <div className="flex items-center gap-1 overflow-x-auto py-1 scrollbar-none">
         {images.map((img) => (
-          <div key={img.id} className="relative shrink-0 group">
+          <div
+            key={img.id}
+            className="relative shrink-0 group animate-in fade-in slide-in-from-bottom-1 duration-200"
+          >
             <button
               type="button"
               onClick={() => setFullscreen(img.previewUrl)}
@@ -50,8 +55,61 @@ export function ImageAttachments({ images, onRemove }: ImageAttachmentsProps) {
             </button>
           </div>
         ))}
+        <span className="text-[10px] text-zinc-600 font-mono shrink-0 ml-1">
+          {images.length}/{MAX_IMAGES}
+        </span>
       </div>
 
+      {fullscreen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 cursor-pointer"
+          onClick={() => setFullscreen(null)}
+        >
+          <img
+            src={fullscreen}
+            alt=""
+            className="max-w-[90vw] max-h-[90vh] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setFullscreen(null)}
+            className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-100 font-mono text-xs"
+          >
+            [esc]
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Read-only inline thumbnails for displaying images in message history */
+export function InlineImageThumbnails({ images }: { images: { data: string; dimension: { width: number; height: number } }[] }) {
+  const [fullscreen, setFullscreen] = useState<string | null>(null);
+
+  if (!images || images.length === 0) return null;
+
+  return (
+    <>
+      <div className="flex gap-1 mt-1 mb-1">
+        {images.map((img, i) => {
+          const src = img.data.startsWith("data:") ? img.data : `data:image/png;base64,${img.data}`;
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setFullscreen(src)}
+              className="block shrink-0"
+            >
+              <img
+                src={src}
+                alt=""
+                className="h-16 w-auto border border-zinc-700 object-cover"
+              />
+            </button>
+          );
+        })}
+      </div>
       {fullscreen && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 cursor-pointer"

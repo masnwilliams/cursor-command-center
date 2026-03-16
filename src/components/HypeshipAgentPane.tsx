@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -15,12 +15,17 @@ import {
   ArtifactsBar,
   timeAgo,
 } from "@/components/HypeshipConversation";
+import { ImageAttachments } from "@/components/ImageAttachments";
+import type { ImageAttachment } from "@/lib/images";
+import { readFilesAsImages } from "@/lib/images";
 import type {
   HypeshipAgentStatus,
   HypeshipArtifact,
 } from "@/lib/types";
 
 type PaneTab = "chat" | "shell" | "desktop";
+
+const MAX_IMAGES = 5;
 
 const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
   creating: "bg-amber-400",
@@ -206,8 +211,63 @@ export default function HypeshipAgentPane({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [streamChunks, setStreamChunks] = useState<string[]>([]);
+  const [images, setImages] = useState<ImageAttachment[]>([]);
+  const [imageWarning, setImageWarning] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragCounter = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const addImages = useCallback(async (files: FileList | File[]) => {
+    const remaining = MAX_IMAGES - images.length;
+    if (remaining <= 0) {
+      setImageWarning(`Max ${MAX_IMAGES} images per message`);
+      return;
+    }
+    const toProcess = Array.from(files).slice(0, remaining);
+    if (toProcess.length < files.length) {
+      setImageWarning(`Max ${MAX_IMAGES} images — only added ${toProcess.length}`);
+    }
+    const { images: newImages, rejected } = await readFilesAsImages(toProcess);
+    if (rejected.length > 0) {
+      setImageWarning(rejected[0]);
+    }
+    setImages((prev) => [...prev, ...newImages].slice(0, MAX_IMAGES));
+  }, [images.length]);
+
+  const removeImage = useCallback((id: string) => {
+    setImages((prev) => prev.filter((img) => img.id !== id));
+    setImageWarning(null);
+  }, []);
+
+  // Clear warning after 3s
+  useEffect(() => {
+    if (!imageWarning) return;
+    const t = setTimeout(() => setImageWarning(null), 3000);
+    return () => clearTimeout(t);
+  }, [imageWarning]);
+
+  // Handle paste for images
+  useEffect(() => {
+    function handlePaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const imageFiles: File[] = [];
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        addImages(imageFiles);
+      }
+    }
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [addImages]);
 
   // Auto-focus input when focused pane receives keyboard input (desktop only — on mobile this would pop up the keyboard)
   useEffect(() => {
@@ -298,10 +358,49 @@ export default function HypeshipAgentPane({
     if (!text || sending) return;
     setSending(true);
     try {
-      await sendHypeshipFollowUp(agentId, text);
+      const imgPayload = images.length > 0
+        ? images.map((img) => ({ data: img.data, dimension: img.dimension }))
+        : undefined;
+      await sendHypeshipFollowUp(agentId, text, imgPayload);
       setInput("");
+      setImages([]);
+      setImageWarning(null);
     } catch {}
     setSending(false);
+  }
+
+  // Drag-and-drop handlers
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.types.includes("Files")) {
+      setDragging(true);
+    }
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setDragging(false);
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setDragging(false);
+    if (e.dataTransfer.files?.length) {
+      addImages(e.dataTransfer.files);
+    }
   }
 
   const isActive = status === "creating" || status === "running";
@@ -442,7 +541,36 @@ export default function HypeshipAgentPane({
       {/* Content area */}
       <div className="flex-1 overflow-hidden min-h-0">
         {tab === "chat" && (
-          <div className="flex flex-col h-full">
+          <div
+            className="flex flex-col h-full relative"
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            {/* Drag overlay */}
+            {dragging && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-zinc-950/80 border-2 border-dashed border-blue-500/50 pointer-events-none">
+                <div className="text-center">
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    className="mx-auto text-blue-400 mb-2"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  </svg>
+                  <p className="text-[11px] text-blue-400 font-mono">drop images here</p>
+                  <p className="text-[10px] text-zinc-500 font-mono mt-0.5">png, jpg, gif, webp — max 10MB each</p>
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto min-h-0">
               {error && (
                 <div className="px-3 py-2">
@@ -474,6 +602,18 @@ export default function HypeshipAgentPane({
             <div className="shrink-0 border-t border-zinc-800">
               <ArtifactsBar artifacts={agent?.artifacts} />
             </div>
+
+            {/* Image attachments + warning */}
+            {(images.length > 0 || imageWarning) && (
+              <div className={`shrink-0 border-t border-zinc-800 ${isMobile ? "px-3" : "px-2"}`}>
+                <ImageAttachments images={images} onRemove={removeImage} />
+                {imageWarning && (
+                  <p className="text-[10px] text-amber-400/80 font-mono py-0.5">{imageWarning}</p>
+                )}
+              </div>
+            )}
+
+            {/* Input area */}
             <div className={`shrink-0 border-t border-zinc-800 flex gap-1.5 items-end ${isMobile ? "px-3 py-2" : "px-2 py-1.5"}`}>
               <textarea
                 ref={inputRef}
@@ -491,6 +631,37 @@ export default function HypeshipAgentPane({
                 rows={1}
                 className={`flex-1 bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none ${isMobile ? "px-3 py-2 text-sm" : "px-2 py-1 text-[11px]"}`}
               />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.length) addImages(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={sending}
+                className={`text-zinc-600 hover:text-zinc-300 disabled:opacity-40 shrink-0 ${isMobile ? "py-2" : "py-1"}`}
+                title="attach images"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="M21 15l-5-5L5 21" />
+                </svg>
+              </button>
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || sending}
