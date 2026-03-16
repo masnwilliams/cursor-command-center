@@ -522,16 +522,22 @@ export function DelegateTaskGroup({ turn, children }: { turn: HypeshipConversati
         )}
         <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
       </button>
-      {expanded && children.length > 0 && (
-        <div className="divide-y divide-zinc-800/20">
-          {children.map((child) =>
-            child.type === "worker" && child.workerId ? (
-              <WorkerGroup key={`w-${child.workerId}`} workerId={child.workerId} turns={child.turns} />
-            ) : (
-              <TurnTree key={`dt-${child.turns[0]?.timestamp}`} turns={child.turns} />
-            )
-          )}
-        </div>
+      {expanded && (
+        children.length > 0 ? (
+          <div className="divide-y divide-zinc-800/20">
+            {children.map((child) =>
+              child.type === "worker" && child.workerId ? (
+                <WorkerGroup key={`w-${child.workerId}`} workerId={child.workerId} turns={child.turns} />
+              ) : (
+                <TurnTree key={`dt-${child.turns[0]?.timestamp}`} turns={child.turns} />
+              )
+            )}
+          </div>
+        ) : isRunning ? (
+          <div className="px-3 py-2 ml-4">
+            <p className="text-[10px] text-zinc-600 font-mono animate-pulse">waiting for workers...</p>
+          </div>
+        ) : null
       )}
     </div>
   );
