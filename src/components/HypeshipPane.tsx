@@ -108,7 +108,7 @@ export default function HypeshipPane({
 
   return (
     <div
-      className={`flex flex-col h-full border border-zinc-800 bg-zinc-950 ${focused ? "ring-1 ring-blue-500/30" : ""}`}
+      className={`flex flex-col flex-1 min-w-0 min-h-0 border-r border-b border-zinc-800 bg-zinc-950 ${focused ? "ring-1 ring-blue-500/30" : ""}`}
       onClick={onFocus}
     >
       {/* Header */}
@@ -153,10 +153,10 @@ export default function HypeshipPane({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden relative">
+      <div className="flex-1 overflow-hidden min-h-0 relative">
         {tab === "conversation" && (
           <div className="flex flex-col h-full">
-            <div className="flex-1 overflow-y-auto px-2 py-2 space-y-2">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 px-2 py-2 space-y-2">
               {conversation.length === 0 && (
                 <div className="text-[10px] text-zinc-600 font-mono text-center py-8">
                   {isActive
