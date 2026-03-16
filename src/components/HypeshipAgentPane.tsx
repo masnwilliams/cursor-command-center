@@ -17,6 +17,7 @@ import {
 } from "@/components/HypeshipConversation";
 import type {
   HypeshipAgentStatus,
+  HypeshipArtifact,
 } from "@/lib/types";
 
 type PaneTab = "chat" | "shell" | "desktop";
@@ -308,6 +309,14 @@ export default function HypeshipAgentPane({
     turns.find((t) => t.role === "user")?.content?.slice(0, 60) ||
     agentId.slice(0, 12);
 
+  const artifacts: HypeshipArtifact[] = agent?.artifacts ?? [];
+  const prArtifact = artifacts.find((a) => a.type === "pull_request" && a.pr_url);
+  const branchArtifact = artifacts.find((a) => a.branch);
+  const prUrl = prArtifact?.pr_url;
+  const branchName = branchArtifact?.branch;
+  const repoName = (prArtifact?.repo || branchArtifact?.repo || "")
+    .replace(/^https?:\/\/github\.com\//, "");
+
   return (
     <div
       className={`flex flex-col flex-1 min-w-0 min-h-0 bg-zinc-950 ${isMobile ? "" : "border-r border-b border-zinc-800"} ${focused && !isMobile ? "ring-1 ring-inset ring-blue-500/60" : ""}`}
@@ -325,6 +334,27 @@ export default function HypeshipAgentPane({
               <span className="text-[10px] text-zinc-600 font-mono shrink-0">
                 {agent?.source}
               </span>
+            )}
+            {!isMobile && repoName && (
+              <span className="text-[10px] text-zinc-600 truncate max-w-[120px] font-mono">
+                {repoName}
+              </span>
+            )}
+            {!isMobile && branchName && (
+              <span className="text-[10px] text-zinc-600 truncate max-w-[140px] font-mono leading-none">
+                {branchName}
+              </span>
+            )}
+            {!isMobile && prUrl && (
+              <a
+                href={prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-[10px] text-green-400 hover:brightness-125 shrink-0"
+              >
+                PR
+              </a>
             )}
           </div>
         <div className={`flex items-center ${isMobile ? "gap-1" : "gap-0.5"} shrink-0`}>
@@ -375,11 +405,36 @@ export default function HypeshipAgentPane({
         </div>
         </div>
         {/* Mobile secondary info row */}
-        {isMobile && agent?.source && (
+        {isMobile && (agent?.source || repoName || branchName || prUrl) && (
           <div className="flex items-center gap-1.5 px-3 pb-1.5 -mt-0.5 min-w-0">
-            <span className="text-[10px] text-zinc-600 truncate min-w-0">
-              {agent.source}
-            </span>
+            {agent?.source && (
+              <span className="text-[10px] text-zinc-600 truncate min-w-0">
+                {agent.source}
+              </span>
+            )}
+            {repoName && (
+              <>
+                {agent?.source && <span className="text-[10px] text-zinc-700 shrink-0">·</span>}
+                <span className="text-[10px] text-zinc-600 truncate min-w-0">{repoName}</span>
+              </>
+            )}
+            {branchName && (
+              <>
+                <span className="text-[10px] text-zinc-700 shrink-0">·</span>
+                <span className="text-[10px] text-zinc-600 truncate font-mono leading-none min-w-0">{branchName}</span>
+              </>
+            )}
+            {prUrl && (
+              <a
+                href={prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-[10px] text-green-400 hover:brightness-125 shrink-0"
+              >
+                PR
+              </a>
+            )}
           </div>
         )}
       </div>

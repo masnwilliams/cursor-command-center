@@ -338,10 +338,10 @@ export default function TestPage() {
             [hardcoded data]
           </span>
           <a
-            href="/"
+            href="/cursor"
             className="text-[10px] text-zinc-600 hover:text-zinc-300 font-mono"
           >
-            [← dashboard]
+            [← cursor]
           </a>
         </div>
       </div>
