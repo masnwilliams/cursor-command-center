@@ -506,32 +506,90 @@ function ConversationBubble({ turn }: { turn: HypeshipConversationTurn }) {
 // ── Worker Group (collapsible sub-agent) ──
 
 interface TurnGroup {
-  type: "message" | "worker";
+  type: "message" | "worker" | "delegate";
   workerId?: string;
   turns: HypeshipConversationTurn[];
+  children?: TurnGroup[];
+}
+
+function isDelegateTaskCall(turn: HypeshipConversationTurn): boolean {
+  return (
+    turn.source === "orchestrator:tool" &&
+    !!turn.tool_use_id &&
+    !!turn.content?.startsWith("mcp__hypeship__delegate_task")
+  );
 }
 
 function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup[] {
-  const groups: TurnGroup[] = [];
+  const workerTurns = new Map<string, HypeshipConversationTurn[]>();
+
   for (const turn of turns) {
-    const wid = turn.worker_id;
-    if (wid) {
-      const last = groups[groups.length - 1];
-      if (last && last.type === "worker" && last.workerId === wid) {
-        last.turns.push(turn);
-      } else {
-        groups.push({ type: "worker", workerId: wid, turns: [turn] });
-      }
-    } else {
-      const last = groups[groups.length - 1];
-      if (last && last.type === "message") {
-        last.turns.push(turn);
-      } else {
-        groups.push({ type: "message", turns: [turn] });
-      }
+    if (turn.worker_id) {
+      if (!workerTurns.has(turn.worker_id)) workerTurns.set(turn.worker_id, []);
+      workerTurns.get(turn.worker_id)!.push(turn);
     }
   }
-  return groups;
+
+  const emitted = new Set<string>();
+  const groups: TurnGroup[] = [];
+  let pending: HypeshipConversationTurn[] = [];
+
+  for (const turn of turns) {
+    if (turn.worker_id) {
+      if (!emitted.has(turn.worker_id)) {
+        if (pending.length > 0) {
+          groups.push({ type: "message", turns: pending });
+          pending = [];
+        }
+        groups.push({ type: "worker", workerId: turn.worker_id, turns: workerTurns.get(turn.worker_id)! });
+        emitted.add(turn.worker_id);
+      }
+    } else {
+      pending.push(turn);
+    }
+  }
+  if (pending.length > 0) groups.push({ type: "message", turns: pending });
+
+  // Post-process: nest worker groups under preceding delegate_task calls.
+  // Walk backwards through message groups to find delegate_task turns;
+  // attach all immediately following worker groups as children.
+  const merged: TurnGroup[] = [];
+  for (let i = 0; i < groups.length; i++) {
+    const g = groups[i];
+
+    if (g.type === "message") {
+      const delegateIdx = g.turns.findIndex(isDelegateTaskCall);
+      if (delegateIdx >= 0) {
+        const before = g.turns.slice(0, delegateIdx);
+        const delegateTurn = g.turns[delegateIdx];
+        const after = g.turns.slice(delegateIdx + 1);
+
+        if (before.length > 0) merged.push({ type: "message", turns: before });
+
+        const childWorkers: TurnGroup[] = [];
+        let j = i + 1;
+        while (j < groups.length && groups[j].type === "worker") {
+          childWorkers.push(groups[j]);
+          j++;
+        }
+
+        merged.push({
+          type: "delegate",
+          turns: [delegateTurn],
+          children: childWorkers,
+        });
+
+        if (after.length > 0) merged.push({ type: "message", turns: after });
+
+        i = j - 1;
+        continue;
+      }
+    }
+
+    merged.push(g);
+  }
+
+  return merged;
 }
 
 // ── Sub-agent grouping ──
@@ -585,6 +643,22 @@ function groupTurnsBySubAgent(turns: HypeshipConversationTurn[]): SubAgentTurnGr
   }
 
   return groups;
+}
+
+function TurnTree({ turns }: { turns: HypeshipConversationTurn[] }) {
+  return (
+    <>
+      {groupTurnsBySubAgent(turns).map((sg, si) =>
+        sg.type === "subagent" ? (
+          <SubAgentGroup key={`sa-${si}`} turns={sg.turns} />
+        ) : (
+          sg.turns.map((turn, ti) => (
+            <ConversationBubble key={`t-${si}-${ti}`} turn={turn} />
+          ))
+        )
+      )}
+    </>
+  );
 }
 
 function SubAgentGroup({ turns }: { turns: HypeshipConversationTurn[] }) {
@@ -658,9 +732,7 @@ function SubAgentGroup({ turns }: { turns: HypeshipConversationTurn[] }) {
       {expanded && childTurns.length > 0 && (
         <div className="border-t border-zinc-800/20">
           <div className="divide-y divide-zinc-800/20 max-h-[400px] overflow-y-auto">
-            {childTurns.map((turn, i) => (
-              <ConversationBubble key={i} turn={turn} />
-            ))}
+            <TurnTree turns={childTurns} />
           </div>
         </div>
       )}
@@ -726,21 +798,68 @@ function WorkerGroup({ workerId, turns }: { workerId: string; turns: HypeshipCon
       {expanded && (
         <div className="border-t border-zinc-800/20">
           <div className="divide-y divide-zinc-800/20 max-h-[500px] overflow-y-auto">
-            {groupTurnsBySubAgent(visibleTurns).map((group, gi) =>
-              group.type === "subagent" ? (
-                <SubAgentGroup key={`sa-${gi}`} turns={group.turns} />
-              ) : (
-                group.turns.map((turn, ti) => (
-                  <ConversationBubble key={`t-${gi}-${ti}`} turn={turn} />
-                ))
-              )
-            )}
+            <TurnTree turns={visibleTurns} />
           </div>
           {summary && (
             <div className="border-t border-zinc-800/30 px-3 py-2">
               <p className="text-[10px] text-zinc-600 font-mono mb-1">summary</p>
               <p className="text-[10px] text-zinc-400 font-mono whitespace-pre-wrap">{summary}</p>
             </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DelegateTaskGroup({ turn, children }: { turn: HypeshipConversationTurn; children: TurnGroup[] }) {
+  const [expanded, setExpanded] = useState(true);
+  const isRunning = turn.status === "running";
+  const isComplete = turn.status === "complete";
+  const isError = turn.status === "error";
+
+  const dotColor = isComplete ? "bg-emerald-400" : isError ? "bg-red-400" : "bg-blue-400";
+  const labelColor = isComplete ? "text-emerald-400" : isError ? "text-red-400" : "text-blue-400";
+  const borderColor = isComplete ? "border-emerald-400/20" : isError ? "border-red-400/20" : "border-blue-400/20";
+
+  const toolDetail = getToolDetailSummary(turn.detail);
+  const workerCount = children.length;
+  const statusLabel = isComplete
+    ? "done"
+    : isError
+      ? "error"
+      : workerCount > 0
+        ? `${workerCount} worker${workerCount !== 1 ? "s" : ""}...`
+        : "working...";
+
+  return (
+    <div className={`border-l-2 ${borderColor} ml-3`}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-900/30 transition-colors"
+      >
+        <span className="relative flex h-2 w-2 shrink-0">
+          {isRunning && (
+            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotColor}`} />
+          )}
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
+        </span>
+        <span className={`text-[10px] ${labelColor} font-mono`}>⚡ {turn.content}</span>
+        {toolDetail && <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[300px]">{toolDetail}</span>}
+        <span className="text-[10px] text-zinc-600 font-mono">{statusLabel}</span>
+        {turn.timestamp && (
+          <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(turn.timestamp)}</span>
+        )}
+        <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
+      </button>
+      {expanded && children.length > 0 && (
+        <div className="divide-y divide-zinc-800/20">
+          {children.map((child) =>
+            child.type === "worker" && child.workerId ? (
+              <WorkerGroup key={`w-${child.workerId}`} workerId={child.workerId} turns={child.turns} />
+            ) : (
+              <TurnTree key={`dt-${child.turns[0]?.timestamp}`} turns={child.turns} />
+            )
           )}
         </div>
       )}
@@ -1072,18 +1191,12 @@ function AgentConversationPanel({
               )}
               <div className="divide-y divide-zinc-800/30">
                 {groupTurnsByWorker(turns).map((group, gi) =>
-                  group.type === "worker" && group.workerId ? (
-                    <WorkerGroup key={`w-${group.workerId}-${gi}`} workerId={group.workerId} turns={group.turns} />
+                  group.type === "delegate" ? (
+                    <DelegateTaskGroup key={`d-${gi}`} turn={group.turns[0]} children={group.children ?? []} />
+                  ) : group.type === "worker" && group.workerId ? (
+                    <WorkerGroup key={`w-${group.workerId}`} workerId={group.workerId} turns={group.turns} />
                   ) : (
-                    groupTurnsBySubAgent(group.turns).map((sg, si) =>
-                      sg.type === "subagent" ? (
-                        <SubAgentGroup key={`sa-${gi}-${si}`} turns={sg.turns} />
-                      ) : (
-                        sg.turns.map((turn, ti) => (
-                          <ConversationBubble key={`m-${gi}-${si}-${ti}`} turn={turn} />
-                        ))
-                      )
-                    )
+                    <TurnTree key={`m-${gi}`} turns={group.turns} />
                   )
                 )}
               </div>
