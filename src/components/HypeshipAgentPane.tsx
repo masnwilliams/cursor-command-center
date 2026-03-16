@@ -187,11 +187,13 @@ export default function HypeshipAgentPane({
   focused,
   onFocus,
   onClose,
+  isMobile = false,
 }: {
   agentId: string;
   focused: boolean;
   onFocus: () => void;
   onClose: () => void;
+  isMobile?: boolean;
 }) {
   const { data, error } = useHypeshipAgent(agentId);
   const agent = data?.agent;
@@ -204,6 +206,25 @@ export default function HypeshipAgentPane({
   const [sending, setSending] = useState(false);
   const [streamChunks, setStreamChunks] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-focus input when focused pane receives keyboard input (desktop only — on mobile this would pop up the keyboard)
+  useEffect(() => {
+    if (!focused || isMobile) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement
+      )
+        return;
+      if (e.key.length === 1) {
+        inputRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [focused, isMobile]);
 
   const activeWorkerId = useMemo(() => {
     for (let i = turns.length - 1; i >= 0; i--) {
@@ -289,23 +310,24 @@ export default function HypeshipAgentPane({
 
   return (
     <div
-      className={`flex flex-col h-full border-r border-b border-zinc-800 bg-zinc-950 ${focused ? "ring-1 ring-blue-500/30" : ""}`}
+      className={`flex flex-col flex-1 min-w-0 min-h-0 bg-zinc-950 ${isMobile ? "" : "border-r border-b border-zinc-800"} ${focused && !isMobile ? "ring-1 ring-inset ring-blue-500/60" : ""}`}
       onClick={onFocus}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-zinc-800 px-2 py-1 bg-zinc-900/60 shrink-0">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <StatusDot status={status} />
-          <span className="text-[10px] text-zinc-300 font-mono truncate">
-            {preview}
-          </span>
-          {agent?.source && (
-            <span className="text-[10px] text-zinc-600 font-mono shrink-0">
-              {agent.source}
+      <div className="border-b border-zinc-800 bg-zinc-900/60 shrink-0">
+        <div className={`flex items-center justify-between ${isMobile ? "px-3 py-2" : "px-2 py-1"}`}>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <StatusDot status={status} />
+            <span className={`${isMobile ? "text-sm" : "text-[10px]"} text-zinc-300 font-mono truncate`}>
+              {preview}
             </span>
-          )}
-        </div>
-        <div className="flex items-center gap-0.5 shrink-0">
+            {!isMobile && (
+              <span className="text-[10px] text-zinc-600 font-mono shrink-0">
+                {agent?.source}
+              </span>
+            )}
+          </div>
+        <div className={`flex items-center ${isMobile ? "gap-1" : "gap-0.5"} shrink-0`}>
           {(["chat", "shell", "desktop"] as const).map((t) => {
             if (t === "shell" && !hasShell) return null;
             if (t === "desktop" && !hasDesktop) return null;
@@ -316,7 +338,7 @@ export default function HypeshipAgentPane({
                   e.stopPropagation();
                   setTab(t);
                 }}
-                className={`px-1.5 py-0.5 text-[9px] font-mono border transition-colors ${
+                className={`${isMobile ? "px-2.5 py-1 text-[11px]" : "px-1.5 py-0.5 text-[9px]"} font-mono border transition-colors ${
                   tab === t
                     ? "border-blue-500/50 text-blue-400"
                     : "border-transparent text-zinc-600 hover:text-zinc-400"
@@ -334,21 +356,32 @@ export default function HypeshipAgentPane({
                   await stopHypeshipAgent(agentId);
                 } catch {}
               }}
-              className="text-[10px] text-zinc-600 hover:text-red-400 font-mono px-1.5 py-0.5 border border-zinc-800 hover:border-red-900/50 transition-colors ml-1"
+              className={`text-zinc-600 hover:text-red-400 font-mono border border-zinc-800 hover:border-red-900/50 transition-colors ml-1 ${isMobile ? "text-[11px] px-2 py-1" : "text-[10px] px-1.5 py-0.5"}`}
             >
               stop
             </button>
           )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
-            className="text-zinc-600 hover:text-zinc-300 text-[10px] font-mono ml-1"
-          >
-            ×
-          </button>
+          {!isMobile && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="text-zinc-600 hover:text-zinc-300 text-[10px] font-mono ml-1"
+            >
+              ×
+            </button>
+          )}
         </div>
+        </div>
+        {/* Mobile secondary info row */}
+        {isMobile && agent?.source && (
+          <div className="flex items-center gap-1.5 px-3 pb-1.5 -mt-0.5 min-w-0">
+            <span className="text-[10px] text-zinc-600 truncate min-w-0">
+              {agent.source}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Content area */}
@@ -386,8 +419,9 @@ export default function HypeshipAgentPane({
             <div className="shrink-0 border-t border-zinc-800">
               <ArtifactsBar artifacts={agent?.artifacts} />
             </div>
-            <div className="shrink-0 border-t border-zinc-800 px-2 py-1.5 flex gap-1 items-end">
+            <div className={`shrink-0 border-t border-zinc-800 flex gap-1.5 items-end ${isMobile ? "px-3 py-2" : "px-2 py-1.5"}`}>
               <textarea
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -400,12 +434,12 @@ export default function HypeshipAgentPane({
                   isActive ? "send a follow-up..." : "send a message..."
                 }
                 rows={1}
-                className="flex-1 bg-zinc-900 border border-zinc-800 px-2 py-1 text-[11px] text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
+                className={`flex-1 bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none ${isMobile ? "px-3 py-2 text-sm" : "px-2 py-1 text-[11px]"}`}
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || sending}
-                className="px-2 py-1 text-[10px] font-mono text-blue-400 hover:text-blue-300 border border-zinc-800 hover:border-zinc-600 disabled:opacity-40 transition-colors"
+                className={`font-mono text-blue-400 hover:text-blue-300 border border-zinc-800 hover:border-zinc-600 disabled:opacity-40 transition-colors ${isMobile ? "px-3 py-2 text-sm" : "px-2 py-1 text-[10px]"}`}
               >
                 {sending ? "..." : "↵"}
               </button>
