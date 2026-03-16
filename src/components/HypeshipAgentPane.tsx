@@ -12,6 +12,7 @@ import {
 import { getHypeshipApiUrl, getHypeshipJwt } from "@/lib/storage";
 import {
   GroupedConversation,
+  ArtifactsBar,
   timeAgo,
 } from "@/components/HypeshipConversation";
 import type {
@@ -382,7 +383,9 @@ export default function HypeshipAgentPane({
               <div ref={bottomRef} />
             </div>
 
-            {/* Follow-up input */}
+            <div className="shrink-0 border-t border-zinc-800">
+              <ArtifactsBar artifacts={agent?.artifacts} />
+            </div>
             <div className="shrink-0 border-t border-zinc-800 px-2 py-1.5 flex gap-1 items-end">
               <textarea
                 value={input}

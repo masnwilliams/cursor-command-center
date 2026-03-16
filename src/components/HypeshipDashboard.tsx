@@ -50,6 +50,7 @@ import {
 import {
   GroupedConversation,
   ConversationBubble,
+  ArtifactsBar,
   timeAgo,
 } from "@/components/HypeshipConversation";
 import type {
@@ -467,54 +468,6 @@ function NoConnectionView({ label }: { label: string }) {
         <p className="text-[10px] text-zinc-600 font-mono">no {label} available</p>
         <p className="text-[10px] text-zinc-700 font-mono">waiting for worker to start...</p>
       </div>
-    </div>
-  );
-}
-
-// ── Artifacts ──
-
-function ArtifactsBar({ artifacts }: { artifacts?: HypeshipArtifact[] }) {
-  if (!artifacts || artifacts.length === 0) return null;
-
-  return (
-    <div className="px-3 py-1.5 border-b border-zinc-800/50 flex flex-wrap gap-2">
-      {artifacts.map((a, i) => {
-        if (a.type === "pull_request" && a.pr_url) {
-          return (
-            <a
-              key={`${a.worker_id}-${a.repo}-${i}`}
-              href={a.pr_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-2 py-1 border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors group"
-            >
-              <span className="relative flex h-2 w-2 shrink-0">
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-              </span>
-              <span className="text-[10px] text-emerald-400 font-mono">PR</span>
-              <span className="text-[10px] text-zinc-400 font-mono truncate max-w-[200px]">
-                {a.repo}{a.branch ? `:${a.branch}` : ""}
-              </span>
-              <span className="text-[10px] text-zinc-600 group-hover:text-zinc-400 font-mono">↗</span>
-            </a>
-          );
-        }
-
-        return (
-          <span
-            key={`${a.worker_id}-${a.repo}-${i}`}
-            className="inline-flex items-center gap-1.5 px-2 py-1 border border-zinc-800"
-          >
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
-            </span>
-            <span className="text-[10px] text-amber-400 font-mono">branch</span>
-            <span className="text-[10px] text-zinc-400 font-mono truncate max-w-[200px]">
-              {a.repo}{a.branch ? `:${a.branch}` : ""}
-            </span>
-          </span>
-        );
-      })}
     </div>
   );
 }
