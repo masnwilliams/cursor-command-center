@@ -541,7 +541,7 @@ export function ArtifactsBar({ artifacts }: { artifacts?: HypeshipArtifact[] }) 
   if (!artifacts || artifacts.length === 0) return null;
 
   return (
-    <div className="px-3 py-1.5 border-b border-zinc-800/50 flex flex-wrap gap-2">
+    <div className="px-3 py-1.5 border-b border-zinc-800/50 flex gap-2 overflow-x-auto">
       {artifacts.map((a, i) => {
         if (a.type === "pull_request" && a.pr_url) {
           return (
