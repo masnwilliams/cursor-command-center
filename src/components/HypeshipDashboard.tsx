@@ -1552,10 +1552,10 @@ function DashboardListView({
                 <button
                   key={v}
                   onClick={() => onSwitchView(v)}
-                  className={`px-2 py-0.5 text-[10px] font-mono transition-colors ${
+                  className={`px-2.5 py-1 sm:px-2 sm:py-0.5 text-[11px] sm:text-[10px] font-mono transition-colors ${
                     v === "dashboard"
                       ? "text-zinc-200 bg-zinc-800"
-                      : "text-zinc-600 hover:text-zinc-400"
+                      : "text-zinc-600 hover:text-zinc-400 active:text-zinc-200"
                   }`}
                 >
                   {v}
@@ -1567,7 +1567,7 @@ function DashboardListView({
                 <button
                   key={t}
                   onClick={() => { setTab(t); if (selectedId) router.push(basePath); }}
-                  className={`px-2 py-0.5 text-[10px] font-mono transition-colors shrink-0 ${
+                  className={`px-2.5 py-1 sm:px-2 sm:py-0.5 text-[11px] sm:text-[10px] font-mono transition-colors shrink-0 ${
                     tab === t
                       ? "text-zinc-200 bg-zinc-800"
                       : "text-zinc-600 hover:text-zinc-400"
@@ -1918,23 +1918,23 @@ function PanesView({
   return (
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 sm:py-0.5 bg-zinc-900/60 shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-xs sm:text-[10px] text-zinc-500 font-mono">
-            hypeship — {paneCount} pane{paneCount !== 1 ? "s" : ""}
+      <div className={`flex items-center justify-between border-b border-zinc-800 px-3 bg-zinc-900/60 shrink-0 ${isMobile ? "py-2" : "py-0.5"}`}>
+        <div className="flex items-center gap-3 min-w-0">
+          <span className={`${isMobile ? "text-xs" : "text-[10px]"} text-zinc-500 font-mono shrink-0`}>
+            hypeship
           </span>
           {env === "staging" && (
-            <span className="text-[10px] text-amber-400 font-mono border border-amber-400/30 px-1.5 py-0.5">staging</span>
+            <span className="text-[10px] text-amber-400 font-mono border border-amber-400/30 px-1.5 py-0.5 shrink-0">staging</span>
           )}
-          <div className="flex items-center gap-0.5 ml-1">
+          <div className={`flex items-center gap-0.5 ml-1`}>
             {(["dashboard", "panes"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => onSwitchView(v)}
-                className={`px-2 py-0.5 text-[10px] font-mono transition-colors ${
+                className={`${isMobile ? "px-2.5 py-1 text-[11px]" : "px-2 py-0.5 text-[10px]"} font-mono transition-colors ${
                   v === "panes"
                     ? "text-zinc-200 bg-zinc-800"
-                    : "text-zinc-600 hover:text-zinc-400"
+                    : "text-zinc-600 hover:text-zinc-400 active:text-zinc-200"
                 }`}
               >
                 {v}
@@ -1942,10 +1942,10 @@ function PanesView({
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-4 sm:gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={() => setShowPalette(true)}
-            className="text-xs sm:text-[10px] text-zinc-500 hover:text-zinc-200 font-mono py-1 sm:py-0"
+            className={`text-zinc-500 hover:text-zinc-200 active:text-zinc-100 font-mono ${isMobile ? "text-xs py-1 px-2" : "text-[10px]"}`}
           >
             {isMobile ? "menu" : "[⌘K]"}
           </button>
@@ -1955,14 +1955,22 @@ function PanesView({
       {/* Pane grid */}
       {paneCount === 0 ? (
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-3">
-            <p className="text-xs text-zinc-600 font-mono">no panes</p>
-            <button
-              onClick={() => setShowPalette(true)}
-              className="text-sm sm:text-xs text-zinc-500 hover:text-zinc-200 font-mono border border-zinc-800 px-5 sm:px-4 py-3 sm:py-2 hover:border-zinc-600 transition-colors"
-            >
-              {isMobile ? "open command palette" : "⌘K open command palette"}
-            </button>
+          <div className="text-center space-y-4">
+            <p className={`${isMobile ? "text-sm" : "text-xs"} text-zinc-600 font-mono`}>no panes open</p>
+            <div className="flex flex-col gap-2 items-center">
+              <button
+                onClick={() => setShowNewChat(true)}
+                className={`text-blue-400 hover:text-blue-300 active:text-blue-200 font-mono border border-zinc-800 hover:border-zinc-600 transition-colors ${isMobile ? "text-sm px-6 py-3" : "text-xs px-4 py-2"}`}
+              >
+                new chat
+              </button>
+              <button
+                onClick={() => setShowPalette(true)}
+                className={`text-zinc-500 hover:text-zinc-200 active:text-zinc-100 font-mono transition-colors ${isMobile ? "text-xs py-1" : "text-[10px]"}`}
+              >
+                {isMobile ? "or open menu" : "or ⌘K"}
+              </button>
+            </div>
           </div>
         </div>
       ) : isMobile ? (
@@ -1976,6 +1984,7 @@ function PanesView({
                   key={activeItem.agentId}
                   agentId={activeItem.agentId}
                   focused={true}
+                  isMobile={true}
                   onFocus={() => {}}
                   onClose={() => handleRemove(activeItem.agentId)}
                 />
