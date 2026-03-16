@@ -204,6 +204,25 @@ export default function HypeshipAgentPane({
   const [sending, setSending] = useState(false);
   const [streamChunks, setStreamChunks] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-focus input when focused pane receives keyboard input (matching homepage Pane behavior)
+  useEffect(() => {
+    if (!focused) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement
+      )
+        return;
+      if (e.key.length === 1) {
+        inputRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [focused]);
 
   const activeWorkerId = useMemo(() => {
     for (let i = turns.length - 1; i >= 0; i--) {
@@ -289,22 +308,21 @@ export default function HypeshipAgentPane({
 
   return (
     <div
-      className={`flex flex-col h-full border-r border-b border-zinc-800 bg-zinc-950 ${focused ? "ring-1 ring-blue-500/30" : ""}`}
+      className={`flex flex-col h-full border-r border-b border-zinc-800 bg-zinc-950 ${focused ? "ring-1 ring-inset ring-blue-500/60" : ""}`}
       onClick={onFocus}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-zinc-800 px-2 py-1 bg-zinc-900/60 shrink-0">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <StatusDot status={status} />
-          <span className="text-[10px] text-zinc-300 font-mono truncate">
-            {preview}
-          </span>
-          {agent?.source && (
-            <span className="text-[10px] text-zinc-600 font-mono shrink-0">
-              {agent.source}
+      <div className="border-b border-zinc-800 bg-zinc-900/60 shrink-0">
+        <div className="flex items-center justify-between px-3 sm:px-2 py-2 sm:py-1">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <StatusDot status={status} />
+            <span className="text-xs sm:text-[10px] text-zinc-300 font-mono truncate">
+              {preview}
             </span>
-          )}
-        </div>
+            <span className="text-[10px] text-zinc-600 font-mono shrink-0 hidden sm:inline">
+              {agent?.source}
+            </span>
+          </div>
         <div className="flex items-center gap-0.5 shrink-0">
           {(["chat", "shell", "desktop"] as const).map((t) => {
             if (t === "shell" && !hasShell) return null;
@@ -349,6 +367,15 @@ export default function HypeshipAgentPane({
             ×
           </button>
         </div>
+        </div>
+        {/* Mobile secondary info row */}
+        {agent?.source && (
+          <div className="flex items-center gap-1.5 px-3 pb-1.5 -mt-0.5 sm:hidden min-w-0">
+            <span className="text-[10px] text-zinc-600 truncate min-w-0">
+              {agent.source}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Content area */}
@@ -388,6 +415,7 @@ export default function HypeshipAgentPane({
             </div>
             <div className="shrink-0 border-t border-zinc-800 px-2 py-1.5 flex gap-1 items-end">
               <textarea
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {

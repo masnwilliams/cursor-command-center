@@ -1489,6 +1489,15 @@ function DashboardListView({
   const [listWidth, setListWidth] = useState(320);
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {
@@ -1528,13 +1537,13 @@ function DashboardListView({
   return (
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 bg-zinc-900/60 shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-zinc-300 font-mono">hypeship</span>
+      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 sm:py-1.5 bg-zinc-900/60 shrink-0">
+        <div className="flex items-center gap-3 min-w-0 overflow-x-auto scrollbar-hide">
+          <span className="text-xs text-zinc-300 font-mono shrink-0">hypeship</span>
           {env === "staging" && (
-            <span className="text-[10px] text-amber-400 font-mono border border-amber-400/30 px-1.5 py-0.5">staging</span>
+            <span className="text-[10px] text-amber-400 font-mono border border-amber-400/30 px-1.5 py-0.5 shrink-0">staging</span>
           )}
-          <div className="flex items-center gap-0.5 ml-1">
+          <div className="hidden sm:flex items-center gap-0.5 ml-1">
             {(["dashboard", "panes"] as const).map((v) => (
               <button
                 key={v}
@@ -1554,7 +1563,7 @@ function DashboardListView({
               <button
                 key={t}
                 onClick={() => { setTab(t); if (selectedId) router.push(basePath); }}
-                className={`px-2 py-0.5 text-[10px] font-mono transition-colors ${
+                className={`px-2 py-0.5 text-[10px] font-mono transition-colors shrink-0 ${
                   tab === t
                     ? "text-zinc-200 bg-zinc-800"
                     : "text-zinc-600 hover:text-zinc-400"
@@ -1565,27 +1574,27 @@ function DashboardListView({
             ))}
           </div>
           {tab === "agents" && (
-            <span className="text-[10px] text-zinc-600 font-mono">
+            <span className="text-[10px] text-zinc-600 font-mono shrink-0 hidden sm:inline">
               {agentCount} agent{agentCount !== 1 ? "s" : ""}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {tab === "agents" && (
             <button
               onClick={() => router.push(`${basePath}/new`)}
-              className={`text-[10px] font-mono px-2 py-0.5 border transition-colors ${
+              className={`text-xs sm:text-[10px] font-mono px-2 py-1 sm:py-0.5 border transition-colors ${
                 selectedId === "new"
                   ? "text-blue-400 border-blue-500/50"
                   : "text-blue-400 hover:text-blue-300 border-zinc-800 hover:border-zinc-600"
               }`}
             >
-              [new chat]
+              {isMobile ? "+" : "[new chat]"}
             </button>
           )}
           <button
             onClick={onLogout}
-            className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors"
+            className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors hidden sm:block"
           >
             [disconnect]
           </button>
@@ -1595,10 +1604,12 @@ function DashboardListView({
       <div className="flex-1 flex min-h-0" ref={containerRef}>
         {tab === "agents" && (
           <>
-            {/* Agent list */}
+            {/* Agent list - on mobile, hide when detail is selected */}
             <div
-              className="flex flex-col overflow-hidden shrink-0"
-              style={{ width: selectedId ? listWidth : "100%" }}
+              className={`flex flex-col overflow-hidden shrink-0 ${
+                isMobile && selectedId ? "hidden" : ""
+              }`}
+              style={{ width: !isMobile && selectedId ? listWidth : "100%" }}
             >
               <div className="flex-1 overflow-y-auto">
               {agentsLoading && agents.length === 0 && (
@@ -1658,8 +1669,8 @@ function DashboardListView({
               </div>
             </div>
 
-            {/* Resize handle */}
-            {selectedId && (
+            {/* Resize handle - desktop only */}
+            {selectedId && !isMobile && (
               <div
                 className="w-px bg-zinc-800 hover:bg-zinc-600 cursor-col-resize shrink-0 relative group"
                 onMouseDown={(e) => {
@@ -1673,9 +1684,9 @@ function DashboardListView({
               </div>
             )}
 
-            {/* Detail panel */}
+            {/* Detail panel - on mobile, takes full width */}
             {selectedId && (
-              <div className="flex-1 min-h-0 min-w-0">
+              <div className={`min-h-0 min-w-0 ${isMobile ? "w-full" : "flex-1"}`}>
                 {selectedId === "new" ? (
                   <NewChatPanel
                     key="new"
@@ -1729,6 +1740,17 @@ function PanesView({
   const [showPalette, setShowPalette] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    setMounted(true);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   const { data: agentsData } = useHypeshipAgents();
   const agents = agentsData?.agents ?? [];
@@ -1764,6 +1786,14 @@ function PanesView({
   }
 
   const focusedAgent = focusedId ? agentMap.get(focusedId) : null;
+
+  // Auto-focus first pane on mobile
+  useEffect(() => {
+    if (!isMobile || !mounted || sorted.length === 0) return;
+    if (!focusedId || !sorted.some((s) => s.agentId === focusedId)) {
+      setFocusedId(sorted[0].agentId);
+    }
+  }, [isMobile, mounted, sorted, focusedId]);
 
   const commands = useMemo(() => {
     const cmds: Command[] = [];
@@ -1849,15 +1879,15 @@ function PanesView({
   return (
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-0.5 bg-zinc-900/60 shrink-0">
+      <div className="flex items-center justify-between border-b border-zinc-800 px-3 sm:px-3 py-2 sm:py-0.5 bg-zinc-900/60 shrink-0">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] text-zinc-500 font-mono">
+          <span className="text-xs sm:text-[10px] text-zinc-500 font-mono">
             hypeship — {paneCount} pane{paneCount !== 1 ? "s" : ""}
           </span>
           {env === "staging" && (
             <span className="text-[10px] text-amber-400 font-mono border border-amber-400/30 px-1.5 py-0.5">staging</span>
           )}
-          <div className="flex items-center gap-0.5 ml-1">
+          <div className="hidden sm:flex items-center gap-0.5 ml-1">
             {(["dashboard", "panes"] as const).map((v) => (
               <button
                 key={v}
@@ -1873,12 +1903,14 @@ function PanesView({
             ))}
           </div>
         </div>
-        <button
-          onClick={() => setShowPalette(true)}
-          className="text-[10px] text-zinc-500 hover:text-zinc-200 font-mono"
-        >
-          [⌘K]
-        </button>
+        <div className="flex items-center gap-4 sm:gap-3">
+          <button
+            onClick={() => setShowPalette(true)}
+            className="text-xs sm:text-[10px] text-zinc-500 hover:text-zinc-200 font-mono py-1 sm:py-0"
+          >
+            {isMobile ? "menu" : "[⌘K]"}
+          </button>
+        </div>
       </div>
 
       {/* Pane grid */}
@@ -1888,12 +1920,64 @@ function PanesView({
             <p className="text-xs text-zinc-600 font-mono">no panes</p>
             <button
               onClick={() => setShowPalette(true)}
-              className="text-xs text-zinc-500 hover:text-zinc-200 font-mono border border-zinc-800 px-4 py-2 hover:border-zinc-600 transition-colors"
+              className="text-sm sm:text-xs text-zinc-500 hover:text-zinc-200 font-mono border border-zinc-800 px-5 sm:px-4 py-3 sm:py-2 hover:border-zinc-600 transition-colors"
             >
-              ⌘K open command palette
+              {isMobile ? "open command palette" : "⌘K open command palette"}
             </button>
           </div>
         </div>
+      ) : isMobile ? (
+        <>
+          {/* Mobile: single pane view */}
+          <div className="flex-1 flex flex-col min-h-0">
+            {(() => {
+              const activeItem = sorted.find((s) => s.agentId === focusedId);
+              if (activeItem) return (
+                <HypeshipAgentPane
+                  key={activeItem.agentId}
+                  agentId={activeItem.agentId}
+                  focused={true}
+                  onFocus={() => {}}
+                  onClose={() => handleRemove(activeItem.agentId)}
+                />
+              );
+              return null;
+            })()}
+          </div>
+
+          {/* Mobile: bottom tab bar */}
+          <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/80 backdrop-blur-sm safe-area-bottom">
+            <div className="flex items-stretch overflow-x-auto scrollbar-hide">
+              {sorted.map((item) => {
+                const agent = agentMap.get(item.agentId);
+                if (!agent) return null;
+                const isActive = focusedId === item.agentId;
+                return (
+                  <button
+                    key={item.agentId}
+                    onClick={() => setFocusedId(item.agentId)}
+                    className={`flex items-center gap-2 px-3 py-3 font-mono text-[11px] whitespace-nowrap border-r border-zinc-800/50 min-w-0 shrink-0 transition-colors ${
+                      isActive
+                        ? "bg-zinc-800 text-zinc-100 border-t-2 border-t-blue-500/80"
+                        : "text-zinc-500 active:bg-zinc-800/50 border-t-2 border-t-transparent"
+                    }`}
+                  >
+                    <StatusDot status={agent.status} />
+                    <span className="truncate max-w-[100px]">
+                      {agent.preview || agent.id.slice(0, 8)}
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setShowPalette(true)}
+                className="flex items-center justify-center px-5 py-3 text-zinc-600 active:text-zinc-200 font-mono text-lg shrink-0 border-t-2 border-t-transparent"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </>
       ) : (
         <div className={`flex-1 grid ${gridCols(paneCount)} auto-rows-fr min-h-0 overflow-hidden`}>
           {sorted.map((item) => (
