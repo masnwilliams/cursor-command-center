@@ -490,9 +490,11 @@ type DetailTab = "chat" | "shell" | "desktop";
 function AgentConversationPanel({
   agentId,
   onClose,
+  isMobile = false,
 }: {
   agentId: string;
   onClose: () => void;
+  isMobile?: boolean;
 }) {
   const { data, error } = useHypeshipAgent(agentId);
   const turns = data?.agent?.messages ?? [];
@@ -501,6 +503,7 @@ function AgentConversationPanel({
   const [sending, setSending] = useState(false);
   const [streamChunks, setStreamChunks] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Extract the most recent worker ID from conversation turns
   const activeWorkerId = useMemo(() => {
@@ -576,6 +579,24 @@ function AgentConversationPanel({
 
   const streamingText = agentStatus === "finished" || agentStatus === "error" ? "" : streamChunks.join("");
 
+  // Auto-focus input when typing on desktop (matches homepage Pane behavior)
+  useEffect(() => {
+    if (isMobile) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement
+      )
+        return;
+      if (e.key.length === 1) {
+        inputRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isMobile]);
+
   async function handleSend() {
     const text = input.trim();
     if (!text || sending) return;
@@ -589,9 +610,9 @@ function AgentConversationPanel({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 sm:py-1.5 shrink-0">
+      <div className={`flex items-center justify-between border-b border-zinc-800 shrink-0 ${isMobile ? "px-3 py-2" : "px-3 py-1.5"}`}>
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <span className="text-xs sm:text-[11px] text-zinc-300 font-mono truncate">
+          <span className={`${isMobile ? "text-sm" : "text-[11px]"} text-zinc-300 font-mono truncate`}>
             {turns.length > 0 ? (turns.find((t) => t.role === "user")?.content?.slice(0, 60) || agentId) : agentId}
           </span>
           <span className="text-[10px] text-zinc-600 font-mono hidden sm:inline">
@@ -602,7 +623,7 @@ function AgentConversationPanel({
             {agentId}
           </span>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className={`flex items-center ${isMobile ? "gap-1" : "gap-1"} shrink-0`}>
           {(["chat", "shell", "desktop"] as const).map((t) => {
             if (t === "shell" && !hasShell) return null;
             if (t === "desktop" && !hasDesktop) return null;
@@ -610,7 +631,7 @@ function AgentConversationPanel({
               <button
                 key={t}
                 onClick={() => setDetailTab(t)}
-                className={`px-1.5 py-0.5 text-[9px] font-mono border transition-colors ${
+                className={`${isMobile ? "px-2.5 py-1 text-[11px]" : "px-1.5 py-0.5 text-[9px]"} font-mono border transition-colors ${
                   detailTab === t
                     ? "border-blue-500/50 text-blue-400"
                     : "border-transparent text-zinc-600 hover:text-zinc-400"
@@ -622,16 +643,18 @@ function AgentConversationPanel({
           })}
           <button
             onClick={async () => { try { await stopHypeshipAgent(agentId); } catch {} }}
-            className="text-[10px] text-zinc-600 hover:text-red-400 font-mono px-2 py-0.5 border border-zinc-800 hover:border-red-900/50 transition-colors ml-1"
+            className={`text-zinc-600 hover:text-red-400 font-mono border border-zinc-800 hover:border-red-900/50 transition-colors ml-1 ${isMobile ? "text-[11px] px-2 py-1" : "text-[10px] px-2 py-0.5"}`}
           >
             stop
           </button>
-          <button
-            onClick={onClose}
-            className="text-[10px] text-zinc-600 hover:text-zinc-400 font-mono px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors hidden sm:block"
-          >
-            [close]
-          </button>
+          {!isMobile && (
+            <button
+              onClick={onClose}
+              className="text-[10px] text-zinc-600 hover:text-zinc-400 font-mono px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors"
+            >
+              [close]
+            </button>
+          )}
         </div>
       </div>
 
@@ -679,8 +702,9 @@ function AgentConversationPanel({
                   ))}
                 </div>
               )}
-              <div className="px-2 py-2 flex gap-2 items-end">
+              <div className={`flex gap-2 items-end ${isMobile ? "px-3 py-2" : "px-2 py-2"}`}>
               <textarea
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -691,15 +715,15 @@ function AgentConversationPanel({
                 }}
                 placeholder="send a follow-up..."
                 rows={1}
-                className="flex-1 border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
+                className={`flex-1 border border-zinc-800 bg-zinc-900 text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none ${isMobile ? "px-3 py-2 text-sm" : "px-2 py-1.5 text-xs"}`}
               />
-        <button
-          onClick={handleSend}
-          disabled={!input.trim() || sending}
-          className="px-3 py-1.5 text-[10px] font-mono bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
-        >
-          {sending ? "..." : "↵"}
-        </button>
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || sending}
+                className={`font-mono bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 ${isMobile ? "px-3 py-2 text-sm" : "px-3 py-1.5 text-[10px]"}`}
+              >
+                {sending ? "..." : "↵"}
+              </button>
               </div>
             </div>
           </div>
@@ -728,9 +752,11 @@ interface LocalMessage {
 function NewChatPanel({
   onClose,
   onAgentCreated,
+  isMobile = false,
 }: {
   onClose: () => void;
   onAgentCreated: (agentId: string) => void;
+  isMobile?: boolean;
 }) {
   const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [input, setInput] = useState("");
@@ -829,26 +855,28 @@ function NewChatPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 bg-zinc-900/60 shrink-0">
+      <div className={`flex items-center justify-between border-b border-zinc-800 bg-zinc-900/60 shrink-0 ${isMobile ? "px-3 py-2" : "px-3 py-1.5"}`}>
         <div className="flex items-center gap-2 min-w-0">
           <span className="relative flex h-2 w-2 shrink-0">
             <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-400" />
           </span>
-          <span className="text-[10px] text-zinc-300 font-mono">new chat</span>
+          <span className={`${isMobile ? "text-sm" : "text-[10px]"} text-zinc-300 font-mono`}>new chat</span>
         </div>
-        <button
-          onClick={onClose}
-          className="text-zinc-600 hover:text-zinc-300 text-[10px] font-mono px-1.5 py-0.5"
-        >
-          [close]
-        </button>
+        {!isMobile && (
+          <button
+            onClick={onClose}
+            className="text-zinc-600 hover:text-zinc-300 text-[10px] font-mono px-1.5 py-0.5"
+          >
+            [close]
+          </button>
+        )}
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {messages.length === 0 && !sending && (
           <div className="h-full flex items-center justify-center">
-            <p className="text-[10px] text-zinc-600 font-mono">what do you want to build?</p>
+            <p className={`${isMobile ? "text-sm" : "text-[10px]"} text-zinc-600 font-mono`}>what do you want to build?</p>
           </div>
         )}
         <div className="divide-y divide-zinc-800/30">
@@ -891,7 +919,7 @@ function NewChatPanel({
       )}
 
       {/* Input */}
-      <div className="shrink-0 border-t border-zinc-800 px-2 py-2 flex gap-2 items-end">
+      <div className={`shrink-0 border-t border-zinc-800 flex gap-2 items-end ${isMobile ? "px-3 py-2" : "px-2 py-2"}`}>
         <textarea
           ref={inputRef}
           value={input}
@@ -904,12 +932,12 @@ function NewChatPanel({
           }}
           placeholder="send a message..."
           rows={1}
-          className="flex-1 border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none"
+          className={`flex-1 border border-zinc-800 bg-zinc-900 text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono resize-none ${isMobile ? "px-3 py-2 text-sm" : "px-2 py-1.5 text-xs"}`}
         />
         <button
           onClick={handleSend}
           disabled={!input.trim() || sending}
-          className="px-3 py-1.5 text-[10px] font-mono bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+          className={`font-mono bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 ${isMobile ? "px-3 py-2 text-sm" : "px-3 py-1.5 text-[10px]"}`}
         >
           {sending ? "..." : "↵"}
         </button>
@@ -1190,7 +1218,7 @@ function SecretsView() {
       <div className="px-3 py-3 space-y-4">
         <div className="space-y-2">
           <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide">add secret</p>
-          <div className="flex gap-2 items-end">
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
             <div className="flex-1 space-y-1">
               <p className="text-[10px] text-zinc-600 font-mono">name</p>
               <input
@@ -1211,31 +1239,33 @@ function SecretsView() {
                 className="w-full border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
               />
             </div>
-            <div className="space-y-1">
-              <p className="text-[10px] text-zinc-600 font-mono">scope</p>
-              <div className="flex gap-1">
-                {(["team", "user"] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setScope(s)}
-                    className={`px-2 py-1.5 text-[10px] font-mono border transition-colors ${
-                      scope === s
-                        ? "border-blue-500 text-blue-400 bg-blue-500/10"
-                        : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+            <div className="flex gap-2 sm:gap-0 items-end">
+              <div className="space-y-1">
+                <p className="text-[10px] text-zinc-600 font-mono">scope</p>
+                <div className="flex gap-1">
+                  {(["team", "user"] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setScope(s)}
+                      className={`px-2 py-1.5 text-[10px] font-mono border transition-colors ${
+                        scope === s
+                          ? "border-blue-500 text-blue-400 bg-blue-500/10"
+                          : "border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
+              <button
+                onClick={handleCreate}
+                disabled={!name.trim() || !value.trim() || creating}
+                className="px-3 py-1.5 text-[10px] font-mono bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 sm:ml-2"
+              >
+                {creating ? "..." : "add"}
+              </button>
             </div>
-            <button
-              onClick={handleCreate}
-              disabled={!name.trim() || !value.trim() || creating}
-              className="px-3 py-1.5 text-[10px] font-mono bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
-            >
-              {creating ? "..." : "add"}
-            </button>
           </div>
           {createError && (
             <p className="text-[10px] text-red-400/70 font-mono">{createError}</p>
@@ -1828,70 +1858,74 @@ function DashboardListView({
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
       {/* Top bar — hidden on mobile when detail is open */}
       {!showMobileDetail && (
-        <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 sm:py-1.5 bg-zinc-900/60 shrink-0">
-          <div className="flex items-center gap-3 min-w-0 overflow-x-auto scrollbar-hide">
-            <span className="text-xs text-zinc-300 font-mono shrink-0">hypeship</span>
-            {env === "staging" && (
-              <span className="text-[10px] text-amber-400 font-mono border border-amber-400/30 px-1.5 py-0.5 shrink-0">staging</span>
-            )}
-            <div className="flex items-center gap-0.5 ml-1">
-              {(["dashboard", "panes"] as const).map((v) => (
+        <div className="border-b border-zinc-800 bg-zinc-900/60 shrink-0">
+          {/* First row: title + view switcher + actions */}
+          <div className="flex items-center justify-between px-3 py-2 sm:py-1.5">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-xs text-zinc-300 font-mono shrink-0">hypeship</span>
+              {env === "staging" && (
+                <span className="text-[10px] text-amber-400 font-mono border border-amber-400/30 px-1.5 py-0.5 shrink-0">staging</span>
+              )}
+              <div className="flex items-center gap-0.5 ml-1">
+                {(["dashboard", "panes"] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => onSwitchView(v)}
+                    className={`px-2.5 py-1 sm:px-2 sm:py-0.5 text-[11px] sm:text-[10px] font-mono transition-colors ${
+                      v === "dashboard"
+                        ? "text-zinc-200 bg-zinc-800"
+                        : "text-zinc-600 hover:text-zinc-400 active:text-zinc-200"
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {tab === "agents" && (
                 <button
-                  key={v}
-                  onClick={() => onSwitchView(v)}
-                  className={`px-2.5 py-1 sm:px-2 sm:py-0.5 text-[11px] sm:text-[10px] font-mono transition-colors ${
-                    v === "dashboard"
-                      ? "text-zinc-200 bg-zinc-800"
-                      : "text-zinc-600 hover:text-zinc-400 active:text-zinc-200"
+                  onClick={() => router.push(`${basePath}/new`)}
+                  className={`text-xs sm:text-[10px] font-mono px-2 py-1 sm:py-0.5 border transition-colors ${
+                    selectedId === "new"
+                      ? "text-blue-400 border-blue-500/50"
+                      : "text-blue-400 hover:text-blue-300 border-zinc-800 hover:border-zinc-600"
                   }`}
                 >
-                  {v}
+                  {isMobile ? "+" : "[new chat]"}
                 </button>
-              ))}
+              )}
+              <button
+                onClick={onLogout}
+                className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors hidden sm:block"
+              >
+                [disconnect]
+              </button>
             </div>
-            <div className="flex items-center gap-0.5 ml-1 border-l border-zinc-800 pl-2">
-              {(["agents", "reviews", "secrets", "settings"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => { setTab(t); if (selectedId) router.push(basePath); }}
-                  className={`px-2.5 py-1 sm:px-2 sm:py-0.5 text-[11px] sm:text-[10px] font-mono transition-colors shrink-0 ${
-                    tab === t
-                      ? "text-zinc-200 bg-zinc-800"
-                      : "text-zinc-600 hover:text-zinc-400"
-                  }`}
-                >
-                  {t}
-                  {t === "reviews" && reviewPrs.length > 0 && (
-                    <span className="ml-1 text-amber-400">{reviewPrs.length}</span>
-                  )}
-                </button>
-              ))}
-            </div>
+          </div>
+          {/* Second row: section tabs */}
+          <div className="flex items-center gap-0.5 px-3 pb-1.5 overflow-x-auto scrollbar-hide">
+            {(["agents", "reviews", "secrets", "settings"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => { setTab(t); if (selectedId) router.push(basePath); }}
+                className={`px-2.5 py-1 sm:px-2 sm:py-0.5 text-[11px] sm:text-[10px] font-mono transition-colors shrink-0 ${
+                  tab === t
+                    ? "text-zinc-200 bg-zinc-800"
+                    : "text-zinc-600 hover:text-zinc-400"
+                }`}
+              >
+                {t}
+                {t === "reviews" && reviewPrs.length > 0 && (
+                  <span className="ml-1 text-amber-400">{reviewPrs.length}</span>
+                )}
+              </button>
+            ))}
             {tab === "agents" && (
-              <span className="text-[10px] text-zinc-600 font-mono shrink-0 hidden sm:inline">
+              <span className="text-[10px] text-zinc-600 font-mono shrink-0 hidden sm:inline ml-1">
                 {agentCount} agent{agentCount !== 1 ? "s" : ""}
               </span>
             )}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {tab === "agents" && (
-              <button
-                onClick={() => router.push(`${basePath}/new`)}
-                className={`text-xs sm:text-[10px] font-mono px-2 py-1 sm:py-0.5 border transition-colors ${
-                  selectedId === "new"
-                    ? "text-blue-400 border-blue-500/50"
-                    : "text-blue-400 hover:text-blue-300 border-zinc-800 hover:border-zinc-600"
-                }`}
-              >
-                {isMobile ? "+" : "[new chat]"}
-              </button>
-            )}
-            <button
-              onClick={onLogout}
-              className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors hidden sm:block"
-            >
-              [disconnect]
-            </button>
           </div>
         </div>
       )}
@@ -1919,12 +1953,14 @@ function DashboardListView({
                 onAgentCreated={(agentId) => {
                   router.replace(`${basePath}/${agentId}`);
                 }}
+                isMobile={true}
               />
             ) : (
               <AgentConversationPanel
                 key={selectedId}
                 agentId={selectedId!}
                 onClose={() => router.push(basePath)}
+                isMobile={true}
               />
             )}
           </div>
