@@ -7,10 +7,11 @@ export async function proxyToHypeship(
 ): Promise<NextResponse> {
   const apiUrl = req.headers.get("x-hypeship-url");
   const jwt = req.headers.get("x-hypeship-jwt");
+  const apiKey = req.headers.get("x-hypeship-api-key");
 
-  if (!apiUrl || !jwt) {
+  if (!apiUrl || (!jwt && !apiKey)) {
     return NextResponse.json(
-      { error: "Missing Hypeship URL or JWT" },
+      { error: "Missing Hypeship URL or auth (JWT or API key)" },
       { status: 401 },
     );
   }
@@ -20,7 +21,7 @@ export async function proxyToHypeship(
   const fetchOptions: RequestInit = {
     method,
     headers: {
-      Authorization: `Bearer ${jwt}`,
+      Authorization: jwt ? `Bearer ${jwt}` : `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
   };
