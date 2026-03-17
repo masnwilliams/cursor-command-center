@@ -1763,6 +1763,18 @@ function PanesView({
     });
 
     cmds.push({
+      id: "secrets",
+      label: "secrets",
+      section: "app",
+      action: () => router.push(`${basePath}/secrets`),
+    });
+    cmds.push({
+      id: "settings",
+      label: "settings",
+      section: "app",
+      action: () => router.push(`${basePath}/settings`),
+    });
+    cmds.push({
       id: "cursor",
       label: "open cursor agents",
       section: "app",
@@ -1776,7 +1788,7 @@ function PanesView({
     });
 
     return cmds;
-  }, [focusedAgent, focusedId, sorted, agentMap, onLogout, router]);
+  }, [focusedAgent, focusedId, sorted, agentMap, onLogout, router, basePath]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -1930,6 +1942,18 @@ function PanesView({
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => router.push(`${basePath}/secrets`)}
+            className={`text-zinc-500 hover:text-zinc-200 font-mono ${isMobile ? "text-xs" : "text-[10px]"}`}
+          >
+            secrets
+          </button>
+          <button
+            onClick={() => router.push(`${basePath}/settings`)}
+            className={`text-zinc-500 hover:text-zinc-200 font-mono ${isMobile ? "text-xs" : "text-[10px]"}`}
+          >
+            settings
+          </button>
           <button
             onClick={() => setShowReviewInput(true)}
             className={`text-zinc-500 hover:text-zinc-200 font-mono ${isMobile ? "text-xs" : "text-[10px]"} flex items-center gap-1`}
