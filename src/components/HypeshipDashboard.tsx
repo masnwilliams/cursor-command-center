@@ -9,8 +9,6 @@ import {
   getHypeshipJwt,
   setHypeshipJwt,
   clearHypeshipAuth,
-  getHypeshipView,
-  setHypeshipView,
   getHypeshipGrid,
   addToHypeshipGrid,
   removeFromHypeshipGrid,
@@ -20,7 +18,7 @@ import {
   activateHypeshipEnv,
   HYPESHIP_URLS,
 } from "@/lib/storage";
-import type { HypeshipView, HypeshipEnv } from "@/lib/storage";
+import type { HypeshipEnv } from "@/lib/storage";
 import HypeshipAgentPane from "@/components/HypeshipAgentPane";
 import { HypeshipAddAgentModal } from "@/components/HypeshipAddAgentModal";
 import { HypeshipNewChatModal } from "@/components/HypeshipNewChatModal";
@@ -49,11 +47,7 @@ import {
   useHypeshipOrchestrator,
   getHypeshipSettingsLink,
   useReviewRequests,
-  usePrStatus,
-  usePrFiles,
-  markPrReady,
 } from "@/lib/api";
-import { DiffBar } from "@/components/DiffBar";
 import { ConfirmMergeModal } from "@/components/ConfirmMergeModal";
 import { AddReviewerModal } from "@/components/AddReviewerModal";
 import { buildHypeshipPrReviewPrompt } from "@/lib/prompts";
@@ -1572,8 +1566,6 @@ function OrchestratorSection() {
 
 // ── Dashboard ──
 
-type DashboardTab = "agents" | "reviews" | "secrets" | "settings";
-
 function gridCols(count: number): string {
   if (count <= 1) return "grid-cols-1";
   if (count <= 2) return "grid-cols-1 sm:grid-cols-2";
@@ -1582,574 +1574,16 @@ function gridCols(count: number): string {
   return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
 }
 
-function ReviewPrRow({
-  pr,
-  expanded,
-  onToggle,
-  launching,
-  onLaunchReview,
-  onMerge,
-  onAddReviewer,
-}: {
-  pr: ReviewRequestPR;
-  expanded: boolean;
-  onToggle: () => void;
-  launching: boolean;
-  onLaunchReview: () => void;
-  onMerge: () => void;
-  onAddReviewer: () => void;
-}) {
-  const { data: filesData } = usePrFiles(expanded ? pr.url : null);
-  const files = filesData?.files;
-  const [openFiles, setOpenFiles] = useState<Set<string>>(new Set());
 
-  return (
-    <div className="border-b border-zinc-800/50">
-      <button
-        onClick={onToggle}
-        className={`w-full text-left px-3 py-3 sm:py-2 hover:bg-zinc-900/40 transition-colors ${
-          expanded ? "bg-zinc-900/60" : ""
-        }`}
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] text-zinc-600 font-mono shrink-0">
-            {expanded ? "▾" : "▸"}
-          </span>
-          <span className="text-xs sm:text-[11px] text-zinc-200 font-mono truncate flex-1">
-            {pr.title}
-          </span>
-          <span className="text-[10px] text-zinc-600 font-mono shrink-0">
-            #{pr.number}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 ml-5">
-          <span className="text-[10px] text-zinc-600 font-mono">{pr.repo}</span>
-          <span className="text-[10px] text-zinc-700 font-mono">·</span>
-          <span className="text-[10px] text-zinc-600 font-mono">{pr.author}</span>
-        </div>
-      </button>
-
-      {expanded && (
-        <div className="border-t border-zinc-800/40 bg-zinc-900/30">
-          {/* Action buttons */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800/40">
-            <button
-              onClick={onLaunchReview}
-              disabled={launching}
-              className="text-[10px] font-mono px-2 py-0.5 border border-blue-500/50 text-blue-400 hover:bg-blue-950/30 hover:text-blue-300 transition-colors disabled:opacity-40"
-            >
-              {launching ? "launching..." : "review with hypeship"}
-            </button>
-            <button
-              onClick={onMerge}
-              className="text-[10px] font-mono px-2 py-0.5 border border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 transition-colors"
-            >
-              merge
-            </button>
-            <button
-              onClick={onAddReviewer}
-              className="text-[10px] font-mono px-2 py-0.5 border border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 transition-colors"
-            >
-              add reviewer
-            </button>
-            <a
-              href={pr.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[10px] font-mono text-zinc-600 hover:text-zinc-300 ml-auto"
-            >
-              [open in github]
-            </a>
-          </div>
-
-          {/* File list / diff */}
-          <div className="max-h-[50vh] overflow-y-auto">
-            {!files && (
-              <p className="text-[10px] text-zinc-600 font-mono px-3 py-2 animate-pulse">
-                loading files...
-              </p>
-            )}
-            {files && files.length === 0 && (
-              <p className="text-[10px] text-zinc-600 font-mono px-3 py-2">
-                no file changes
-              </p>
-            )}
-            {files && files.map((file) => {
-              const isOpen = openFiles.has(file.filename);
-              return (
-                <div key={file.filename}>
-                  <button
-                    onClick={() => {
-                      setOpenFiles((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(file.filename)) next.delete(file.filename);
-                        else next.add(file.filename);
-                        return next;
-                      });
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-0.5 text-left min-w-0 hover:bg-zinc-800/40"
-                  >
-                    <span className="text-[10px] text-zinc-600 font-mono shrink-0">
-                      {isOpen ? "▾" : "▸"}
-                    </span>
-                    <span className={`text-[10px] font-mono w-3 shrink-0 ${
-                      file.status === "added" ? "text-green-400" :
-                      file.status === "removed" ? "text-red-400" :
-                      file.status === "renamed" ? "text-blue-400" :
-                      "text-amber-400"
-                    }`}>
-                      {file.status === "added" ? "A" : file.status === "removed" ? "D" : file.status === "renamed" ? "R" : "M"}
-                    </span>
-                    <span className="text-[10px] text-zinc-400 font-mono truncate min-w-0">
-                      {file.filename}
-                    </span>
-                    <span className="ml-auto flex items-center gap-1.5 shrink-0">
-                      {file.additions > 0 && (
-                        <span className="text-[10px] text-green-500/80 font-mono">+{file.additions}</span>
-                      )}
-                      {file.deletions > 0 && (
-                        <span className="text-[10px] text-red-500/80 font-mono">-{file.deletions}</span>
-                      )}
-                    </span>
-                  </button>
-                  {isOpen && file.patch && (
-                    <div className="border-t border-zinc-800/40 overflow-x-auto">
-                      <pre className="text-[10px] font-mono text-zinc-400 px-3 py-1 whitespace-pre">
-                        {file.patch}
-                      </pre>
-                    </div>
-                  )}
-                  {isOpen && !file.patch && (
-                    <div className="px-6 py-2 text-[10px] text-zinc-600 font-mono border-t border-zinc-800/40">
-                      binary file or no diff available
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ReviewsPanel({
-  prs,
-  expandedPr,
-  onToggleExpand,
-  launchingReview,
-  onLaunchReview,
-  onMerge,
-  onAddReviewer,
-}: {
-  prs: ReviewRequestPR[];
-  expandedPr: string | null;
-  onToggleExpand: (url: string) => void;
-  launchingReview: string | null;
-  onLaunchReview: (pr: ReviewRequestPR) => void;
-  onMerge: (pr: ReviewRequestPR) => void;
-  onAddReviewer: (pr: ReviewRequestPR) => void;
-}) {
-  if (prs.length === 0) {
-    return (
-      <div className="px-3 py-16 text-center">
-        <p className="text-[10px] text-zinc-600 font-mono">no pending review requests</p>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="px-3 py-2 border-b border-zinc-800">
-        <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">
-          prs requesting your review ({prs.length})
-        </span>
-      </div>
-      {prs.map((pr) => (
-        <ReviewPrRow
-          key={pr.url}
-          pr={pr}
-          expanded={expandedPr === pr.url}
-          onToggle={() => onToggleExpand(pr.url)}
-          launching={launchingReview === pr.url}
-          onLaunchReview={() => onLaunchReview(pr)}
-          onMerge={() => onMerge(pr)}
-          onAddReviewer={() => onAddReviewer(pr)}
-        />
-      ))}
-    </div>
-  );
-}
-
-function DashboardListView({
-  env,
-  onLogout,
-  onSwitchView,
-  initialAgentId,
-}: {
-  env: HypeshipEnv;
-  onLogout: () => void;
-  onSwitchView: (v: HypeshipView) => void;
-  initialAgentId?: string | null;
-}) {
-  const router = useRouter();
-  const basePath = env === "staging" ? "/staging" : "";
-  const selectedId = initialAgentId ?? null;
-  const [tab, setTab] = useState<DashboardTab>("agents");
-  const [listWidth, setListWidth] = useState(320);
-  const isDragging = useRef(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 639px)");
-    setIsMobile(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
-  useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
-      if (!isDragging.current || !containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const newWidth = Math.max(200, Math.min(e.clientX - rect.left, rect.width - 300));
-      setListWidth(newWidth);
-    }
-    function onMouseUp() {
-      isDragging.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    }
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-  }, []);
-
-  const { data: agentsData, error: agentsError, isLoading: agentsLoading } = useHypeshipAgents();
-  const agents = agentsData?.agents ?? [];
-  const { data: reviewData } = useReviewRequests();
-  const reviewPrs = reviewData?.prs ?? [];
-  const [expandedPr, setExpandedPr] = useState<string | null>(null);
-  const [mergeTarget, setMergeTarget] = useState<{ prUrl: string; agentName: string } | null>(null);
-  const [reviewerTarget, setReviewerTarget] = useState<{ prUrl: string; agentName: string } | null>(null);
-  const [launchingReview, setLaunchingReview] = useState<string | null>(null);
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && selectedId) {
-        router.push(basePath);
-      }
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [selectedId, router, basePath]);
-
-  const agentCount = agents.length;
-
-  // On mobile, show the detail panel as a full-screen overlay
-  const showMobileDetail = isMobile && selectedId;
-
-  return (
-    <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
-      {/* Top bar — hidden on mobile when detail is open */}
-      {!showMobileDetail && (
-        <div className="border-b border-zinc-800 bg-zinc-900/60 shrink-0">
-          {/* First row: title + view switcher + actions */}
-          <div className="flex items-center justify-between px-3 py-2 sm:py-1.5">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="text-xs text-zinc-300 font-mono shrink-0">hypeship</span>
-              {env === "staging" && (
-                <span className="text-[10px] text-amber-400 font-mono border border-amber-400/30 px-1.5 py-0.5 shrink-0">staging</span>
-              )}
-              <div className="flex items-center gap-0.5 ml-1">
-                {(["dashboard", "panes"] as const).map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => onSwitchView(v)}
-                    className={`px-2.5 py-1 sm:px-2 sm:py-0.5 text-[11px] sm:text-[10px] font-mono transition-colors ${
-                      v === "dashboard"
-                        ? "text-zinc-200 bg-zinc-800"
-                        : "text-zinc-600 hover:text-zinc-400 active:text-zinc-200"
-                    }`}
-                  >
-                    {v}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {tab === "agents" && (
-                <button
-                  onClick={() => router.push(`${basePath}/new`)}
-                  className={`text-xs sm:text-[10px] font-mono px-2 py-1 sm:py-0.5 border transition-colors ${
-                    selectedId === "new"
-                      ? "text-blue-400 border-blue-500/50"
-                      : "text-blue-400 hover:text-blue-300 border-zinc-800 hover:border-zinc-600"
-                  }`}
-                >
-                  {isMobile ? "+" : "[new chat]"}
-                </button>
-              )}
-              <button
-                onClick={onLogout}
-                className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 px-2 py-0.5 border border-zinc-800 hover:border-zinc-600 transition-colors hidden sm:block"
-              >
-                [disconnect]
-              </button>
-            </div>
-          </div>
-          {/* Second row: section tabs */}
-          <div className="flex items-center gap-0.5 px-3 pb-1.5 overflow-x-auto scrollbar-hide">
-            {(["agents", "reviews", "secrets", "settings"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => { setTab(t); if (selectedId) router.push(basePath); }}
-                className={`px-2.5 py-1 sm:px-2 sm:py-0.5 text-[11px] sm:text-[10px] font-mono transition-colors shrink-0 ${
-                  tab === t
-                    ? "text-zinc-200 bg-zinc-800"
-                    : "text-zinc-600 hover:text-zinc-400"
-                }`}
-              >
-                {t}
-                {t === "reviews" && reviewPrs.length > 0 && (
-                  <span className="ml-1 text-amber-400">{reviewPrs.length}</span>
-                )}
-              </button>
-            ))}
-            {tab === "agents" && (
-              <span className="text-[10px] text-zinc-600 font-mono shrink-0 hidden sm:inline ml-1">
-                {agentCount} agent{agentCount !== 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Mobile: full-screen detail overlay */}
-      {showMobileDetail ? (
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Mobile detail header with back button */}
-          <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 bg-zinc-900/60 shrink-0">
-            <button
-              onClick={() => router.push(basePath)}
-              className="text-xs text-zinc-400 hover:text-zinc-200 font-mono flex items-center gap-1 shrink-0 active:text-zinc-100 py-0.5"
-            >
-              ← back
-            </button>
-            <span className="text-[10px] text-zinc-600 font-mono truncate">
-              {selectedId === "new" ? "new chat" : selectedId?.slice(0, 12)}
-            </span>
-          </div>
-          <div className="flex-1 min-h-0">
-            {selectedId === "new" ? (
-              <NewChatPanel
-                key="new"
-                onClose={() => router.push(basePath)}
-                onAgentCreated={(agentId) => {
-                  router.replace(`${basePath}/${agentId}`);
-                }}
-                isMobile={true}
-              />
-            ) : (
-              <AgentConversationPanel
-                key={selectedId}
-                agentId={selectedId!}
-                onClose={() => router.push(basePath)}
-                isMobile={true}
-              />
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 flex min-h-0" ref={containerRef}>
-          {tab === "agents" && (
-            <>
-              {/* Agent list */}
-              <div
-                className="flex flex-col overflow-hidden shrink-0"
-                style={{ width: selectedId ? listWidth : "100%" }}
-              >
-                <div className="flex-1 overflow-y-auto">
-                {agentsLoading && agents.length === 0 && (
-                  <div className="px-3 py-8 text-center">
-                    <p className="text-[10px] text-zinc-600 font-mono animate-pulse">
-                      loading agents...
-                    </p>
-                  </div>
-                )}
-
-                {agentsError && (
-                  <div className="px-3 py-8 text-center">
-                    <p className="text-[10px] text-red-400 font-mono">{agentsError.message}</p>
-                  </div>
-                )}
-
-                {!agentsLoading && agents.length === 0 && !agentsError && (
-                  <div className="px-3 py-16 text-center space-y-3">
-                    <p className="text-[10px] text-zinc-600 font-mono">no conversations yet</p>
-                    <button
-                      onClick={() => router.push(`${basePath}/new`)}
-                      className="text-sm sm:text-[10px] font-mono text-blue-400 hover:text-blue-300 border border-zinc-800 hover:border-zinc-600 px-4 sm:px-3 py-2 sm:py-1.5 transition-colors"
-                    >
-                      start a new chat
-                    </button>
-                  </div>
-                )}
-
-                {agents.map((agent) => (
-                  <button
-                    key={agent.id}
-                    onClick={() => router.push(`${basePath}/${agent.id}`)}
-                    className={`w-full text-left border-b border-zinc-800/50 px-3 py-3 sm:py-2 hover:bg-zinc-900/40 active:bg-zinc-900/60 transition-colors ${
-                      selectedId === agent.id ? "bg-zinc-900/60" : ""
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <StatusDot status={agent.status} />
-                      <span className="text-xs sm:text-[11px] text-zinc-200 font-mono truncate flex-1">
-                        {agent.preview || agent.id.slice(0, 16)}
-                      </span>
-                      <span className="text-[10px] text-zinc-600 font-mono shrink-0">
-                        {timeAgo(agent.updated_at)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4">
-                      <span className="text-[10px] text-zinc-600 font-mono">
-                        {agent.source}
-                      </span>
-                      <span className="text-[10px] text-zinc-700 font-mono">·</span>
-                      <span className="text-[10px] text-zinc-700 font-mono">
-                        {agent.message_count} msg{agent.message_count !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-                </div>
-              </div>
-
-              {/* Resize handle - desktop only */}
-              {selectedId && !isMobile && (
-                <div
-                  className="w-px bg-zinc-800 hover:bg-zinc-600 cursor-col-resize shrink-0 relative group"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    isDragging.current = true;
-                    document.body.style.cursor = "col-resize";
-                    document.body.style.userSelect = "none";
-                  }}
-                >
-                  <div className="absolute inset-y-0 -left-1 -right-1 group-hover:bg-blue-500/20" />
-                </div>
-              )}
-
-              {/* Detail panel - desktop only (mobile uses overlay above) */}
-              {selectedId && (
-                <div className="flex-1 min-h-0 min-w-0">
-                  {selectedId === "new" ? (
-                    <NewChatPanel
-                      key="new"
-                      onClose={() => router.push(basePath)}
-                      onAgentCreated={(agentId) => {
-                        router.replace(`${basePath}/${agentId}`);
-                      }}
-                    />
-                  ) : (
-                    <AgentConversationPanel
-                      key={selectedId}
-                      agentId={selectedId}
-                      onClose={() => router.push(basePath)}
-                    />
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {tab === "reviews" && (
-            <div className="w-full overflow-y-auto">
-              <ReviewsPanel
-                prs={reviewPrs}
-                expandedPr={expandedPr}
-                onToggleExpand={(url) => setExpandedPr(expandedPr === url ? null : url)}
-                launchingReview={launchingReview}
-                onLaunchReview={async (pr) => {
-                  setLaunchingReview(pr.url);
-                  try {
-                    let files;
-                    try {
-                      const resp = await fetchPrFiles(pr.url);
-                      files = resp.files;
-                    } catch {
-                      // proceed without files — prompt will show "unknown"
-                    }
-                    const prompt = buildHypeshipPrReviewPrompt({
-                      prUrl: pr.url,
-                      repo: pr.repo,
-                      files,
-                    });
-                    const resp = await sendHypeshipPrompt({ message: prompt });
-                    router.push(`${basePath}/${resp.agent_id}`);
-                    setTab("agents");
-                  } catch {
-                    // silently fail — user can retry
-                  } finally {
-                    setLaunchingReview(null);
-                  }
-                }}
-                onMerge={(pr) => setMergeTarget({ prUrl: pr.url, agentName: pr.title })}
-                onAddReviewer={(pr) => setReviewerTarget({ prUrl: pr.url, agentName: pr.title })}
-              />
-            </div>
-          )}
-
-          {tab === "secrets" && (
-            <div className="w-full">
-              <SecretsView />
-            </div>
-          )}
-
-          {tab === "settings" && (
-            <div className="w-full">
-              <SettingsView />
-            </div>
-          )}
-        </div>
-      )}
-
-      {mergeTarget && (
-        <ConfirmMergeModal
-          prUrl={mergeTarget.prUrl}
-          agentName={mergeTarget.agentName}
-          onClose={() => setMergeTarget(null)}
-          onMerged={() => setMergeTarget(null)}
-        />
-      )}
-      {reviewerTarget && (
-        <AddReviewerModal
-          prUrl={reviewerTarget.prUrl}
-          agentName={reviewerTarget.agentName}
-          onClose={() => setReviewerTarget(null)}
-        />
-      )}
-    </div>
-  );
-}
 
 // ── Panes View ──
 
 function PanesView({
   env,
   onLogout,
-  onSwitchView,
 }: {
   env: HypeshipEnv;
   onLogout: () => void;
-  onSwitchView: (v: HypeshipView) => void;
 }) {
   const router = useRouter();
   const basePath = env === "staging" ? "/staging" : "";
@@ -2329,12 +1763,6 @@ function PanesView({
     });
 
     cmds.push({
-      id: "switch-dashboard",
-      label: "switch to dashboard",
-      section: "app",
-      action: () => onSwitchView("dashboard"),
-    });
-    cmds.push({
       id: "cursor",
       label: "open cursor agents",
       section: "app",
@@ -2348,7 +1776,7 @@ function PanesView({
     });
 
     return cmds;
-  }, [focusedAgent, focusedId, sorted, agentMap, onSwitchView, onLogout, router]);
+  }, [focusedAgent, focusedId, sorted, agentMap, onLogout, router]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -2490,31 +1918,16 @@ function PanesView({
   }
 
   return (
-    <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
+    <div className="h-full bg-zinc-950 flex flex-col overflow-hidden">
       {/* Top bar */}
-      <div className={`flex items-center justify-between border-b border-zinc-800 px-3 bg-zinc-900/60 shrink-0 ${isMobile ? "py-2" : "py-0.5"}`}>
+      <div className="flex items-center justify-between border-b border-zinc-800 px-3 sm:px-2 py-2 sm:py-0.5 bg-zinc-900/60 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <span className={`${isMobile ? "text-xs" : "text-[10px]"} text-zinc-500 font-mono shrink-0`}>
-            hypeship
+            hypeship — {paneCount} pane{paneCount !== 1 ? "s" : ""}
           </span>
           {env === "staging" && (
             <span className="text-[10px] text-amber-400 font-mono border border-amber-400/30 px-1.5 py-0.5 shrink-0">staging</span>
           )}
-          <div className={`flex items-center gap-0.5 ml-1`}>
-            {(["dashboard", "panes"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => onSwitchView(v)}
-                className={`${isMobile ? "px-2.5 py-1 text-[11px]" : "px-2 py-0.5 text-[10px]"} font-mono transition-colors ${
-                  v === "panes"
-                    ? "text-zinc-200 bg-zinc-800"
-                    : "text-zinc-600 hover:text-zinc-400 active:text-zinc-200"
-                }`}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <button
@@ -2665,30 +2078,9 @@ function PanesView({
   );
 }
 
-// ── View Router ──
-
-function DashboardView({ env, onLogout, initialAgentId }: { env: HypeshipEnv; onLogout: () => void; initialAgentId?: string | null }) {
-  const [view, setView] = useState<HypeshipView>("dashboard");
-
-  useEffect(() => {
-    setView(getHypeshipView(env));
-  }, [env]);
-
-  function handleSwitchView(v: HypeshipView) {
-    setHypeshipView(v, env);
-    setView(v);
-  }
-
-  if (view === "panes") {
-    return <PanesView env={env} onLogout={onLogout} onSwitchView={handleSwitchView} />;
-  }
-
-  return <DashboardListView env={env} onLogout={onLogout} onSwitchView={handleSwitchView} initialAgentId={initialAgentId} />;
-}
-
 // ── Root ──
 
-export default function HypeshipDashboard({ env = "production" as HypeshipEnv, initialAgentId }: { env?: HypeshipEnv; initialAgentId?: string }) {
+export default function HypeshipDashboard({ env = "production" as HypeshipEnv }: { env?: HypeshipEnv }) {
   const [connected, setConnected] = useState(false);
   const [checked, setChecked] = useState(false);
 
@@ -2708,9 +2100,8 @@ export default function HypeshipDashboard({ env = "production" as HypeshipEnv, i
   }
 
   return (
-    <DashboardView
+    <PanesView
       env={env}
-      initialAgentId={initialAgentId}
       onLogout={() => {
         clearHypeshipEnvAuth(env);
         clearHypeshipAuth();
