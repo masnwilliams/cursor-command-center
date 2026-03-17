@@ -92,6 +92,18 @@ body {
   color: #a1a1aa;
 }
 
+/* Prose overflow: ensure rendered markdown never escapes containers */
+.prose pre,
+.prose-pane pre {
+  overflow-x: auto;
+}
+
+.prose code,
+.prose-pane code {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 4px;

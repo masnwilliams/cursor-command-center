@@ -258,7 +258,7 @@ function ThinkingBubble({ turn }: { turn: HypeshipConversationTurn }) {
       </button>
       {expanded && (
         <div className="ml-4 mt-1 border-l border-violet-900/30 pl-3 max-h-[300px] overflow-y-auto">
-          <div className="text-[10px] text-zinc-600 font-mono whitespace-pre-wrap italic">
+          <div className="text-[10px] text-zinc-600 font-mono whitespace-pre-wrap break-words italic">
             {turn.content}
           </div>
         </div>
@@ -289,7 +289,7 @@ export function ConversationBubble({ turn }: { turn: HypeshipConversationTurn })
       <div className="px-3 py-1">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-mono text-zinc-600">*</span>
-          <span className="text-[10px] text-zinc-600 font-mono">{turn.content}</span>
+          <span className="text-[10px] text-zinc-600 font-mono whitespace-pre-wrap break-words">{turn.content}</span>
           <span className="text-[10px] text-zinc-700 font-mono ml-auto">
             {timeAgo(turn.timestamp)}
           </span>
@@ -311,7 +311,7 @@ export function ConversationBubble({ turn }: { turn: HypeshipConversationTurn })
       : "text-emerald-400";
 
   return (
-    <div className={`px-3 py-2 ${isUser ? "bg-zinc-900/30" : ""}`}>
+    <div className={`px-3 py-2 overflow-hidden ${isUser ? "bg-zinc-900/30" : ""}`}>
       <div className="flex items-center gap-2 mb-1">
         <span className={`text-[10px] font-mono ${color}`}>{prefix}</span>
         <span className="text-[10px] text-zinc-500 font-mono">{label}</span>
@@ -319,7 +319,7 @@ export function ConversationBubble({ turn }: { turn: HypeshipConversationTurn })
           {timeAgo(turn.timestamp)}
         </span>
       </div>
-      <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none">
+      <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none [overflow-wrap:anywhere]">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.content}</ReactMarkdown>
       </div>
     </div>
@@ -552,7 +552,7 @@ export function WorkerGroup({ workerId, turns }: { workerId: string; turns: Hype
           {summary && (
             <div className="border-t border-zinc-800/30 px-3 py-2">
               <p className="text-[10px] text-zinc-600 font-mono mb-1">summary</p>
-              <p className="text-[10px] text-zinc-400 font-mono whitespace-pre-wrap">{summary}</p>
+              <p className="text-[10px] text-zinc-400 font-mono whitespace-pre-wrap break-words">{summary}</p>
             </div>
           )}
         </div>

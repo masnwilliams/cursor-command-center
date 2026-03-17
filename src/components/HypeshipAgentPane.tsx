@@ -542,7 +542,7 @@ export default function HypeshipAgentPane({
               <GroupedConversation turns={turns} />
               {streamingText && (
                 <div className="px-3 py-2">
-                  <div className="text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none">
+                  <div className="text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none [overflow-wrap:anywhere]">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {streamingText}
                     </ReactMarkdown>
