@@ -12,7 +12,10 @@ import type { HypeshipConversationTurn, HypeshipArtifact } from "@/lib/types";
 // ── Helpers ──
 
 export function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  if (!dateStr || dateStr.startsWith("0001-01-01")) return "";
+  const ts = new Date(dateStr).getTime();
+  if (isNaN(ts) || ts < 0) return "";
+  const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60_000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
@@ -601,11 +604,11 @@ export function DelegateTaskGroup({ turn, children }: { turn: HypeshipConversati
       {expanded && (
         children.length > 0 ? (
           <div className="divide-y divide-zinc-800/20">
-            {children.map((child) =>
+            {children.map((child, ci) =>
               child.type === "worker" && child.workerId ? (
-                <WorkerGroup key={`w-${child.workerId}`} workerId={child.workerId} turns={child.turns} />
+                <WorkerGroup key={`w-${child.workerId}-${ci}`} workerId={child.workerId} turns={child.turns} />
               ) : (
-                <TurnTree key={`dt-${child.turns[0]?.timestamp}`} turns={child.turns} />
+                <TurnTree key={`dt-${ci}-${child.turns[0]?.timestamp}`} turns={child.turns} />
               )
             )}
           </div>
@@ -676,7 +679,7 @@ export function GroupedConversation({ turns }: { turns: HypeshipConversationTurn
         group.type === "delegate" ? (
           <DelegateTaskGroup key={`d-${gi}`} turn={group.turns[0]} children={group.children ?? []} />
         ) : group.type === "worker" && group.workerId ? (
-          <WorkerGroup key={`w-${group.workerId}`} workerId={group.workerId} turns={group.turns} />
+          <WorkerGroup key={`w-${group.workerId}-${gi}`} workerId={group.workerId} turns={group.turns} />
         ) : (
           <TurnTree key={`m-${gi}`} turns={group.turns} />
         )

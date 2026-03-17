@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -222,9 +222,35 @@ export default function HypeshipAgentPane({
   const [tab, setTab] = useState<PaneTab>("chat");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [streamChunks, setStreamChunks] = useState<string[]>([]);
+  const [streamingText, setStreamingText] = useState("");
+  const streamBuf = useRef("");
+  const rafRef = useRef<number>(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const flushStream = useCallback(() => {
+    rafRef.current = 0;
+    setStreamingText(streamBuf.current);
+  }, []);
+
+  const appendStream = useCallback(
+    (text: string) => {
+      streamBuf.current += text;
+      if (!rafRef.current) {
+        rafRef.current = requestAnimationFrame(flushStream);
+      }
+    },
+    [flushStream],
+  );
+
+  const clearStream = useCallback(() => {
+    streamBuf.current = "";
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+    setStreamingText("");
+  }, []);
 
   // Auto-focus input when focused pane receives keyboard input (desktop only — on mobile this would pop up the keyboard)
   useEffect(() => {
@@ -265,54 +291,88 @@ export default function HypeshipAgentPane({
   const prevTurnCount = useRef(turns.length);
   useEffect(() => {
     if (tab !== "chat") return;
-    if (turns.length > prevTurnCount.current || streamChunks.length > 0) {
+    if (turns.length > prevTurnCount.current || streamingText) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
     prevTurnCount.current = turns.length;
-  }, [turns.length, streamChunks.length, tab]);
+  }, [turns.length, streamingText, tab]);
 
   useEffect(() => {
     if (status === "finished" || status === "error") {
-      setStreamChunks([]);
+      clearStream();
     }
-  }, [status]);
+  }, [status, clearStream]);
 
   useEffect(() => {
-    if (status === "finished" || status === "error") return;
+    if (status !== "running") return;
 
     const apiUrl = getHypeshipApiUrl();
     const jwt = getHypeshipJwt();
     if (!apiUrl || !jwt) return;
 
-    const evtSource = new EventSource(
-      `/api/hypeship/agents/${agentId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`,
-    );
+    let closed = false;
+    const abort = new AbortController();
+    const streamUrl = `/api/hypeship/agents/${agentId}/stream?jwt=${encodeURIComponent(jwt)}&url=${encodeURIComponent(apiUrl)}`;
 
-    evtSource.addEventListener("message", (e) => {
+    let idleTimer: ReturnType<typeof setTimeout>;
+    function resetIdle() {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        if (!closed) abort.abort();
+      }, 60_000);
+    }
+
+    async function connect() {
       try {
-        const ev = JSON.parse(e.data);
-        if (ev.type === "chunk" && ev.text) {
-          setStreamChunks((prev) => [...prev, ev.text]);
-        }
-        if (ev.type === "done" || ev.type === "stopped") {
-          setStreamChunks([]);
-          evtSource.close();
-        }
-      } catch {}
-    });
+        resetIdle();
+        const res = await fetch(streamUrl, {
+          headers: { Accept: "text/event-stream" },
+          signal: abort.signal,
+        });
+        if (!res.ok || !res.body) return;
 
-    evtSource.onerror = () => {
-      setStreamChunks([]);
-      evtSource.close();
-    };
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+
+        while (!closed) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          resetIdle();
+          buf += decoder.decode(value, { stream: true });
+
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const ev = JSON.parse(line.slice(6));
+              if (ev.type === "chunk" && ev.text) {
+                appendStream(ev.text);
+              }
+              if (ev.type === "done" || ev.type === "stopped") {
+                clearStream();
+                closed = true;
+                return;
+              }
+            } catch {}
+          }
+        }
+      } catch {
+        if (!closed) clearStream();
+      }
+    }
+
+    connect();
 
     return () => {
-      evtSource.close();
-      setStreamChunks([]);
+      closed = true;
+      clearTimeout(idleTimer);
+      abort.abort();
+      clearStream();
     };
-  }, [agentId, status]);
-
-  const streamingText = status === "finished" || status === "error" ? "" : streamChunks.join("");
+  }, [agentId, status, appendStream, clearStream]);
 
   async function handleSend() {
     const text = input.trim();
