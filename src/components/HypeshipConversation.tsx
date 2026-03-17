@@ -62,112 +62,82 @@ function isDelegateTaskCall(turn: HypeshipConversationTurn): boolean {
 }
 
 export function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup[] {
-  interface OrderedGroup {
-    idx: number;
-    group: TurnGroup;
+  // Build a map of delegate tool_use_id → worker groups (by parent_tool_use_id)
+  const delegateWorkers = new Map<string, TurnGroup[]>();
+
+  // Collect worker turns into segments split by resume markers
+  type WorkerSegment = { parentToolUseId: string; turns: HypeshipConversationTurn[] };
+  const segments: WorkerSegment[] = [];
+  let currentSeg: WorkerSegment | null = null;
+
+  for (const turn of turns) {
+    if (!turn.worker_id) {
+      currentSeg = null;
+      continue;
+    }
+    const isNewSegment = turn.status === "running" && !turn.tool_use_id;
+    if (isNewSegment || !currentSeg || currentSeg.turns[0]?.worker_id !== turn.worker_id) {
+      currentSeg = { parentToolUseId: turn.parent_tool_use_id || "", turns: [] };
+      segments.push(currentSeg);
+    }
+    currentSeg.turns.push(turn);
   }
-  const items: OrderedGroup[] = [];
-  const workerBuckets = new Map<string, HypeshipConversationTurn[]>();
-  const workerStartIdx = new Map<string, number>();
+
+  // Index segments by their parent_tool_use_id
+  for (const seg of segments) {
+    if (!seg.parentToolUseId) continue;
+    const list = delegateWorkers.get(seg.parentToolUseId) || [];
+    list.push({ type: "worker", workerId: seg.turns[0].worker_id!, turns: seg.turns });
+    delegateWorkers.set(seg.parentToolUseId, list);
+  }
+
+  // Track which segments were claimed by a delegate
+  const claimedSegments = new Set<WorkerSegment>();
+  for (const seg of segments) {
+    if (seg.parentToolUseId && delegateWorkers.has(seg.parentToolUseId)) {
+      claimedSegments.add(seg);
+    }
+  }
+
+  // Build the output: walk turns in order, emit messages/delegates/workers
+  const result: TurnGroup[] = [];
   let pendingMessages: HypeshipConversationTurn[] = [];
-  let pendingStart = -1;
+  const emittedWorkerSegments = new Set<WorkerSegment>();
 
-  function flushPending() {
+  function flushMessages() {
     if (pendingMessages.length > 0) {
-      items.push({ idx: pendingStart, group: { type: "message", turns: pendingMessages } });
+      result.push({ type: "message", turns: pendingMessages });
       pendingMessages = [];
-      pendingStart = -1;
     }
   }
 
-  function flushWorker(wid: string) {
-    const bucket = workerBuckets.get(wid);
-    if (bucket && bucket.length > 0) {
-      items.push({ idx: workerStartIdx.get(wid)!, group: { type: "worker", workerId: wid, turns: [...bucket] } });
-    }
-    workerBuckets.delete(wid);
-    workerStartIdx.delete(wid);
-  }
-
-  for (let i = 0; i < turns.length; i++) {
-    const turn = turns[i];
+  for (const turn of turns) {
     if (turn.worker_id) {
-      const wid = turn.worker_id;
-      const isResumed = turn.status === "running" && !turn.tool_use_id && workerBuckets.has(wid);
+      // Find this turn's segment
+      const seg = segments.find((s) => s.turns.includes(turn));
+      if (!seg || emittedWorkerSegments.has(seg)) continue;
+      emittedWorkerSegments.add(seg);
 
-      if (isResumed) {
-        flushPending();
-        flushWorker(wid);
-      }
+      if (claimedSegments.has(seg)) continue; // rendered under its delegate
 
-      if (!workerBuckets.has(wid)) {
-        flushPending();
-        workerBuckets.set(wid, []);
-        workerStartIdx.set(wid, i);
-      }
-      workerBuckets.get(wid)!.push(turn);
-    } else {
-      if (pendingStart < 0) pendingStart = i;
-      pendingMessages.push(turn);
-    }
-  }
-
-  for (const wid of [...workerBuckets.keys()]) {
-    flushWorker(wid);
-  }
-  flushPending();
-
-  items.sort((a, b) => a.idx - b.idx);
-  const groups = items.map((item) => item.group);
-
-  // Phase 2: merge delegate_task calls with their child workers.
-  // A message group may contain multiple delegate_tasks — split and handle each.
-  // Each delegate_task consumes the next consecutive run of worker groups.
-  const merged: TurnGroup[] = [];
-  for (let i = 0; i < groups.length; i++) {
-    const g = groups[i];
-
-    if (g.type !== "message") {
-      merged.push(g);
+      // Unclaimed worker (legacy data without parent_tool_use_id)
+      flushMessages();
+      result.push({ type: "worker", workerId: turn.worker_id, turns: seg.turns });
       continue;
     }
 
-    // Split this message group around delegate_task calls
-    let remaining = g.turns;
-    while (remaining.length > 0) {
-      const dIdx = remaining.findIndex(isDelegateTaskCall);
-      if (dIdx < 0) {
-        merged.push({ type: "message", turns: remaining });
-        break;
-      }
-
-      if (dIdx > 0) {
-        merged.push({ type: "message", turns: remaining.slice(0, dIdx) });
-      }
-
-      const delegateTurn = remaining[dIdx];
-      remaining = remaining.slice(dIdx + 1);
-
-      // Consume consecutive worker groups that follow this position in the outer array
-      const childWorkers: TurnGroup[] = [];
-      let j = i + 1;
-      while (j < groups.length && groups[j].type === "worker") {
-        childWorkers.push(groups[j]);
-        j++;
-      }
-
-      merged.push({
-        type: "delegate",
-        turns: [delegateTurn],
-        children: childWorkers,
-      });
-
-      // Advance past consumed workers
-      i = j - 1;
+    if (isDelegateTaskCall(turn)) {
+      flushMessages();
+      const children = delegateWorkers.get(turn.tool_use_id!) || [];
+      result.push({ type: "delegate", turns: [turn], children });
+      continue;
     }
+
+    pendingMessages.push(turn);
   }
 
-  return merged;
+  flushMessages();
+  return result;
 }
 
 function isSubAgentToolCall(turn: HypeshipConversationTurn): boolean {
