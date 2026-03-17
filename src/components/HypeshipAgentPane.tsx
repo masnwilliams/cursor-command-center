@@ -278,6 +278,8 @@ export default function HypeshipAgentPane({
   }, [status]);
 
   useEffect(() => {
+    if (status === "finished" || status === "error") return;
+
     const apiUrl = getHypeshipApiUrl();
     const jwt = getHypeshipJwt();
     if (!apiUrl || !jwt) return;
@@ -294,19 +296,21 @@ export default function HypeshipAgentPane({
         }
         if (ev.type === "done" || ev.type === "stopped") {
           setStreamChunks([]);
+          evtSource.close();
         }
       } catch {}
     });
 
     evtSource.onerror = () => {
       setStreamChunks([]);
+      evtSource.close();
     };
 
     return () => {
       evtSource.close();
       setStreamChunks([]);
     };
-  }, [agentId]);
+  }, [agentId, status]);
 
   const streamingText = status === "finished" || status === "error" ? "" : streamChunks.join("");
 
