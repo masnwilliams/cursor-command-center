@@ -806,7 +806,7 @@ export default function DashboardPage() {
           )}
 
           {/* Mobile: bottom tab bar */}
-          <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/80 backdrop-blur-sm safe-area-bottom">
+          <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/80 backdrop-blur-sm pb-1">
             <div className="flex items-stretch overflow-x-auto scrollbar-hide">
               {sorted.map((item) => {
                 const agent = agentMap.get(item.agentId);

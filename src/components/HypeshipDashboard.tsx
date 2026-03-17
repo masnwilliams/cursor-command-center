@@ -1855,7 +1855,7 @@ function DashboardListView({
   const showMobileDetail = isMobile && selectedId;
 
   return (
-    <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
+    <div className="h-full bg-zinc-950 flex flex-col overflow-hidden">
       {/* Top bar — hidden on mobile when detail is open */}
       {!showMobileDetail && (
         <div className="border-b border-zinc-800 bg-zinc-900/60 shrink-0">
@@ -2490,7 +2490,7 @@ function PanesView({
   }
 
   return (
-    <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
+    <div className="h-full bg-zinc-950 flex flex-col overflow-hidden">
       {/* Top bar */}
       <div className={`flex items-center justify-between border-b border-zinc-800 px-3 bg-zinc-900/60 shrink-0 ${isMobile ? "py-2" : "py-0.5"}`}>
         <div className="flex items-center gap-3 min-w-0">
@@ -2581,7 +2581,7 @@ function PanesView({
           </div>
 
           {/* Mobile: bottom tab bar */}
-          <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/80 backdrop-blur-sm safe-area-bottom">
+          <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/80 backdrop-blur-sm pb-1">
             <div className="flex items-stretch overflow-x-auto scrollbar-hide">
               {sorted.map((item) => {
                 const agent = agentMap.get(item.agentId);
