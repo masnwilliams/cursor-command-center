@@ -93,7 +93,7 @@ export function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup
     const turn = turns[i];
     if (turn.worker_id) {
       const wid = turn.worker_id;
-      const isResumed = turn.status === "running" && workerBuckets.has(wid);
+      const isResumed = turn.status === "running" && !turn.tool_use_id && workerBuckets.has(wid);
 
       if (isResumed) {
         flushPending();
