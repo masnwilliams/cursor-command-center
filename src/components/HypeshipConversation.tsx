@@ -311,7 +311,7 @@ export function ConversationBubble({ turn }: { turn: HypeshipConversationTurn })
       : "text-emerald-400";
 
   return (
-    <div className={`px-3 py-2 min-w-0 ${isUser ? "bg-zinc-900/30" : ""}`}>
+    <div className={`px-3 py-2 min-w-0 overflow-hidden ${isUser ? "bg-zinc-900/30" : ""}`}>
       <div className="flex items-center gap-2 mb-1">
         <span className={`text-[10px] font-mono ${color}`}>{prefix}</span>
         <span className="text-[10px] text-zinc-500 font-mono">{label}</span>
