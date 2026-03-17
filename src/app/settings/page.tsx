@@ -1,11 +1,12 @@
 "use client";
 
+import PageShell from "@/components/PageShell";
 import SettingsView from "@/components/SettingsView";
 
 export default function SettingsPage() {
   return (
-    <div className="h-full bg-zinc-950">
+    <PageShell env="production" activeTab="settings">
       <SettingsView />
-    </div>
+    </PageShell>
   );
 }
