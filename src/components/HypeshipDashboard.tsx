@@ -682,7 +682,7 @@ function AgentConversationPanel({
                     <span className="text-[10px] text-zinc-500 font-mono">orchestrator</span>
                     <span className="text-[10px] text-zinc-700 font-mono ml-auto animate-pulse">streaming...</span>
                   </div>
-                  <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words">
+                  <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words [overflow-wrap:anywhere] overflow-hidden">
                     {streamingText}
                   </div>
                 </div>
@@ -881,7 +881,7 @@ function NewChatPanel({
         )}
         <div className="divide-y divide-zinc-800/30">
           {messages.map((msg, i) => (
-            <div key={i} className={`px-3 py-2 ${msg.role === "user" ? "bg-zinc-900/30" : ""}`}>
+            <div key={i} className={`px-3 py-2 min-w-0 ${msg.role === "user" ? "bg-zinc-900/30" : ""}`}>
               <div className="flex items-center gap-2 mb-1">
                 <span className={`text-[10px] font-mono ${msg.role === "user" ? "text-blue-400" : "text-emerald-400"}`}>
                   {msg.role === "user" ? ">" : "$"}
@@ -891,7 +891,7 @@ function NewChatPanel({
                   {timeAgo(msg.timestamp)}
                 </span>
               </div>
-              <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none">
+              <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words [overflow-wrap:anywhere] prose prose-invert prose-xs max-w-none overflow-hidden">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
               </div>
             </div>
@@ -903,7 +903,7 @@ function NewChatPanel({
                 <span className="text-[10px] text-zinc-500 font-mono">assistant</span>
                 <span className="text-[10px] text-zinc-700 font-mono ml-auto animate-pulse">streaming...</span>
               </div>
-              <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words">
+              <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words [overflow-wrap:anywhere] overflow-hidden">
                 {streamingText}
               </div>
             </div>
