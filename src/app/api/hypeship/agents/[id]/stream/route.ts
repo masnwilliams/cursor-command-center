@@ -24,6 +24,7 @@ export async function GET(
         Authorization: `Bearer ${jwt}`,
         Accept: "text/event-stream",
       },
+      signal: req.signal,
     });
 
     if (!res.ok || !res.body) {
@@ -41,6 +42,9 @@ export async function GET(
       },
     });
   } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      return new Response(null, { status: 499 });
+    }
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "SSE proxy failed" }),
       { status: 502, headers: { "Content-Type": "application/json" } },

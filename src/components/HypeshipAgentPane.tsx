@@ -17,13 +17,14 @@ import {
   GroupedConversation,
   ArtifactsBar,
   timeAgo,
+  groupTurnsByWorker,
 } from "@/components/HypeshipConversation";
 import type {
   HypeshipAgentStatus,
   HypeshipArtifact,
 } from "@/lib/types";
 
-type PaneTab = "chat" | "shell" | "desktop";
+type PaneTab = "chat" | "shell" | "desktop" | "raw";
 
 const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
   creating: "bg-amber-400",
@@ -205,6 +206,22 @@ export default function HypeshipAgentPane({
   const status: HypeshipAgentStatus =
     (agent as any)?.status ?? "creating";
 
+  useEffect(() => {
+    if (turns.length === 0) return;
+    const compact = turns.map((t, i) => ({
+      i,
+      role: t.role,
+      source: t.source,
+      worker_id: t.worker_id,
+      status: t.status,
+      tool_use_id: t.tool_use_id,
+      parent_tool_use_id: t.parent_tool_use_id,
+      content: t.content?.slice(0, 80),
+    }));
+    console.log(`[hypeship-debug] ${agentId} raw turns (${turns.length}):`, compact);
+    console.log(`[hypeship-debug] ${agentId} grouped:`, groupTurnsByWorker(turns));
+  }, [turns.length, agentId]);
+
   const [tab, setTab] = useState<PaneTab>("chat");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -271,6 +288,8 @@ export default function HypeshipAgentPane({
   }, [status]);
 
   useEffect(() => {
+    if (status === "finished" || status === "error") return;
+
     const apiUrl = getHypeshipApiUrl();
     const jwt = getHypeshipJwt();
     if (!apiUrl || !jwt) return;
@@ -287,19 +306,21 @@ export default function HypeshipAgentPane({
         }
         if (ev.type === "done" || ev.type === "stopped") {
           setStreamChunks([]);
+          evtSource.close();
         }
       } catch {}
     });
 
     evtSource.onerror = () => {
       setStreamChunks([]);
+      evtSource.close();
     };
 
     return () => {
       evtSource.close();
       setStreamChunks([]);
     };
-  }, [agentId]);
+  }, [agentId, status]);
 
   const streamingText = status === "finished" || status === "error" ? "" : streamChunks.join("");
 
@@ -368,7 +389,7 @@ export default function HypeshipAgentPane({
             )}
           </div>
         <div className={`flex items-center ${isMobile ? "gap-1" : "gap-0.5"} shrink-0`}>
-          {(["chat", "shell", "desktop"] as const).map((t) => {
+          {(["chat", "shell", "desktop", "raw"] as const).map((t) => {
             if (t === "shell" && !hasShell) return null;
             if (t === "desktop" && !hasDesktop) return null;
             return (
@@ -483,6 +504,16 @@ export default function HypeshipAgentPane({
 
             <div className="shrink-0 border-t border-zinc-800">
               <ArtifactsBar artifacts={agent?.artifacts} />
+              {(agent?.queued_followups?.length ?? 0) > 0 && (
+                <div className="px-3 py-1.5 border-b border-zinc-800/50">
+                  {agent!.queued_followups!.map((q) => (
+                    <div key={q.id} className="flex items-start gap-2 py-0.5 opacity-50">
+                      <span className="text-[10px] font-mono text-blue-400/70">&gt;</span>
+                      <span className="text-[10px] text-zinc-500 font-mono truncate">{q.message}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className={`shrink-0 border-t border-zinc-800 flex gap-1.5 items-end ${isMobile ? "px-3 py-2" : "px-2 py-1.5"}`}>
               <div className="relative flex-1">
@@ -537,6 +568,34 @@ export default function HypeshipAgentPane({
           ) : (
             <NoConnectionView label="desktop" />
           ))}
+
+        {tab === "raw" && (
+          <div className="h-full overflow-y-auto p-2">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] text-zinc-500 font-mono">{turns.length} turns</span>
+              <button
+                onClick={() => navigator.clipboard.writeText(JSON.stringify(turns, null, 2))}
+                className="text-[9px] text-zinc-600 hover:text-zinc-400 font-mono border border-zinc-800 px-1.5 py-0.5"
+              >
+                copy json
+              </button>
+            </div>
+            <pre className="text-[9px] text-zinc-400 font-mono whitespace-pre-wrap break-all">
+              {JSON.stringify(turns.map((t, i) => ({
+                _i: i,
+                role: t.role,
+                source: t.source,
+                worker_id: t.worker_id,
+                status: t.status,
+                tool_use_id: t.tool_use_id,
+                parent_tool_use_id: t.parent_tool_use_id,
+                content: t.content?.slice(0, 120) + (t.content && t.content.length > 120 ? "..." : ""),
+                detail: t.detail ? "..." : undefined,
+                timestamp: t.timestamp,
+              })), null, 2)}
+            </pre>
+          </div>
+        )}
       </div>
     </div>
   );
