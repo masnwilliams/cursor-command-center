@@ -881,7 +881,7 @@ function NewChatPanel({
         )}
         <div className="divide-y divide-zinc-800/30">
           {messages.map((msg, i) => (
-            <div key={i} className={`px-3 py-2 ${msg.role === "user" ? "bg-zinc-900/30" : ""}`}>
+            <div key={i} className={`px-3 py-2 overflow-hidden ${msg.role === "user" ? "bg-zinc-900/30" : ""}`}>
               <div className="flex items-center gap-2 mb-1">
                 <span className={`text-[10px] font-mono ${msg.role === "user" ? "text-blue-400" : "text-emerald-400"}`}>
                   {msg.role === "user" ? ">" : "$"}
@@ -891,7 +891,7 @@ function NewChatPanel({
                   {timeAgo(msg.timestamp)}
                 </span>
               </div>
-              <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none">
+              <div className="ml-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap break-words prose prose-invert prose-xs max-w-none [overflow-wrap:anywhere]">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
               </div>
             </div>
@@ -1120,7 +1120,7 @@ function WorkerInfoTab({ worker }: { worker: HypeshipWorker }) {
 
       <div className="space-y-1">
         <span className="text-zinc-600">prompt</span>
-        <div className="text-zinc-300 bg-zinc-900/60 border border-zinc-800 p-2 whitespace-pre-wrap text-[10px]">
+        <div className="text-zinc-300 bg-zinc-900/60 border border-zinc-800 p-2 whitespace-pre-wrap break-words text-[10px]">
           {worker.initial_prompt}
         </div>
       </div>
@@ -1128,7 +1128,7 @@ function WorkerInfoTab({ worker }: { worker: HypeshipWorker }) {
       {worker.summary && (
         <div className="space-y-1">
           <span className="text-zinc-600">summary</span>
-          <div className="text-zinc-300 bg-zinc-900/60 border border-zinc-800 p-2 whitespace-pre-wrap text-[10px]">
+          <div className="text-zinc-300 bg-zinc-900/60 border border-zinc-800 p-2 whitespace-pre-wrap break-words text-[10px]">
             {worker.summary}
           </div>
         </div>
@@ -1137,7 +1137,7 @@ function WorkerInfoTab({ worker }: { worker: HypeshipWorker }) {
       {worker.last_error && (
         <div className="space-y-1">
           <span className="text-red-400">error</span>
-          <div className="text-red-300 bg-red-900/10 border border-red-900/30 p-2 whitespace-pre-wrap text-[10px]">
+          <div className="text-red-300 bg-red-900/10 border border-red-900/30 p-2 whitespace-pre-wrap break-words text-[10px]">
             {worker.last_error}
           </div>
         </div>
