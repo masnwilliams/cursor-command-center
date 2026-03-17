@@ -14,6 +14,7 @@ import {
   GroupedConversation,
   ArtifactsBar,
   timeAgo,
+  groupTurnsByWorker,
 } from "@/components/HypeshipConversation";
 import { ImageAttachments } from "@/components/ImageAttachments";
 import type { ImageAttachment } from "@/lib/images";
@@ -23,7 +24,7 @@ import type {
   HypeshipArtifact,
 } from "@/lib/types";
 
-type PaneTab = "chat" | "shell" | "desktop";
+type PaneTab = "chat" | "shell" | "desktop" | "raw";
 
 const MAX_IMAGES = 5;
 
@@ -206,6 +207,22 @@ export default function HypeshipAgentPane({
   const turns = agent?.messages ?? [];
   const status: HypeshipAgentStatus =
     (agent as any)?.status ?? "creating";
+
+  useEffect(() => {
+    if (turns.length === 0) return;
+    const compact = turns.map((t, i) => ({
+      i,
+      role: t.role,
+      source: t.source,
+      worker_id: t.worker_id,
+      status: t.status,
+      tool_use_id: t.tool_use_id,
+      parent_tool_use_id: t.parent_tool_use_id,
+      content: t.content?.slice(0, 80),
+    }));
+    console.log(`[hypeship-debug] ${agentId} raw turns (${turns.length}):`, compact);
+    console.log(`[hypeship-debug] ${agentId} grouped:`, groupTurnsByWorker(turns));
+  }, [turns.length, agentId]);
 
   const [tab, setTab] = useState<PaneTab>("chat");
   const [input, setInput] = useState("");
@@ -457,7 +474,7 @@ export default function HypeshipAgentPane({
             )}
           </div>
         <div className={`flex items-center ${isMobile ? "gap-1" : "gap-0.5"} shrink-0`}>
-          {(["chat", "shell", "desktop"] as const).map((t) => {
+          {(["chat", "shell", "desktop", "raw"] as const).map((t) => {
             if (t === "shell" && !hasShell) return null;
             if (t === "desktop" && !hasDesktop) return null;
             return (
@@ -686,6 +703,34 @@ export default function HypeshipAgentPane({
           ) : (
             <NoConnectionView label="desktop" />
           ))}
+
+        {tab === "raw" && (
+          <div className="h-full overflow-y-auto p-2">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] text-zinc-500 font-mono">{turns.length} turns</span>
+              <button
+                onClick={() => navigator.clipboard.writeText(JSON.stringify(turns, null, 2))}
+                className="text-[9px] text-zinc-600 hover:text-zinc-400 font-mono border border-zinc-800 px-1.5 py-0.5"
+              >
+                copy json
+              </button>
+            </div>
+            <pre className="text-[9px] text-zinc-400 font-mono whitespace-pre-wrap break-all">
+              {JSON.stringify(turns.map((t, i) => ({
+                _i: i,
+                role: t.role,
+                source: t.source,
+                worker_id: t.worker_id,
+                status: t.status,
+                tool_use_id: t.tool_use_id,
+                parent_tool_use_id: t.parent_tool_use_id,
+                content: t.content?.slice(0, 120) + (t.content && t.content.length > 120 ? "..." : ""),
+                detail: t.detail ? "..." : undefined,
+                timestamp: t.timestamp,
+              })), null, 2)}
+            </pre>
+          </div>
+        )}
       </div>
     </div>
   );

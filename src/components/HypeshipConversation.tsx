@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -63,81 +63,109 @@ function isDelegateTaskCall(turn: HypeshipConversationTurn): boolean {
 }
 
 export function groupTurnsByWorker(turns: HypeshipConversationTurn[]): TurnGroup[] {
-  const groups: TurnGroup[] = [];
-  let pending: HypeshipConversationTurn[] = [];
-  const activeWorker = new Map<string, HypeshipConversationTurn[]>();
+  interface OrderedGroup {
+    idx: number;
+    group: TurnGroup;
+  }
+  const items: OrderedGroup[] = [];
+  const workerBuckets = new Map<string, HypeshipConversationTurn[]>();
+  const workerStartIdx = new Map<string, number>();
+  let pendingMessages: HypeshipConversationTurn[] = [];
+  let pendingStart = -1;
 
-  function flushWorker(workerId: string) {
-    const bucket = activeWorker.get(workerId);
-    if (bucket && bucket.length > 0) {
-      groups.push({ type: "worker", workerId, turns: [...bucket] });
+  function flushPending() {
+    if (pendingMessages.length > 0) {
+      items.push({ idx: pendingStart, group: { type: "message", turns: pendingMessages } });
+      pendingMessages = [];
+      pendingStart = -1;
     }
-    activeWorker.delete(workerId);
   }
 
-  for (const turn of turns) {
+  function flushWorker(wid: string) {
+    const bucket = workerBuckets.get(wid);
+    if (bucket && bucket.length > 0) {
+      items.push({ idx: workerStartIdx.get(wid)!, group: { type: "worker", workerId: wid, turns: [...bucket] } });
+    }
+    workerBuckets.delete(wid);
+    workerStartIdx.delete(wid);
+  }
+
+  for (let i = 0; i < turns.length; i++) {
+    const turn = turns[i];
     if (turn.worker_id) {
       const wid = turn.worker_id;
-      const isResumed = turn.status === "running" && activeWorker.has(wid);
+      const isResumed = turn.status === "running" && workerBuckets.has(wid);
 
       if (isResumed) {
+        flushPending();
         flushWorker(wid);
       }
 
-      if (!activeWorker.has(wid)) {
-        if (pending.length > 0) {
-          groups.push({ type: "message", turns: pending });
-          pending = [];
-        }
-        activeWorker.set(wid, []);
+      if (!workerBuckets.has(wid)) {
+        flushPending();
+        workerBuckets.set(wid, []);
+        workerStartIdx.set(wid, i);
       }
-      activeWorker.get(wid)!.push(turn);
+      workerBuckets.get(wid)!.push(turn);
     } else {
-      for (const wid of activeWorker.keys()) {
-        flushWorker(wid);
-      }
-      pending.push(turn);
+      if (pendingStart < 0) pendingStart = i;
+      pendingMessages.push(turn);
     }
   }
-  for (const wid of activeWorker.keys()) {
+
+  for (const wid of [...workerBuckets.keys()]) {
     flushWorker(wid);
   }
-  if (pending.length > 0) groups.push({ type: "message", turns: pending });
+  flushPending();
 
+  items.sort((a, b) => a.idx - b.idx);
+  const groups = items.map((item) => item.group);
+
+  // Phase 2: merge delegate_task calls with their child workers.
+  // A message group may contain multiple delegate_tasks — split and handle each.
+  // Each delegate_task consumes the next consecutive run of worker groups.
   const merged: TurnGroup[] = [];
   for (let i = 0; i < groups.length; i++) {
     const g = groups[i];
 
-    if (g.type === "message") {
-      const delegateIdx = g.turns.findIndex(isDelegateTaskCall);
-      if (delegateIdx >= 0) {
-        const before = g.turns.slice(0, delegateIdx);
-        const delegateTurn = g.turns[delegateIdx];
-        const after = g.turns.slice(delegateIdx + 1);
-
-        if (before.length > 0) merged.push({ type: "message", turns: before });
-
-        const childWorkers: TurnGroup[] = [];
-        let j = i + 1;
-        while (j < groups.length && groups[j].type === "worker") {
-          childWorkers.push(groups[j]);
-          j++;
-        }
-
-        merged.push({
-          type: "delegate",
-          turns: [delegateTurn],
-          children: childWorkers,
-        });
-
-        if (after.length > 0) merged.push({ type: "message", turns: after });
-
-        i = j - 1;
-        continue;
-      }
+    if (g.type !== "message") {
+      merged.push(g);
+      continue;
     }
 
-    merged.push(g);
+    // Split this message group around delegate_task calls
+    let remaining = g.turns;
+    while (remaining.length > 0) {
+      const dIdx = remaining.findIndex(isDelegateTaskCall);
+      if (dIdx < 0) {
+        merged.push({ type: "message", turns: remaining });
+        break;
+      }
+
+      if (dIdx > 0) {
+        merged.push({ type: "message", turns: remaining.slice(0, dIdx) });
+      }
+
+      const delegateTurn = remaining[dIdx];
+      remaining = remaining.slice(dIdx + 1);
+
+      // Consume consecutive worker groups that follow this position in the outer array
+      const childWorkers: TurnGroup[] = [];
+      let j = i + 1;
+      while (j < groups.length && groups[j].type === "worker") {
+        childWorkers.push(groups[j]);
+        j++;
+      }
+
+      merged.push({
+        type: "delegate",
+        turns: [delegateTurn],
+        children: childWorkers,
+      });
+
+      // Advance past consumed workers
+      i = j - 1;
+    }
   }
 
   return merged;
@@ -218,7 +246,7 @@ function ToolIndicatorBubble({ turn }: { turn: HypeshipConversationTurn }) {
           )}
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
-        <span className="text-[10px] text-emerald-400 font-mono">⚡ {turn.content}</span>
+        <span className="text-[10px] text-emerald-400 font-mono">⚡ {turn.content?.replace(/^mcp__\w+__/, "")}</span>
         {toolDetail && <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[300px]">{toolDetail}</span>}
         <span className="text-[10px] text-zinc-600 font-mono">{statusLabel}</span>
         {turn.timestamp && (
@@ -344,20 +372,79 @@ export function ConversationBubble({ turn }: { turn: HypeshipConversationTurn })
 
 // ── Group Components ──
 
-export function TurnTree({ turns }: { turns: HypeshipConversationTurn[] }) {
+function ToolBatchGroup({ turns }: { turns: HypeshipConversationTurn[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const allDone = turns.every((t) => t.status === "complete");
+  const anyRunning = turns.some((t) => t.status === "running");
+  const anyError = turns.some((t) => t.status === "error");
+  const count = turns.length;
+
+  const dotColor = anyError ? "bg-red-400" : allDone ? "bg-emerald-400" : "bg-blue-400";
+  const statusLabel = anyError ? "error" : allDone ? "done" : "working...";
+
   return (
-    <>
-      {groupTurnsBySubAgent(turns).map((sg, si) =>
-        sg.type === "subagent" ? (
-          <SubAgentGroup key={`sa-${si}`} turns={sg.turns} />
-        ) : (
-          sg.turns.map((turn, ti) => (
-            <ConversationBubble key={`t-${si}-${ti}`} turn={turn} />
-          ))
-        )
+    <div className="px-3 py-1">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left flex items-center gap-2 hover:bg-zinc-900/30 transition-colors rounded px-1 py-0.5 -mx-1"
+      >
+        <span className="relative flex h-2 w-2 shrink-0">
+          {anyRunning && (
+            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotColor}`} />
+          )}
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
+        </span>
+        <span className="text-[10px] text-zinc-500 font-mono">
+          {count} tool call{count !== 1 ? "s" : ""}
+        </span>
+        <span className="text-[10px] text-zinc-600 font-mono">{statusLabel}</span>
+        <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
+      </button>
+      {expanded && (
+        <div className="ml-1 mt-0.5">
+          {turns.map((turn, i) => (
+            <ToolIndicatorBubble key={`tb-${i}`} turn={turn} />
+          ))}
+        </div>
       )}
-    </>
+    </div>
   );
+}
+
+export function TurnTree({ turns }: { turns: HypeshipConversationTurn[] }) {
+  const saGroups = groupTurnsBySubAgent(turns);
+  const rendered: React.ReactNode[] = [];
+  let toolBatch: HypeshipConversationTurn[] = [];
+  let batchKey = 0;
+
+  function flushToolBatch() {
+    if (toolBatch.length > 1) {
+      rendered.push(<ToolBatchGroup key={`batch-${batchKey++}`} turns={[...toolBatch]} />);
+    } else if (toolBatch.length === 1) {
+      rendered.push(<ConversationBubble key={`batch-${batchKey++}`} turn={toolBatch[0]} />);
+    }
+    toolBatch = [];
+  }
+
+  for (const sg of saGroups) {
+    if (sg.type === "subagent") {
+      flushToolBatch();
+      rendered.push(<SubAgentGroup key={`sa-${batchKey++}`} turns={sg.turns} />);
+    } else {
+      for (const turn of sg.turns) {
+        const isTool = turn.source === "orchestrator:tool" || !!turn.tool_use_id;
+        if (isTool && !isDelegateTaskCall(turn)) {
+          toolBatch.push(turn);
+        } else {
+          flushToolBatch();
+          rendered.push(<ConversationBubble key={`t-${batchKey++}`} turn={turn} />);
+        }
+      }
+    }
+  }
+  flushToolBatch();
+
+  return <>{rendered}</>;
 }
 
 function SubAgentGroup({ turns }: { turns: HypeshipConversationTurn[] }) {
@@ -446,9 +533,13 @@ export function WorkerGroup({ workerId, turns }: { workerId: string; turns: Hype
   const status = statusTurn?.status;
   const isFinished = status === "complete";
   const shortId = workerId.slice(0, 12);
-  const stepCount = turns.length;
   const summary = statusTurn?.content;
   const visibleTurns = turns.filter((turn) => turn !== statusTurn || !!turn.content?.trim());
+  const stepCount = visibleTurns.length;
+
+  // Skip rendering ghost workers that have no meaningful content
+  const hasContent = visibleTurns.some((t) => t.content?.trim());
+  if (!hasContent && !summary) return null;
 
   const isError = status === "error";
   const dotColor = isFinished ? "bg-emerald-400" : isError ? "bg-red-400" : "bg-blue-400";
@@ -472,10 +563,13 @@ export function WorkerGroup({ workerId, turns }: { workerId: string; turns: Hype
           )}
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
-        <span className={`text-[10px] ${labelColor} font-mono`}>worker {shortId}</span>
-        <span className="text-[10px] text-zinc-600 font-mono">
+        <span className={`text-[10px] ${labelColor} font-mono shrink-0`}>worker {shortId}</span>
+        {summary && !expanded && (
+          <span className="text-[10px] text-zinc-400 font-mono truncate">{truncatePreview(summary, 50)}</span>
+        )}
+        <span className="text-[10px] text-zinc-600 font-mono shrink-0">
           {stepCount > 0
-            ? `${stepCount} steps${isFinished || isError ? "" : "..."}`
+            ? `${stepCount} step${stepCount === 1 ? "" : "s"}${isFinished || isError ? "" : "..."}`
             : isFinished
               ? "done"
               : isError
@@ -483,11 +577,11 @@ export function WorkerGroup({ workerId, turns }: { workerId: string; turns: Hype
                 : "working..."}
         </span>
         {placeholderTurn?.timestamp && (
-          <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(placeholderTurn.timestamp)}</span>
+          <span className="text-[10px] text-zinc-700 font-mono shrink-0">{timeAgo(placeholderTurn.timestamp)}</span>
         )}
-        <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
+        <span className="text-[10px] text-zinc-700 font-mono ml-auto shrink-0">{expanded ? "▼" : "▶"}</span>
       </button>
-      {!expanded && lastActivity && !isFinished && (
+      {!expanded && !summary && lastActivity && !isFinished && (
         <div className="px-3 pb-1.5 -mt-0.5">
           <p className={`text-[10px] text-zinc-500 font-mono truncate ml-4 ${!isFinished && !isError ? "animate-pulse" : ""}`}>
             {lastActivity}
@@ -543,13 +637,13 @@ export function DelegateTaskGroup({ turn, children }: { turn: HypeshipConversati
           )}
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
         </span>
-        <span className={`text-[10px] ${labelColor} font-mono`}>⚡ {turn.content}</span>
-        {toolDetail && <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[300px]">{toolDetail}</span>}
-        <span className="text-[10px] text-zinc-600 font-mono">{statusLabel}</span>
+        <span className={`text-[10px] ${labelColor} font-mono shrink-0`}>⚡ delegate_task</span>
+        {toolDetail && <span className="text-[10px] text-zinc-400 font-mono truncate">{toolDetail}</span>}
+        <span className="text-[10px] text-zinc-600 font-mono shrink-0">{statusLabel}</span>
         {turn.timestamp && (
-          <span className="text-[10px] text-zinc-700 font-mono">{timeAgo(turn.timestamp)}</span>
+          <span className="text-[10px] text-zinc-700 font-mono shrink-0">{timeAgo(turn.timestamp)}</span>
         )}
-        <span className="text-[10px] text-zinc-700 font-mono ml-auto">{expanded ? "▼" : "▶"}</span>
+        <span className="text-[10px] text-zinc-700 font-mono ml-auto shrink-0">{expanded ? "▼" : "▶"}</span>
       </button>
       {expanded && (
         children.length > 0 ? (
