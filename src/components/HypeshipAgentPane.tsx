@@ -290,12 +290,18 @@ export default function HypeshipAgentPane({
 
   const prevTurnCount = useRef(turns.length);
   useEffect(() => {
-    if (tab !== "chat") return;
-    if (turns.length > prevTurnCount.current || streamingText) {
+    const grew = turns.length > prevTurnCount.current;
+    if (tab === "chat" && (grew || streamingText)) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
+    // Clear streaming buffer when new turns arrive from polling so that
+    // worker output isn't shown both inside the WorkerGroup AND as raw
+    // streaming text below it.
+    if (grew) {
+      clearStream();
+    }
     prevTurnCount.current = turns.length;
-  }, [turns.length, streamingText, tab]);
+  }, [turns.length, streamingText, tab, clearStream]);
 
   useEffect(() => {
     if (status === "finished" || status === "error") {

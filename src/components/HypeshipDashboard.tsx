@@ -540,6 +540,17 @@ function AgentConversationPanel({
     }
   }, [agentStatus]);
 
+  // Clear streaming buffer when new turns arrive from polling so that
+  // worker output isn't shown both inside the WorkerGroup AND as raw
+  // streaming text below it.
+  const prevTurnLen = useRef(turns.length);
+  useEffect(() => {
+    if (turns.length > prevTurnLen.current) {
+      setStreamChunks([]);
+    }
+    prevTurnLen.current = turns.length;
+  }, [turns.length]);
+
   // SSE streaming for real-time updates
   useEffect(() => {
     const apiUrl = getHypeshipApiUrl();
@@ -635,12 +646,14 @@ function AgentConversationPanel({
               </button>
             );
           })}
-          <button
-            onClick={async () => { try { await stopHypeshipAgent(agentId); } catch {} }}
-            className={`text-zinc-600 hover:text-red-400 font-mono border border-zinc-800 hover:border-red-900/50 transition-colors ml-1 ${isMobile ? "text-[11px] px-2 py-1" : "text-[10px] px-2 py-0.5"}`}
-          >
-            stop
-          </button>
+          {(agentStatus === "creating" || agentStatus === "running") && (
+            <button
+              onClick={async (e) => { e.stopPropagation(); try { await stopHypeshipAgent(agentId); } catch {} }}
+              className={`text-zinc-600 hover:text-red-400 font-mono border border-zinc-800 hover:border-red-900/50 transition-colors ml-1 ${isMobile ? "text-[11px] px-2 py-1" : "text-[10px] px-2 py-0.5"}`}
+            >
+              stop
+            </button>
+          )}
           {!isMobile && (
             <button
               onClick={onClose}
