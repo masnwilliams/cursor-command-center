@@ -12,6 +12,8 @@ import {
   replaceInGrid,
   getSoundEnabled,
   setSoundEnabled,
+  getHypeshipApiUrl,
+  getHypeshipJwt,
 } from "@/lib/storage";
 import {
   playCompletionSound,
@@ -712,7 +714,9 @@ export default function DashboardPage() {
           {filteredPrs.length === 0 && pendingReviewPrs.length === 0 && (
             <div className="px-3 py-4 text-center">
               <span className="text-[10px] text-zinc-600 font-mono">
-                no pending review requests
+                {!getHypeshipApiUrl() || !getHypeshipJwt()
+                  ? "configure hypeship and link your github account to see review requests"
+                  : "no pending review requests"}
               </span>
             </div>
           )}

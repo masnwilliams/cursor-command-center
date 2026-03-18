@@ -164,11 +164,29 @@ export function useBranches(repoUrl: string | null) {
   return { ...result, data };
 }
 
-// PR review requests (polls every 60s)
+// PR review requests via Hypeship proxy (polls every 60s)
 export function useReviewRequests() {
+  const url = getHypeshipApiUrl();
+  const jwt = getHypeshipJwt();
   return useSWR<ReviewRequestsResponse>(
-    "/api/review-requests",
-    fetcher<ReviewRequestsResponse>,
+    url && jwt ? "/api/hypeship/review-requests" : null,
+    async (key: string) => {
+      const res = await fetch(key, { headers: hypeshipHeaders() });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status}: ${text}`);
+      }
+      const data = await res.json();
+      return {
+        prs: (data.prs ?? []).map(
+          (pr: Record<string, unknown>) => ({
+            ...pr,
+            updatedAt: pr.updatedAt ?? pr.updated_at,
+          }),
+        ),
+        total: data.total ?? 0,
+      } as ReviewRequestsResponse;
+    },
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
 }
