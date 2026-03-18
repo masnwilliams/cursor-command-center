@@ -203,9 +203,11 @@ export default function HypeshipAgentPane({
   const hasDesktop = !!worker?.desktop_url;
 
   const artifacts: HypeshipArtifact[] = agent?.artifacts ?? [];
-  const prArtifact = artifacts.find((a) => a.type === "pull_request" && a.pr_url);
+  const prArtifacts = artifacts.filter((a) => a.type === "pull_request" && a.pr_url);
+  const prArtifact = prArtifacts[0];
   const branchArtifact = artifacts.find((a) => a.branch);
   const prUrl = prArtifact?.pr_url;
+  const prUrls = prArtifacts.map((a) => a.pr_url!);
   const branchName = branchArtifact?.branch;
   const repoName = (prArtifact?.repo || branchArtifact?.repo || "")
     .replace(/^https?:\/\/github\.com\//, "");
@@ -213,8 +215,8 @@ export default function HypeshipAgentPane({
   useEffect(() => {
     if (tab === "shell" && !hasShell) setTab("chat");
     if (tab === "desktop" && !hasDesktop) setTab("chat");
-    if (tab === "diff" && !prUrl) setTab("chat");
-  }, [tab, hasShell, hasDesktop, prUrl]);
+    if (tab === "diff" && prUrls.length === 0) setTab("chat");
+  }, [tab, hasShell, hasDesktop, prUrls.length]);
 
   const prevTurnCount = useRef(turns.length);
   useEffect(() => {
@@ -362,7 +364,7 @@ export default function HypeshipAgentPane({
           {(["chat", "shell", "desktop", "diff", "raw"] as const).map((t) => {
             if (t === "shell" && !hasShell) return null;
             if (t === "desktop" && !hasDesktop) return null;
-            if (t === "diff" && !prUrl) return null;
+            if (t === "diff" && prUrls.length === 0) return null;
             return (
               <button
                 key={t}
@@ -528,8 +530,8 @@ export default function HypeshipAgentPane({
             <NoConnectionView label="desktop" />
           ))}
 
-        {tab === "diff" && prUrl && (
-          <HypeshipDiffPanel prUrl={prUrl} />
+        {tab === "diff" && prUrls.length > 0 && (
+          <HypeshipDiffPanel prUrls={prUrls} />
         )}
 
         {tab === "raw" && (

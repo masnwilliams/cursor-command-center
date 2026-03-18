@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { usePrFiles } from "@/lib/api";
 import type { PrFile } from "@/lib/types";
 import { PatchDiff } from "@pierre/diffs/react";
+
+function parsePrLabel(url: string): string {
+  const m = url.match(/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)/);
+  if (m) return `${m[1]}#${m[2]}`;
+  return url;
+}
 
 const STATUS_LABEL: Record<string, string> = {
   added: "A",
@@ -123,13 +129,28 @@ function FileLine({
   );
 }
 
-export default function HypeshipDiffPanel({ prUrl }: { prUrl: string }) {
-  const { data, isLoading } = usePrFiles(prUrl);
+export default function HypeshipDiffPanel({ prUrls }: { prUrls: string[] }) {
+  const [activePrUrl, setActivePrUrl] = useState(() => prUrls[prUrls.length - 1]);
+
+  // Keep activePrUrl in sync if prUrls changes and current selection is gone
+  useEffect(() => {
+    if (!prUrls.includes(activePrUrl)) {
+      setActivePrUrl(prUrls[prUrls.length - 1]);
+    }
+  }, [prUrls, activePrUrl]);
+
+  const { data, isLoading } = usePrFiles(activePrUrl);
   const files = data?.files;
   const [openFiles, setOpenFiles] = useState<Set<string>>(new Set());
   const [selectedIdx, setSelectedIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<number, HTMLDivElement | null>>(new Map());
+
+  const prOptions = useMemo(
+    () => prUrls.map((url) => ({ url, label: parsePrLabel(url) })),
+    [prUrls],
+  );
+  const hasMultiplePrs = prOptions.length > 1;
 
   const fileCount = files?.length ?? 0;
 
@@ -190,10 +211,38 @@ export default function HypeshipDiffPanel({ prUrl }: { prUrl: string }) {
   const totalAdded = files?.reduce((s, f) => s + f.additions, 0) ?? 0;
   const totalRemoved = files?.reduce((s, f) => s + f.deletions, 0) ?? 0;
 
+  // Reset expanded files when switching PRs
+  const prevPrUrl = useRef(activePrUrl);
+  useEffect(() => {
+    if (prevPrUrl.current !== activePrUrl) {
+      setOpenFiles(new Set());
+      setSelectedIdx(0);
+      prevPrUrl.current = activePrUrl;
+    }
+  }, [activePrUrl]);
+
   return (
     <div ref={listRef} className="h-full overflow-y-auto">
+      {/* PR selector (only when multiple PRs) */}
+      {hasMultiplePrs && (
+        <div className="sticky top-0 z-20 bg-zinc-900 border-b border-zinc-800/60 px-3 py-1.5 flex items-center gap-2">
+          <span className="text-[10px] text-zinc-600 font-mono shrink-0">PR</span>
+          <select
+            value={activePrUrl}
+            onChange={(e) => setActivePrUrl(e.target.value)}
+            className="text-[10px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700 px-1.5 py-0.5 rounded min-w-0 truncate focus:outline-none focus:border-zinc-500"
+          >
+            {prOptions.map((opt) => (
+              <option key={opt.url} value={opt.url}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Summary header */}
-      <div className="sticky top-0 z-10 bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-800/60 px-3 py-1.5 flex items-center gap-3">
+      <div className={`sticky ${hasMultiplePrs ? "top-[29px]" : "top-0"} z-10 bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-800/60 px-3 py-1.5 flex items-center gap-3`}>
         <span className="text-[10px] text-zinc-400 font-mono">
           {fileCount} file{fileCount !== 1 ? "s" : ""} changed
         </span>
