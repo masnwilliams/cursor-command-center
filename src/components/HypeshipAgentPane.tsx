@@ -16,12 +16,14 @@ import {
   timeAgo,
   groupTurnsByWorker,
 } from "@/components/HypeshipConversation";
+import TerminalView from "@/components/TerminalView";
 import type {
   HypeshipAgentStatus,
   HypeshipArtifact,
 } from "@/lib/types";
+import HypeshipDiffPanel from "@/components/HypeshipDiffPanel";
 
-type PaneTab = "chat" | "shell" | "desktop" | "raw";
+type PaneTab = "chat" | "shell" | "desktop" | "raw" | "diff";
 
 const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
   creating: "bg-amber-400",
@@ -60,89 +62,6 @@ function buildDesktopUrl(rawUrl: string): string {
   } catch {
     return rawUrl;
   }
-}
-
-function TerminalView({ wsUrl }: { wsUrl: string }) {
-  const termRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!termRef.current || !wsUrl) return;
-
-    let cleanup: (() => void) | undefined;
-
-    (async () => {
-      const { Terminal } = await import("@xterm/xterm");
-      const { FitAddon } = await import("@xterm/addon-fit");
-
-      const terminal = new Terminal({
-        fontSize: 12,
-        fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
-        theme: {
-          background: "#09090b",
-          foreground: "#d4d4d8",
-          cursor: "#3b82f6",
-          selectionBackground: "#3b82f640",
-        },
-        cursorBlink: true,
-        scrollback: 5000,
-      });
-
-      const fitAddon = new FitAddon();
-      terminal.loadAddon(fitAddon);
-      terminal.open(termRef.current!);
-      fitAddon.fit();
-
-      const ws = new WebSocket(wsUrl);
-      ws.binaryType = "arraybuffer";
-
-      ws.onopen = () => {
-        terminal.writeln("\x1b[32m● Connected to shell\x1b[0m\r\n");
-        ws.send("cd /home/agent 2>/dev/null; clear\n");
-      };
-
-      ws.onmessage = (event) => {
-        if (event.data instanceof ArrayBuffer) {
-          terminal.write(new Uint8Array(event.data));
-        } else {
-          terminal.write(event.data);
-        }
-      };
-
-      ws.onclose = () => {
-        terminal.writeln("\r\n\x1b[31m● Disconnected\x1b[0m");
-      };
-
-      ws.onerror = () => {
-        terminal.writeln("\r\n\x1b[31m● Connection error\x1b[0m");
-      };
-
-      terminal.onData((data) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(data);
-        }
-      });
-
-      const el = termRef.current!;
-      const resizeObserver = new ResizeObserver(() => {
-        try {
-          fitAddon.fit();
-        } catch {}
-      });
-      resizeObserver.observe(el);
-
-      cleanup = () => {
-        resizeObserver.disconnect();
-        ws.close();
-        terminal.dispose();
-      };
-    })();
-
-    return () => {
-      cleanup?.();
-    };
-  }, [wsUrl]);
-
-  return <div ref={termRef} className="h-full w-full bg-[#09090b] p-1" />;
 }
 
 function DesktopView({ desktopUrl }: { desktopUrl: string }) {
@@ -283,10 +202,21 @@ export default function HypeshipAgentPane({
   const hasShell = !!worker?.shell_ws_url;
   const hasDesktop = !!worker?.desktop_url;
 
+  const artifacts: HypeshipArtifact[] = agent?.artifacts ?? [];
+  const prArtifacts = artifacts.filter((a) => a.type === "pull_request" && a.pr_url);
+  const prArtifact = prArtifacts[0];
+  const branchArtifact = artifacts.find((a) => a.branch);
+  const prUrl = prArtifact?.pr_url;
+  const prUrls = prArtifacts.map((a) => a.pr_url!);
+  const branchName = branchArtifact?.branch;
+  const repoName = (prArtifact?.repo || branchArtifact?.repo || "")
+    .replace(/^https?:\/\/github\.com\//, "");
+
   useEffect(() => {
     if (tab === "shell" && !hasShell) setTab("chat");
     if (tab === "desktop" && !hasDesktop) setTab("chat");
-  }, [tab, hasShell, hasDesktop]);
+    if (tab === "diff" && prUrls.length === 0) setTab("chat");
+  }, [tab, hasShell, hasDesktop, prUrls.length]);
 
   const prevTurnCount = useRef(turns.length);
   useEffect(() => {
@@ -390,14 +320,6 @@ export default function HypeshipAgentPane({
     turns.find((t) => t.role === "user")?.content?.slice(0, 60) ||
     agentId.slice(0, 12);
 
-  const artifacts: HypeshipArtifact[] = agent?.artifacts ?? [];
-  const prArtifact = artifacts.find((a) => a.type === "pull_request" && a.pr_url);
-  const branchArtifact = artifacts.find((a) => a.branch);
-  const prUrl = prArtifact?.pr_url;
-  const branchName = branchArtifact?.branch;
-  const repoName = (prArtifact?.repo || branchArtifact?.repo || "")
-    .replace(/^https?:\/\/github\.com\//, "");
-
   return (
     <div
       className={`flex flex-col flex-1 min-w-0 min-h-0 bg-zinc-950 ${isMobile ? "" : "border-r border-b border-zinc-800"} ${focused && !isMobile ? "ring-1 ring-inset ring-blue-500/60" : ""}`}
@@ -439,9 +361,10 @@ export default function HypeshipAgentPane({
             )}
           </div>
         <div className={`flex items-center ${isMobile ? "gap-1" : "gap-0.5"} shrink-0`}>
-          {(["chat", "shell", "desktop", "raw"] as const).map((t) => {
+          {(["chat", "shell", "desktop", "diff", "raw"] as const).map((t) => {
             if (t === "shell" && !hasShell) return null;
             if (t === "desktop" && !hasDesktop) return null;
+            if (t === "diff" && prUrls.length === 0) return null;
             return (
               <button
                 key={t}
@@ -606,6 +529,10 @@ export default function HypeshipAgentPane({
           ) : (
             <NoConnectionView label="desktop" />
           ))}
+
+        {tab === "diff" && prUrls.length > 0 && (
+          <HypeshipDiffPanel prUrls={prUrls} />
+        )}
 
         {tab === "raw" && (
           <div className="h-full overflow-y-auto p-2">

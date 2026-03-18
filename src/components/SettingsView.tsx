@@ -10,6 +10,7 @@ import {
   useHypeshipOrchestrator,
   resetHypeshipOrchestrator,
 } from "@/lib/api";
+import TerminalView from "@/components/TerminalView";
 import { timeAgo } from "@/components/HypeshipConversation";
 import type { HypeshipAuthConfig } from "@/lib/types";
 
@@ -99,9 +100,14 @@ function OrchestratorSection() {
           )}
 
           {orch.shell_ws_url && (
-            <p className="text-[10px] text-zinc-600 font-mono truncate">
-              ws: {orch.shell_ws_url}
-            </p>
+            <div className="space-y-1">
+              <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide">
+                shell
+              </p>
+              <div className="h-[400px] border border-zinc-800 rounded overflow-hidden">
+                <TerminalView wsUrl={orch.shell_ws_url} />
+              </div>
+            </div>
           )}
         </div>
       )}
