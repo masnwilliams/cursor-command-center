@@ -5,17 +5,17 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  applicationName: "Cursor Agents",
+  applicationName: "Hypeship",
   title: {
-    default: "Cursor Agents",
-    template: "%s — Cursor Agents",
+    default: "Hypeship",
+    template: "%s — Hypeship",
   },
-  description: "Dashboard for managing Cursor Cloud Agents",
+  description: "Dashboard for managing Hypeship agents",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Cursor Agents",
+    title: "Hypeship",
   },
   formatDetection: {
     telephone: false,
