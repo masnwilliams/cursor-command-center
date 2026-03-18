@@ -289,12 +289,21 @@ export default function HypeshipAgentPane({
   }, [tab, hasShell, hasDesktop]);
 
   const prevTurnCount = useRef(turns.length);
+
+  // When polling picks up new turns, clear the SSE streaming buffer to prevent
+  // duplicate text rendering (content already exists in the polled turns).
   useEffect(() => {
-    if (tab !== "chat") return;
-    if (turns.length > prevTurnCount.current || streamingText) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (turns.length > prevTurnCount.current) {
+      clearStream();
     }
     prevTurnCount.current = turns.length;
+  }, [turns.length, clearStream]);
+
+  useEffect(() => {
+    if (tab !== "chat") return;
+    if (turns.length || streamingText) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [turns.length, streamingText, tab]);
 
   useEffect(() => {
