@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       headers: {
         Authorization: `Bearer ${ghToken}`,
         Accept: "application/vnd.github.v3+json",
-        "User-Agent": "cursor-agents-ui",
+        "User-Agent": "hypeship-ui",
       },
     });
 

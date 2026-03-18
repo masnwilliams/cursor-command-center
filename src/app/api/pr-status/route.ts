@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const ghToken = req.headers.get("x-github-token");
   const headers: Record<string, string> = {
     Accept: "application/vnd.github.v3+json",
-    "User-Agent": "cursor-agents-ui",
+    "User-Agent": "hypeship-ui",
   };
   if (ghToken) {
     headers.Authorization = `Bearer ${ghToken}`;

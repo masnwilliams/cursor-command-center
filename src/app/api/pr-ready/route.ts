@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
         headers: {
           Accept: "application/vnd.github.v3+json",
           Authorization: `Bearer ${ghToken}`,
-          "User-Agent": "cursor-agents-ui",
+          "User-Agent": "hypeship-ui",
         },
       },
     );
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       headers: {
         Authorization: `Bearer ${ghToken}`,
         "Content-Type": "application/json",
-        "User-Agent": "cursor-agents-ui",
+        "User-Agent": "hypeship-ui",
       },
       body: JSON.stringify({
         query: `mutation($id: ID!) {
