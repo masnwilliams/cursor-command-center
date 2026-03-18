@@ -21,8 +21,9 @@ import type {
   HypeshipAgentStatus,
   HypeshipArtifact,
 } from "@/lib/types";
+import HypeshipDiffPanel from "@/components/HypeshipDiffPanel";
 
-type PaneTab = "chat" | "shell" | "desktop" | "raw";
+type PaneTab = "chat" | "shell" | "desktop" | "raw" | "diff";
 
 const STATUS_COLORS: Record<HypeshipAgentStatus, string> = {
   creating: "bg-amber-400",
@@ -201,10 +202,19 @@ export default function HypeshipAgentPane({
   const hasShell = !!worker?.shell_ws_url;
   const hasDesktop = !!worker?.desktop_url;
 
+  const artifacts: HypeshipArtifact[] = agent?.artifacts ?? [];
+  const prArtifact = artifacts.find((a) => a.type === "pull_request" && a.pr_url);
+  const branchArtifact = artifacts.find((a) => a.branch);
+  const prUrl = prArtifact?.pr_url;
+  const branchName = branchArtifact?.branch;
+  const repoName = (prArtifact?.repo || branchArtifact?.repo || "")
+    .replace(/^https?:\/\/github\.com\//, "");
+
   useEffect(() => {
     if (tab === "shell" && !hasShell) setTab("chat");
     if (tab === "desktop" && !hasDesktop) setTab("chat");
-  }, [tab, hasShell, hasDesktop]);
+    if (tab === "diff" && !prUrl) setTab("chat");
+  }, [tab, hasShell, hasDesktop, prUrl]);
 
   const prevTurnCount = useRef(turns.length);
   useEffect(() => {
@@ -308,14 +318,6 @@ export default function HypeshipAgentPane({
     turns.find((t) => t.role === "user")?.content?.slice(0, 60) ||
     agentId.slice(0, 12);
 
-  const artifacts: HypeshipArtifact[] = agent?.artifacts ?? [];
-  const prArtifact = artifacts.find((a) => a.type === "pull_request" && a.pr_url);
-  const branchArtifact = artifacts.find((a) => a.branch);
-  const prUrl = prArtifact?.pr_url;
-  const branchName = branchArtifact?.branch;
-  const repoName = (prArtifact?.repo || branchArtifact?.repo || "")
-    .replace(/^https?:\/\/github\.com\//, "");
-
   return (
     <div
       className={`flex flex-col flex-1 min-w-0 min-h-0 bg-zinc-950 ${isMobile ? "" : "border-r border-b border-zinc-800"} ${focused && !isMobile ? "ring-1 ring-inset ring-blue-500/60" : ""}`}
@@ -357,9 +359,10 @@ export default function HypeshipAgentPane({
             )}
           </div>
         <div className={`flex items-center ${isMobile ? "gap-1" : "gap-0.5"} shrink-0`}>
-          {(["chat", "shell", "desktop", "raw"] as const).map((t) => {
+          {(["chat", "shell", "desktop", "diff", "raw"] as const).map((t) => {
             if (t === "shell" && !hasShell) return null;
             if (t === "desktop" && !hasDesktop) return null;
+            if (t === "diff" && !prUrl) return null;
             return (
               <button
                 key={t}
@@ -524,6 +527,10 @@ export default function HypeshipAgentPane({
           ) : (
             <NoConnectionView label="desktop" />
           ))}
+
+        {tab === "diff" && prUrl && (
+          <HypeshipDiffPanel prUrl={prUrl} />
+        )}
 
         {tab === "raw" && (
           <div className="h-full overflow-y-auto p-2">
