@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -1564,6 +1564,7 @@ function PanesView({
   onLogout: () => void;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const basePath = env === "staging" ? "/staging" : "";
   const [grid, setGrid] = useState(() => getHypeshipGrid(env));
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -1587,6 +1588,18 @@ function PanesView({
     setMounted(true);
     return () => mq.removeEventListener("change", handler);
   }, []);
+
+  // Handle ?agent=<id> URL parameter: add pane if missing, then focus it
+  useEffect(() => {
+    const agentId = searchParams.get("agent");
+    if (!agentId) return;
+    const currentGrid = getHypeshipGrid(env);
+    if (!currentGrid.some((g) => g.agentId === agentId)) {
+      addToHypeshipGrid(agentId, env);
+      setGrid(getHypeshipGrid(env));
+    }
+    setFocusedId(agentId);
+  }, [searchParams, env]);
 
   const { data: agentsData } = useHypeshipAgents();
   const agents = agentsData?.agents ?? [];
