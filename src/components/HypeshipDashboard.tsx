@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -16,6 +16,8 @@ import {
   setHypeshipEnvJwt,
   clearHypeshipEnvAuth,
   activateHypeshipEnv,
+  getHypeshipApiKey,
+  setHypeshipApiKey,
   HYPESHIP_URLS,
 } from "@/lib/storage";
 import type { HypeshipEnv } from "@/lib/storage";
@@ -140,6 +142,8 @@ function WorkerStateDot({ state }: { state: HypeshipWorkerState }) {
 
 function SetupView({ env, onConnected }: { env: HypeshipEnv; onConnected: () => void }) {
   const [jwt, setJwt] = useState("");
+  const [apiKey, setApiKeyInput] = useState("");
+  const [authMethod, setAuthMethod] = useState<"jwt" | "apikey">("jwt");
   const [state, setState] = useState<SetupState>("idle");
   const [msg, setMsg] = useState("");
 
@@ -147,18 +151,32 @@ function SetupView({ env, onConnected }: { env: HypeshipEnv; onConnected: () => 
 
   useEffect(() => {
     const existingJwt = getHypeshipEnvJwt(env);
-    if (existingJwt) setJwt(existingJwt);
+    const existingApiKey = getHypeshipApiKey(env);
+    if (existingApiKey) {
+      setApiKeyInput(existingApiKey);
+      setAuthMethod("apikey");
+    }
+    if (existingJwt) {
+      setJwt(existingJwt);
+      if (!existingApiKey) setAuthMethod("jwt");
+    }
   }, [env]);
 
+  const activeValue = authMethod === "jwt" ? jwt : apiKey;
+
   useEffect(() => {
-    if (!jwt.trim()) {
+    if (!activeValue.trim()) {
       setState("idle");
       setMsg("");
       return;
     }
     setState("testing");
     const timer = setTimeout(async () => {
-      setHypeshipEnvJwt(env, jwt.trim());
+      if (authMethod === "jwt") {
+        setHypeshipEnvJwt(env, jwt.trim());
+      } else {
+        setHypeshipApiKey(env, apiKey.trim());
+      }
       activateHypeshipEnv(env);
       try {
         const health = await testHypeshipConnection();
@@ -175,11 +193,15 @@ function SetupView({ env, onConnected }: { env: HypeshipEnv; onConnected: () => 
       }
     }, 600);
     return () => clearTimeout(timer);
-  }, [env, jwt]);
+  }, [env, activeValue, authMethod]);
 
   function handleContinue() {
     if (state !== "success") return;
-    setHypeshipEnvJwt(env, jwt.trim());
+    if (authMethod === "jwt") {
+      setHypeshipEnvJwt(env, jwt.trim());
+    } else {
+      setHypeshipApiKey(env, apiKey.trim());
+    }
     activateHypeshipEnv(env);
     onConnected();
   }
@@ -220,19 +242,55 @@ function SetupView({ env, onConnected }: { env: HypeshipEnv; onConnected: () => 
             <p className="text-[10px] text-zinc-600 font-mono">{apiUrl}</p>
           </div>
           <div className="space-y-1.5">
-            <p className="text-[10px] text-zinc-500 font-mono">
-              jwt token — HS256 signed with your HYPESHIP_JWT_SECRET
-            </p>
             <div className="flex items-center gap-2">
-              <input
-                type="password"
-                value={jwt}
-                onChange={(e) => setJwt(e.target.value)}
-                placeholder="eyJhbGciOi..."
-                className="flex-1 border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
-              />
-              {stateIcon(state)}
+              <button
+                onClick={() => setAuthMethod("apikey")}
+                className={`text-[10px] font-mono ${authMethod === "apikey" ? "text-zinc-300" : "text-zinc-600 hover:text-zinc-400"}`}
+              >
+                api key
+              </button>
+              <span className="text-[10px] text-zinc-700 font-mono">/</span>
+              <button
+                onClick={() => setAuthMethod("jwt")}
+                className={`text-[10px] font-mono ${authMethod === "jwt" ? "text-zinc-300" : "text-zinc-600 hover:text-zinc-400"}`}
+              >
+                jwt
+              </button>
             </div>
+            {authMethod === "apikey" ? (
+              <>
+                <p className="text-[10px] text-zinc-500 font-mono">
+                  hypeship api key — {env === "production" ? "HYPESHIP_PROD_API_KEY" : "HYPESHIP_STAGING_API_KEY"}
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder="hs_..."
+                    autoFocus
+                    className="flex-1 border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
+                  />
+                  {stateIcon(state)}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-[10px] text-zinc-500 font-mono">
+                  jwt token — HS256 signed with your HYPESHIP_JWT_SECRET
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    value={jwt}
+                    onChange={(e) => setJwt(e.target.value)}
+                    placeholder="eyJhbGciOi..."
+                    className="flex-1 border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 outline-none focus:border-zinc-600 font-mono"
+                  />
+                  {stateIcon(state)}
+                </div>
+              </>
+            )}
             {state === "success" && (
               <p className="text-[10px] text-emerald-400/70 font-mono">{msg}</p>
             )}
@@ -1506,6 +1564,7 @@ function PanesView({
   onLogout: () => void;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const basePath = env === "staging" ? "/staging" : "";
   const [grid, setGrid] = useState(() => getHypeshipGrid(env));
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -1529,6 +1588,18 @@ function PanesView({
     setMounted(true);
     return () => mq.removeEventListener("change", handler);
   }, []);
+
+  // Handle ?agent=<id> URL parameter: add pane if missing, then focus it
+  useEffect(() => {
+    const agentId = searchParams.get("agent");
+    if (!agentId) return;
+    const currentGrid = getHypeshipGrid(env);
+    if (!currentGrid.some((g) => g.agentId === agentId)) {
+      addToHypeshipGrid(agentId, env);
+      setGrid(getHypeshipGrid(env));
+    }
+    setFocusedId(agentId);
+  }, [searchParams, env]);
 
   const { data: agentsData } = useHypeshipAgents();
   const agents = agentsData?.agents ?? [];
@@ -1696,7 +1767,7 @@ function PanesView({
     });
     cmds.push({
       id: "cursor",
-      label: "open cursor agents",
+      label: "open hypeship agents",
       section: "app",
       action: () => router.push("/cursor"),
     });

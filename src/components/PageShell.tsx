@@ -70,7 +70,7 @@ export default function PageShell({
     });
     cmds.push({
       id: "cursor",
-      label: "open cursor agents",
+      label: "open hypeship agents",
       section: "app",
       action: () => router.push("/cursor"),
     });

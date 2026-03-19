@@ -44,6 +44,7 @@ import {
   setCachedBranches,
   getHypeshipApiUrl,
   getHypeshipJwt,
+  getActiveHypeshipApiKey,
 } from "./storage";
 
 function headers(): Record<string, string> {
@@ -347,6 +348,8 @@ function hypeshipHeaders(): Record<string, string> {
   if (url) h["x-hypeship-url"] = url;
   const jwt = getHypeshipJwt();
   if (jwt) h["x-hypeship-jwt"] = jwt;
+  const apiKey = getActiveHypeshipApiKey();
+  if (apiKey) h["x-hypeship-api-key"] = apiKey;
   return h;
 }
 

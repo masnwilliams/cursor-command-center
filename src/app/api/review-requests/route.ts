@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const ghHeaders: Record<string, string> = {
     Authorization: `Bearer ${ghToken}`,
     Accept: "application/vnd.github.v3+json",
-    "User-Agent": "cursor-agents-ui",
+    "User-Agent": "hypeship-ui",
   };
 
   try {

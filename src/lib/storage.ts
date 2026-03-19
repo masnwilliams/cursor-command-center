@@ -1,17 +1,19 @@
 import type { GridItem, Repository } from "./types";
 
 const KEYS = {
-  apiKey: "cursor-agents-api-key",
-  githubToken: "cursor-agents-github-token",
-  githubLogin: "cursor-agents-github-login",
-  grid: "cursor-agents-grid",
-  repos: "cursor-agents-repos",
-  reposTimestamp: "cursor-agents-repos-ts",
-  branches: "cursor-agents-branches",
-  drafts: "cursor-agents-drafts",
-  soundEnabled: "cursor-agents-sound-enabled",
+  apiKey: "hypeship-cursor-api-key",
+  githubToken: "hypeship-github-token",
+  githubLogin: "hypeship-github-login",
+  grid: "hypeship-cursor-grid",
+  repos: "hypeship-repos",
+  reposTimestamp: "hypeship-repos-ts",
+  branches: "hypeship-branches",
+  drafts: "hypeship-drafts",
+  soundEnabled: "hypeship-sound-enabled",
   hypeshipApiUrl: "hypeship-api-url",
   hypeshipJwt: "hypeship-jwt",
+  hypeshipProdApiKey: "hypeship-prod-api-key",
+  hypeshipStagingApiKey: "hypeship-staging-api-key",
   hypeshipView: "hypeship-view",
   hypeshipGrid: "hypeship-grid",
 } as const;
@@ -260,6 +262,42 @@ export function setHypeshipEnvJwt(env: HypeshipEnv, jwt: string): void {
 
 export function clearHypeshipEnvAuth(env: HypeshipEnv): void {
   localStorage.removeItem(`hypeship-${env}-jwt`);
+  const apiKeyKey =
+    env === "production" ? KEYS.hypeshipProdApiKey : KEYS.hypeshipStagingApiKey;
+  localStorage.removeItem(apiKeyKey);
+}
+
+// Per-environment API key storage
+export function getHypeshipApiKey(env: HypeshipEnv): string | null {
+  if (typeof window === "undefined") return null;
+  const key =
+    env === "production" ? KEYS.hypeshipProdApiKey : KEYS.hypeshipStagingApiKey;
+  const envVar =
+    env === "production"
+      ? process.env.NEXT_PUBLIC_HYPESHIP_PROD_API_KEY
+      : process.env.NEXT_PUBLIC_HYPESHIP_STAGING_API_KEY;
+  return localStorage.getItem(key) || envVar || null;
+}
+
+export function setHypeshipApiKey(env: HypeshipEnv, apiKey: string): void {
+  const key =
+    env === "production" ? KEYS.hypeshipProdApiKey : KEYS.hypeshipStagingApiKey;
+  localStorage.setItem(key, apiKey);
+}
+
+export function clearHypeshipApiKey(env: HypeshipEnv): void {
+  const key =
+    env === "production" ? KEYS.hypeshipProdApiKey : KEYS.hypeshipStagingApiKey;
+  localStorage.removeItem(key);
+}
+
+// Get the active API key (for the currently activated environment)
+export function getActiveHypeshipApiKey(): string | null {
+  if (typeof window === "undefined") return null;
+  const url = getHypeshipApiUrl();
+  if (!url) return null;
+  const env: HypeshipEnv = url.includes("staging") ? "staging" : "production";
+  return getHypeshipApiKey(env);
 }
 
 export function activateHypeshipEnv(env: HypeshipEnv): void {

@@ -1,10 +1,10 @@
-# Cursor Command Center
+# Hypeship
 
-A tmux-style dashboard for managing [Cursor Cloud Agents](https://cursor.com/docs/cloud-agent/api/endpoints). View multiple agent conversations side-by-side, send follow-ups, launch new agents, and quick-start PR reviews — all from a keyboard-driven PWA.
+A tmux-style dashboard for managing agents. View multiple agent conversations side-by-side, send follow-ups, launch new agents, and quick-start PR reviews — all from a keyboard-driven PWA.
 
 ## Get Started
 
-**Go to [cmdcenter.dev](https://cmdcenter.dev)**, enter your [Cursor API key](https://cursor.com/dashboard?tab=integrations), and you're in. Install it as a PWA on your phone or desktop for the full app experience.
+**Go to [cmdcenter.dev](https://cmdcenter.dev)**, enter your API key, and you're in. Install it as a PWA on your phone or desktop for the full app experience.
 
 Or self-host it:
 
@@ -19,7 +19,7 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 ## Security
 
-**Your Cursor API key never leaves your browser.** It's stored in `localStorage` on your device and proxied directly to Cursor's API. There is no server-side storage, no database, no analytics, and no third-party services. We never see or store your key. Each device stores its own key independently.
+**Your API key never leaves your browser.** It's stored in `localStorage` on your device and proxied directly to the API. There is no server-side storage, no database, no analytics, and no third-party services. We never see or store your key. Each device stores its own key independently.
 
 ## Keyboard Shortcuts
 

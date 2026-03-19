@@ -2,7 +2,7 @@
 
 ## Overview
 
-Cursor Command Center is a tmux-style PWA for managing Cursor Cloud Agents. It provides a grid of live conversation panes, keyboard-driven workflows, and a PR review quick-launcher.
+Hypeship is a tmux-style PWA for managing agents. It provides a grid of live conversation panes, keyboard-driven workflows, and a PR review quick-launcher.
 
 ## Tech Stack
 

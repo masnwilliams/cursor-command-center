@@ -189,7 +189,7 @@ export default function SetupPage() {
             <p className="text-[10px] text-zinc-500 font-mono">
               github token —{" "}
               <a
-                href="https://github.com/settings/personal-access-tokens/new?description=cursor-command-center&contents=read&pull_requests=read&metadata=read"
+                href="https://github.com/settings/personal-access-tokens/new?description=hypeship&contents=read&pull_requests=read&metadata=read"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-400 hover:text-blue-300 underline"
@@ -198,7 +198,7 @@ export default function SetupPage() {
               </a>
               {" · "}
               <a
-                href="https://github.com/settings/tokens/new?description=cursor-command-center&scopes=repo"
+                href="https://github.com/settings/tokens/new?description=hypeship&scopes=repo"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-400 hover:text-blue-300 underline"

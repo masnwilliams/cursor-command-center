@@ -518,7 +518,7 @@ export default function DashboardPage() {
       <div className="h-full bg-zinc-950 flex flex-col">
         <div className="flex items-center justify-between border-b border-zinc-800 px-3 sm:px-2 py-2 sm:py-1 bg-zinc-900/60">
           <span className="text-xs sm:text-[10px] text-zinc-500 font-mono">
-            cursor-agents
+            hypeship
           </span>
           <div className="flex items-center gap-4 sm:gap-3">
             <button
@@ -737,7 +737,7 @@ export default function DashboardPage() {
       {/* Top bar */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-3 sm:px-2 py-2 sm:py-0.5 bg-zinc-900/60 shrink-0">
         <span className="text-xs sm:text-[10px] text-zinc-500 font-mono">
-          cursor-agents — {paneCount} pane{paneCount !== 1 ? "s" : ""}
+          hypeship — {paneCount} pane{paneCount !== 1 ? "s" : ""}
         </span>
         <div className="flex items-center gap-4 sm:gap-3">
           <button

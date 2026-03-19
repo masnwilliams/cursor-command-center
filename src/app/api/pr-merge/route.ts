@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
         headers: {
           Accept: "application/vnd.github.v3+json",
           Authorization: `Bearer ${ghToken}`,
-          "User-Agent": "cursor-agents-ui",
+          "User-Agent": "hypeship-ui",
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ merge_method: mergeMethod }),
