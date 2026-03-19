@@ -1907,7 +1907,11 @@ function PanesView({
           )}
           {filteredPrs.length === 0 && reviewPrs.length === 0 && (
             <div className="px-3 py-4 text-center">
-              <span className="text-[10px] text-zinc-600 font-mono">no pending review requests</span>
+              <span className="text-[10px] text-zinc-600 font-mono">
+                {!getHypeshipApiUrl() || !getHypeshipJwt()
+                  ? "configure hypeship and link your github account to see review requests"
+                  : "no pending review requests"}
+              </span>
             </div>
           )}
           {filteredPrs.length === 0 && reviewPrs.length > 0 && (
